@@ -31,7 +31,6 @@
 -define(BYTE_ARRAY_OFFSET   , 128).
 -define(LIST_OFFSET         , 192).
 
-
 -spec encode(encodable()) -> encoded().
 encode(X) ->
     encode(X, []).

@@ -38,10 +38,13 @@ parse_transform(Forms, Options) ->
                 ]),
                 write_line(Handle, 0, "-}", []),
                 write_line(Handle, 0, "", []),
-                %% Ok It's time for some canonical imports :)
+                %% Ok It's time for some canonical imports which will be used a lot :)
                 write_lines(Handle, 0, [
                     {"import Prelude", []},
-                    {"import Erlang.Type (ErlangTerm(..))", []}
+                    {"import Erlang.Type (ErlangTerm(..))", []},
+                    {"import Effect (Effect)", []},
+                    %%{"import Effect.Unsafe (unsafePerformEffect)", []},
+                    {"", []}
                 ]),
                 %% Now it's time to determine what modules to import
                 %% First filter out functions to transpile
@@ -49,9 +52,12 @@ parse_transform(Forms, Options) ->
                 FunctionNames = sets:from_list([Name || {Name, _} <- FunctionForms]),
                 %% Now walk the entire AST and search for calls/remote_calls
                 Calls = lists:usort([X || X <- lists:flatten([import_resolver_fun_clauses(X, FunctionNames) || {_, X} <- FunctionForms]), X /= undefined]),
-                io:format("Module calls: ~p\n", [Calls]),
+                erlscripten_logger:debug("Module calls: ~p", [Calls]),
                 Imports = lists:usort([M || {M, _} <- Calls]),
-                [write_line(Handle, 0, "import ~s as ~s", [erlang_module_to_purs_module(Import), erlang_module_to_qualified_import(Import)]) || Import <- Imports]
+                [write_line(Handle, 0, "import ~s as ~s", [erlang_module_to_purs_module(Import), erlang_module_to_qualified_import(Import)]) || Import <- Imports],
+                write_line(Handle, 0, "", []),
+                %% Now do the dirty work - transpile every function OwO
+                [transpile_function(Function, Records, FunctionNames, Handle) || Function <- FunctionForms]
         end,
         Forms
     catch Error:Reason:StackTrace ->
@@ -119,9 +125,8 @@ filter_function_forms(_) ->
 import_resolver_fun_clauses(Clauses, FNames) ->
     [import_resolver_fun_clause(X, FNames) || X <- Clauses].
 import_resolver_fun_clause({clause, _, _Args, Guards, Body}, FNames) ->
-    [import_resolver_fun_oplist(Guard, FNames) || Guard <- Guards]
-    ++
-    [import_resolver_fun_oplist(Body, FNames)].
+    [ [import_resolver_fun_oplist(Guard, FNames) || Guard <- Guards]
+    , [import_resolver_fun_oplist(Body, FNames)]].
 
 import_resolver_fun_oplist(Ops, FNames) ->
     [import_resolver_fun_op(Op, FNames) || Op <- Ops].
@@ -186,7 +191,7 @@ import_resolver_call(Where, What, Arity, _) ->
             %%io:format("CALLED_REMOTE: ~p\n", [Module]),
             {Module, What};
         unknown ->
-            io:format("Asuming transpiled purescript module: ~p\n", [Where]),
+            erlscripten_logger:debug("Assuming transpiled purescript module: ~p", [Where]),
             {Where, What}
     end.
 
@@ -197,3 +202,143 @@ module_polifill(base64) -> {ok, erlang_base64};
 module_polifill(crypto) -> {ok, erlang_crypto};
 module_polifill(lists) -> {ok, erlang_lists};
 module_polifill(_) -> unknown.
+
+transpile_function({{FunName, Arity}, Clauses}, Records, FNames, Handle) ->
+    %% Ok time to emit the type for the purescript compiler
+    write_line(Handle, 0, "~s :: Partial => ~sEffect ErlangTerm", [FunName, string:copies("ErlangTerm -> ", Arity)]),
+    [transpile_function_clause(FunName, Clause, Records, FNames, Handle) || Clause <- Clauses],
+    write_line(Handle, 0, "", []).
+
+%% Simplified purescript AST - keep it as simple as possible
+-type purs_ast() ::
+      {operator, string(), purs_ast(), purs_ast()}
+    | {num, number()}
+    | {string, string()}
+    | {var, string()}
+    | {cons, string(), [purs_ast()]}
+    | {array, [purs_ast()]}
+    | {named_pattern, string(), purs_ast()}.
+
+purs_ast_to_str({operator, Name, Ast1, Ast2}) ->
+    io_lib:format("~s ~s ~s", [purs_ast_to_str(Ast1), Name, purs_ast_to_str(Ast2)]);
+purs_ast_to_str({num, Number}) ->
+    io_lib:format("~p", [Number]);
+purs_ast_to_str({string, Str}) ->
+    io_lib:format("\"~s\"", [Str]);
+purs_ast_to_str({var, Str}) ->
+    io_lib:format("~s", [Str]);
+purs_ast_to_str({cons, Name, []}) ->
+    io_lib:format("(~s)", [Name]);
+purs_ast_to_str({cons, Name, Args}) ->
+    io_lib:format("(~s ~s)", [Name, string:join([purs_ast_to_str(Arg) || Arg <- Args], " ")]);
+purs_ast_to_str({array, Args}) ->
+    io_lib:format("[~s]", [string:join([purs_ast_to_str(Arg) || Arg <- Args], ", ")]);
+purs_ast_to_str({named_pattern, PatternName, Ast}) ->
+    io_lib:format("~s@(~s)", [PatternName, purs_ast_to_str(Ast)]).
+
+transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records, FNames, Handle) ->
+    %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
+    %% cannot be expressed as matches in Purescipt BUT we may emulate them in guards!
+    %% Guards in purescript are really powerful - using patten guards we will emulate what we want
+    %% Now we need to determine 2 important things:
+    %% 1) What to match in the function head
+    %% 2) What to assert in the guard
+    %% We also need to emulate erlang's semantics of matching by value
+    %% Important:
+    %% 1) Standalone variables are the simplest case to consider
+    %% 2) Literal atoms/strings/tuples are easy
+    %% 3) Binaries are a PITA
+    %% Keeping track of variable bindings in a pure functional way will be a PITA
+    %% Let's use the process dictionary to emulate a state monad and then gather results at the end
+    %% Only after we emitted the guards which will bring the referenced variables in scope
+    %% we may add the guards from erlang :)
+    %% When matching by value always create a new variable and AFTER all the guards which
+    %% will bring the vars in the proper scope we will assert equality
+    %% What essentially we want to generate:
+    %% fun_name match1 match2 ... matchN | g_match1, g_match2, ..., g_matchN, ERLANG_MATCH_BY_VALUE, user erlang guard expressions
+    %% Some guards which we may emit are in the state monad
+    %% To deal with it just emit "unsafePerformEffect" and add guards which will ensure that
+    %% The effectful computation won't throw an exception
+    %% For instance: when dealing with <<X>> first emit a check for the length and
+    %% only then unsafely access the specified byte in the binary
+    state_clear_vars(),
+    S = [transpile_fun_arg(Arg, Records) || Arg <- Args, is_tuple(Arg)],
+    PSArgs = [A || {A, _, _} <- S],
+    %% First the guards which will create the variable bindings
+    %% Then the guards which will ensure term equality
+    PsGuards = lists:flatten([G || {_, G, _} <- S]) ++ lists:flatten([G || {_, _, G} <- S]),
+    erlscripten_logger:debug("GUARD: ~p", [Guards]),
+    write_line(Handle, 0, "~s ~s~s = do", [FunName, format_fun_args(PSArgs), format_fun_guards(PsGuards)]).
+
+format_fun_args(Args) ->
+    string:join([purs_ast_to_str(Arg) || Arg <- Args], " ").
+format_fun_guards([]) ->
+    "";
+format_fun_guards(Guards) ->
+    io_lib:format(" | ~s", [string:join([purs_ast_to_str(G) || G <- Guards], ", ")]).
+
+%% Returns {match, g_match, values_eq}
+transpile_fun_arg({atom, _, Atom}, _) ->
+    {{cons, "ErlangAtom", [{string, Atom}]}, [], []};
+transpile_fun_arg({var, _, [$_|_]}, _) ->
+    {{var, "_"}, [], []};
+transpile_fun_arg({var, _, ErlangVar}, _) ->
+    Var = state_get_unused_var(),
+    case state_is_used(ErlangVar) of
+        false ->
+            state_put_var(ErlangVar, Var),
+            {{var, Var}, [], []};
+        true ->
+            %% Variable was used before so emit an extra guard
+            state_put_var(Var, Var),
+            {{var, Var}, [], [{operator, "==", {var, Var}, {var, state_get_var(ErlangVar)}}]}
+    end;
+transpile_fun_arg({integer, _, Num}, _) ->
+    %% TODO: Check if this num is small enough to be an JS int
+    Var = state_get_unused_var(),
+    state_put_var(Var, Var),
+    {{named_pattern, Var, {cons, "ErlangNum", [{var, "_"}]}}, [{operator, "==", {var, Var}, {cons, "ErlangNum.fromInt", [{num, Num}]}}], []};
+transpile_fun_arg({tuple, _, Args}, Records) ->
+    S = [transpile_fun_arg(Arg, Records) || Arg <- Args, is_tuple(Arg)],
+    PSArgs = [A || {A, _, _} <- S],
+    PsVarGuards = lists:flatten([G || {_, G, _} <- S]),
+    PsValGuards = lists:flatten([G || {_, _, G} <- S]),
+    {{cons, "ErlangTuple", [{array, PSArgs}]}, PsVarGuards, PsValGuards};
+transpile_fun_arg({record, Ann, RecordName, RecordFields}, Records) ->
+    %% Convert this to a tuple
+    Matches = [record_fields(X) || X <- RecordFields],
+    Fields = [{atom, Ann, RecordName}] ++ [proplists:get_value(FieldName, Matches, {var, Ann, "_"}) || {FieldName, _} <- maps:get(RecordName, Records)],
+    transpile_fun_arg({tuple, Ann, Fields}, Records);
+transpile_fun_arg({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
+    %% Binary string literal
+    %% Assert buffer length and then compare with str
+    Var = state_get_unused_var(),
+    state_put_var(Var, Var),
+    {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
+        {operator, "==", {num, length(Str)}, {cons, "ErlangBinary.byte_size", [{var, Var}]}},
+        {cons, "ErlangBinary.strcmp", [{var, Var}, {string, Str}]}
+    ], []};
+transpile_fun_arg({bin, _, []}, _) ->
+    %% Empty binary - guard for size eq 0
+    Var = state_get_unused_var(),
+    state_put_var(Var, Var),
+    {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
+        {operator, "==", {num, 0}, {cons, "ErlangBinary.byte_size", [{var, Var}]}}
+    ], []};
+transpile_fun_arg(Arg, _Records) ->
+    erlscripten_logger:debug("~p", [Arg]).
+
+%% Hacky emulation of a state monad using the process dictionary :P
+-define(BINDINGS, var_bindings).
+state_clear_vars() ->
+    put(?BINDINGS, #{}).
+state_get_vars() ->
+    get(?BINDINGS).
+state_get_unused_var() ->
+    "v" ++ integer_to_list(map_size(state_get_vars())).
+state_put_var(ErlangVar, PsVar) ->
+    put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
+state_is_used(ErlangVar) ->
+    maps:is_key(ErlangVar, state_get_vars()).
+state_get_var(ErlangVar) ->
+    maps:get(ErlangVar, state_get_vars()).

@@ -54,6 +54,9 @@
 -define(BASE58, 1).
 -define(BASE64, 2).
 
+a(X, X, Y, Z, Z) -> X+Z;
+a(X, Z, A, A, Z) -> X+Z.
+
 -spec encode(known_type(), payload() | aeser_id:id()) -> encoded().
 encode(id_hash, Payload) ->
     {IdType, Val} = aeser_id:specialize(Payload),
