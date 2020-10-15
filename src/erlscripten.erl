@@ -62,7 +62,7 @@ parse_transform(Forms, Options) ->
         Forms
     catch Error:Reason:StackTrace ->
         erlscripten_logger:die(FileName,
-            io_lib:format("Error: ~s\nReason: ~p\nStacktrace: ~p\n", [atom_to_binary(Error), Reason, StackTrace])
+            io_lib:format("Error: ~s\nReason: ~p\nStacktrace: ~p\n", [atom_to_list(Error), Reason, StackTrace])
         )
     end.
 
@@ -76,7 +76,8 @@ filter_module_attributes({attribute, _, erlscripten_output, Directory}) when is_
 filter_module_attributes(_) -> undefined.
 
 record_fields({record_field, _, {atom, N, FieldName}}) -> {FieldName, {atom, N, undefined}};
-record_fields({record_field, _, {atom, _, FieldName}, Default}) -> {FieldName, Default}.
+record_fields({record_field, _, {atom, _, FieldName}, Default}) -> {FieldName, Default};
+record_fields({typed_record_field, RecordField, _}) -> record_fields(RecordField).
 
 generate_template(DestDir) ->
     SupportDir = filename:join(code:priv_dir(erlscripten), "support"),
@@ -262,7 +263,7 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records, FNa
     %% For instance: when dealing with <<X>> first emit a check for the length and
     %% only then unsafely access the specified byte in the binary
     state_clear_vars(),
-    S = [transpile_fun_arg(Arg, Records) || Arg <- Args, is_tuple(Arg)],
+    S = [transpile_pattern(Arg, Records) || Arg <- Args, is_tuple(Arg)],
     PSArgs = [A || {A, _, _} <- S],
     %% First the guards which will create the variable bindings
     %% Then the guards which will ensure term equality
@@ -277,56 +278,124 @@ format_fun_guards([]) ->
 format_fun_guards(Guards) ->
     io_lib:format(" | ~s", [string:join([purs_ast_to_str(G) || G <- Guards], ", ")]).
 
+ps_cons(Name) -> {cons, Name, []}.
+ps_cons(Name, Args) -> {cons, Name, Args}.
+ps_string(String) -> {string, String}.
+ps_var(Name) -> {var, Name}.
+ps_erl_atom(Atom) -> ps_cons("ErlangAtom", [ps_string(Atom)]).
+ps_erl_num(Ast) -> ps_cons("ErlangNum", [Ast]).
+ps_bin_op(Arg1, Op, Arg2) -> {operator, Op, Arg1, Arg2}.
+ps_named_pattern(Name, Ast) -> {named_pattern, Name, Ast}.
+
+%% An erlang pattern can always be compiled to a purescript pattern and a list of guards
 %% Returns {match, g_match, values_eq}
-transpile_fun_arg({atom, _, Atom}, _) ->
-    {{cons, "ErlangAtom", [{string, Atom}]}, [], []};
-transpile_fun_arg({var, _, [$_|_]}, _) ->
-    {{var, "_"}, [], []};
-transpile_fun_arg({var, _, ErlangVar}, _) ->
-    Var = state_get_unused_var(),
-    case state_is_used(ErlangVar) of
-        false ->
-            state_put_var(ErlangVar, Var),
-            {{var, Var}, [], []};
-        true ->
-            %% Variable was used before so emit an extra guard
-            state_put_var(Var, Var),
-            {{var, Var}, [], [{operator, "==", {var, Var}, {var, state_get_var(ErlangVar)}}]}
-    end;
-transpile_fun_arg({integer, _, Num}, _) ->
-    %% TODO: Check if this num is small enough to be an JS int
-    Var = state_get_unused_var(),
-    state_put_var(Var, Var),
-    {{named_pattern, Var, {cons, "ErlangNum", [{var, "_"}]}}, [{operator, "==", {var, Var}, {cons, "ErlangNum.fromInt", [{num, Num}]}}], []};
-transpile_fun_arg({tuple, _, Args}, Records) ->
-    S = [transpile_fun_arg(Arg, Records) || Arg <- Args, is_tuple(Arg)],
-    PSArgs = [A || {A, _, _} <- S],
-    PsVarGuards = lists:flatten([G || {_, G, _} <- S]),
-    PsValGuards = lists:flatten([G || {_, _, G} <- S]),
-    {{cons, "ErlangTuple", [{array, PSArgs}]}, PsVarGuards, PsValGuards};
-transpile_fun_arg({record, Ann, RecordName, RecordFields}, Records) ->
-    %% Convert this to a tuple
-    Matches = [record_fields(X) || X <- RecordFields],
-    Fields = [{atom, Ann, RecordName}] ++ [proplists:get_value(FieldName, Matches, {var, Ann, "_"}) || {FieldName, _} <- maps:get(RecordName, Records)],
-    transpile_fun_arg({tuple, Ann, Fields}, Records);
-transpile_fun_arg({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
+%% match is an purescript pattern, g_match are the pattern guards which will bring the
+%% necessary bindings to the appropriate scope, values_eq ensure erlang term equality
+%% for cosmetic reasons values_eq are aggregated and evaluated only after all g_match got executed
+%% https://erlang.org/doc/apps/erts/absform.html#patterns
+%% Atomic Literals
+transpile_pattern({atom, _, Atom}, _) ->
+    {ps_erl_atom(Atom), [], []};
+transpile_pattern({char, _, Char}, _) ->
+    error(todo);
+transpile_pattern({float, _, Float}, _) ->
+    error(todo);
+transpile_pattern({op, _, "-", {float, Ann, Num}}, Records) ->
+    transpile_pattern({float, Ann, -Num}, Records);
+transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
+    Var = state_create_fresh_var(),
+    {ps_named_pattern(Var, ps_erl_num(ps_var("_"))), [ps_bin_op(ps_var(Var), "==", ps_cons("ErlangNum.fromInt", [{num, Num}]))], []};
+transpile_pattern({integer, _, Num}, _) ->
+    Var = state_create_fresh_var(),
+    {ps_named_pattern(Var, ps_erl_num(ps_var("_"))), [ps_bin_op(ps_var(Var), "==", ps_cons("ErlangNum.fromString", [{string, integer_to_list(Num)}]))], []};
+transpile_pattern({op, _, "-", {integer, Ann, Num}}, Records) ->
+    transpile_pattern({integer, Ann, -Num}, Records);
+transpile_pattern({string, _, Str}, _) ->
+    {ps_string(Str), [], []};
+
+%% Bitstring pattern
+transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
     %% Binary string literal
     %% Assert buffer length and then compare with str
-    Var = state_get_unused_var(),
-    state_put_var(Var, Var),
+    Var = state_create_fresh_var(),
     {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
         {operator, "==", {num, length(Str)}, {cons, "ErlangBinary.byte_size", [{var, Var}]}},
         {cons, "ErlangBinary.strcmp", [{var, Var}, {string, Str}]}
     ], []};
-transpile_fun_arg({bin, _, []}, _) ->
+transpile_pattern({bin, _, []}, _) ->
     %% Empty binary - guard for size eq 0
-    Var = state_get_unused_var(),
-    state_put_var(Var, Var),
+    Var = state_create_fresh_var(),
     {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
         {operator, "==", {num, 0}, {cons, "ErlangBinary.byte_size", [{var, Var}]}}
     ], []};
-transpile_fun_arg(Arg, _Records) ->
-    erlscripten_logger:debug("~p", [Arg]).
+
+%% Compound pattern
+transpile_pattern({match, _, P1, P2}, Records) ->
+    {H1, G1, V1} = transpile_pattern(P1, Records),
+    {H2, G2, V2} = transpile_pattern(P2, Records),
+    Var = state_create_fresh_var(),
+    {ps_named_pattern(Var, H2), [ps_bin_op(H1, "<-", ps_var(Var))] ++ G1 ++ G2, V1 ++ V2};
+
+%% Cons pattern
+transpile_pattern({cons, _, Head, Tail}, Records) ->
+    error(todo);
+
+%% Map pattern
+transpile_pattern({map, _, Associations}, Records) ->
+    error(todo);
+
+%% Nil pattern
+transpile_pattern({nil, _}, Records) ->
+    error(todo);
+
+%% Operator pattern
+transpile_pattern({op, _, Op, P1, P2}, Records) ->
+    %% this is either an occurrence of ++ applied to a literal string or character list,
+    %% or an occurrence of an expression that can be evaluated to a number at compile time
+    error(todo);
+transpile_pattern({op, _, Op, P1}, Records) ->
+    %% this is an occurrence of an expression that can be evaluated to a number at compile time
+    error(todo);
+
+%% Record index pattern
+transpile_pattern({record_index, _, RecordName, Field}, Records) ->
+    error(todo);
+
+%% Record pattern
+transpile_pattern({record, Ann, RecordName, RecordFields}, Records) ->
+    %% Convert this to a tuple
+    Matches = [record_fields(X) || X <- RecordFields],
+    Fields = [{atom, Ann, RecordName}] ++ [proplists:get_value(FieldName, Matches, {var, Ann, "_"}) || {FieldName, _} <- maps:get(RecordName, Records)],
+    transpile_pattern({tuple, Ann, Fields}, Records);
+
+%% Tuple pattern
+transpile_pattern({tuple, _, Args}, Records) ->
+    S = [transpile_pattern(Arg, Records) || Arg <- Args, is_tuple(Arg)],
+    PSArgs = [A || {A, _, _} <- S],
+    PsVarGuards = lists:flatten([G || {_, G, _} <- S]),
+    PsValGuards = lists:flatten([G || {_, _, G} <- S]),
+    {{cons, "ErlangTuple", [{array, PSArgs}]}, PsVarGuards, PsValGuards};
+
+%% Universal pattern
+transpile_pattern({var, _, [$_|_]}, _) ->
+    {ps_var("_"), [], []};
+
+%% Variable pattern
+transpile_pattern({var, _, ErlangVar}, _) ->
+    Var = state_get_unused_var_name(),
+    case state_is_used(ErlangVar) of
+        false ->
+            state_put_var(ErlangVar, Var),
+            {ps_var(Var), [], []};
+        true ->
+            %% Variable was used before so emit an extra guard
+            state_put_var(Var, Var),
+            {ps_var(Var), [], [ps_bin_op(ps_var(Var), "==", ps_var(state_get_var(ErlangVar)))]}
+    end;
+
+transpile_pattern(Arg, _Records) ->
+    erlscripten_logger:debug("~p", [Arg]),
+    {ps_var("TODO"), [], []}.
 
 %% Hacky emulation of a state monad using the process dictionary :P
 -define(BINDINGS, var_bindings).
@@ -334,10 +403,14 @@ state_clear_vars() ->
     put(?BINDINGS, #{}).
 state_get_vars() ->
     get(?BINDINGS).
-state_get_unused_var() ->
+state_get_unused_var_name() ->
     "v" ++ integer_to_list(map_size(state_get_vars())).
 state_put_var(ErlangVar, PsVar) ->
     put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
+state_create_fresh_var() ->
+    Var = state_get_unused_var_name(),
+    state_put_var(Var, Var),
+    Var.
 state_is_used(ErlangVar) ->
     maps:is_key(ErlangVar, state_get_vars()).
 state_get_var(ErlangVar) ->
