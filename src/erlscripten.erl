@@ -263,12 +263,9 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records, FNa
     %% For instance: when dealing with <<X>> first emit a check for the length and
     %% only then unsafely access the specified byte in the binary
     state_clear_vars(),
-    S = [transpile_pattern(Arg, Records) || Arg <- Args, is_tuple(Arg)],
-    PSArgs = [A || {A, _, _} <- S],
-    %% First the guards which will create the variable bindings
-    %% Then the guards which will ensure term equality
-    PsGuards = lists:flatten([G || {_, G, _} <- S]) ++ lists:flatten([G || {_, _, G} <- S]),
-    erlscripten_logger:debug("GUARD: ~p", [Guards]),
+    state_clear_var_stack(),
+    {PSArgs, PsGuards} = transpile_pattern_sequence(Args, Records),
+    %%erlscripten_logger:debug("GUARD: ~p", [Guards]),
     write_line(Handle, 0, "~s ~s~s = do", [FunName, format_fun_args(PSArgs), format_fun_guards(PsGuards)]).
 
 format_fun_args(Args) ->
@@ -286,6 +283,15 @@ ps_erl_atom(Atom) -> ps_cons("ErlangAtom", [ps_string(Atom)]).
 ps_erl_num(Ast) -> ps_cons("ErlangNum", [Ast]).
 ps_bin_op(Arg1, Op, Arg2) -> {operator, Op, Arg1, Arg2}.
 ps_named_pattern(Name, Ast) -> {named_pattern, Name, Ast}.
+
+transpile_pattern_sequence(PatternSequence, Records) ->
+    state_push_var_stack(), %% Push fully bound variables
+    S = [transpile_pattern(Pattern, Records) || Pattern <- PatternSequence, is_tuple(Pattern)],
+    PSArgs = [A || {A, _, _} <- S],
+    %% First the guards which will create the variable bindings
+    %% Then the guards which will ensure term equality
+    PsGuards = lists:flatten([G || {_, G, _} <- S]) ++ lists:flatten([G || {_, _, G} <- S]),
+    {PSArgs, PsGuards}.
 
 %% An erlang pattern can always be compiled to a purescript pattern and a list of guards
 %% Returns {match, g_match, values_eq}
@@ -314,21 +320,31 @@ transpile_pattern({string, _, Str}, _) ->
     {ps_string(Str), [], []};
 
 %% Bitstring pattern
+transpile_pattern({bin, _, []}, _) ->
+    %% The easy case
+    %% Empty binary - guard for size eq 0
+    Var = state_create_fresh_var(),
+    {{{cons, "ErlangBinary", [{var, Var}]}}, [
+        {operator, "==", {num, 0}, {cons, "ErlangBinary.unboxed_byte_size", [{var, Var}]}}
+    ], []};
 transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
     %% Binary string literal
     %% Assert buffer length and then compare with str
     Var = state_create_fresh_var(),
-    {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
-        {operator, "==", {num, length(Str)}, {cons, "ErlangBinary.byte_size", [{var, Var}]}},
-        {cons, "ErlangBinary.strcmp", [{var, Var}, {string, Str}]}
+    {{cons, "ErlangBinary", [{var, Var}]}, [
+        {operator, "==", {num, length(Str)}, {cons, "ErlangBinary.unboxed_byte_size", [{var, Var}]}},
+        {cons, "ErlangBinary.unboxed_strcmp", [{var, Var}, {string, Str}]}
     ], []};
-transpile_pattern({bin, _, []}, _) ->
-    %% Empty binary - guard for size eq 0
+transpile_pattern({bin, _, Segments}, _) ->
+    %% Ok the general hard part...
+    %% Unfortunately we need to keep track of bindings created in this match
+    %% Variables in the size guard can only reference variables from the enclosing scope
+    %% present on the variable stack OR variables created during this binding
+    %% Fortunately patterns can only be literals or variables
+    %% Size specs are guard expressions
     Var = state_create_fresh_var(),
-    {{named_pattern, Var, {cons, "ErlangBinary", [{var, "_"}]}}, [
-        {operator, "==", {num, 0}, {cons, "ErlangBinary.byte_size", [{var, Var}]}}
-    ], []};
-
+    {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
+    {{cons, "ErlangBinary", [{var, Var}]}, G, V};
 %% Compound pattern
 transpile_pattern({match, _, P1, P2}, Records) ->
     {H1, G1, V1} = transpile_pattern(P1, Records),
@@ -397,8 +413,17 @@ transpile_pattern(Arg, _Records) ->
     erlscripten_logger:debug("~p", [Arg]),
     {ps_var("TODO"), [], []}.
 
+%% When resolving variables in the size spec look to:
+%% 1) The outer scope on the stack
+%% 2) The newBindings scope
+%% 3) If var is present in both scopes then insert a value guard
+transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
+    ok.
+
 %% Hacky emulation of a state monad using the process dictionary :P
 -define(BINDINGS, var_bindings).
+-define(BINDINGS_STACK, var_bindings_stack).
+%% Variable bindings
 state_clear_vars() ->
     put(?BINDINGS, #{}).
 state_get_vars() ->
@@ -415,3 +440,12 @@ state_is_used(ErlangVar) ->
     maps:is_key(ErlangVar, state_get_vars()).
 state_get_var(ErlangVar) ->
     maps:get(ErlangVar, state_get_vars()).
+%% Bindings stack
+state_clear_var_stack() ->
+    put(?BINDINGS_STACK, []).
+state_push_var_stack() ->
+    put(?BINDINGS_STACK, [state_get_vars() | get(?BINDINGS_STACK)]).
+state_pop_var_stack() ->
+    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))).
+state_peek_var_stack() ->
+    hd(get(?BINDINGS_STACK)).
