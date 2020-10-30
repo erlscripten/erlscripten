@@ -51,11 +51,11 @@ purs_pat_to_str(#pat_string{value = Val}) ->
 purs_pat_to_str(#pat_var{name = Var}) ->
     Var;
 purs_pat_to_str(#pat_array{value = Arr}) ->
-    io_lib:format("[~s]", [string:join([purs_expr_to_str(E) || E <- Arr], ", ")]);
+    io_lib:format("[~s]", [string:join([purs_pat_to_str(E) || E <- Arr], ", ")]);
 purs_pat_to_str(#pat_as{name = Name, pattern = Pat}) ->
     io_lib:format("~s@(~s)", [Name, purs_pat_to_str(Pat)]);
 purs_pat_to_str(#pat_constr{constr = Constr, args = Args}) ->
-    io_lib:format("(~s)", [string:join([purs_expr_to_str(P) || P <- [Constr | Args]], " ")]).
+    io_lib:format("(~s)", [string:join([purs_pat_to_str(P) || P <- [#pat_var{name = Constr} | Args]], " ")]).
 
 
 -spec purs_guard_to_str(purs_guard()) -> string().

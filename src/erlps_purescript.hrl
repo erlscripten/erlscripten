@@ -83,7 +83,7 @@
 -record(pat_var, {name :: string()}).
 -record(pat_array, {value :: [purs_pat()]}).
 -record(pat_as, {name :: string(), pattern :: purs_pat()}).
--record(pat_constr, {constr :: string(), args :: [purs_pat()]}).
+-record(pat_constr, {constr :: string(), args = [] :: [purs_pat()]}).
 -type purs_pat()
 :: pat_wildcard
 | #pat_num{}

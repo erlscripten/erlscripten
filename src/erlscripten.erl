@@ -53,7 +53,7 @@ parse_transform(Forms, Options) ->
                 %% Now do the dirty work - transpile every function OwO
                 Decls = [Decl ||
                     Function <- FunctionForms,
-                    {TypeDecl, Clauses} <- [transpile_function(Function, Records, FunctionNames, Handle)],
+                    {TypeDecl, Clauses} <- [transpile_function(Function, Records)],
                     Decl <- [TypeDecl | Clauses]
                 ],
                 Module = #module{
@@ -210,16 +210,16 @@ module_polifill(crypto) -> {ok, erlang_crypto};
 module_polifill(lists) -> {ok, erlang_lists};
 module_polifill(_) -> unknown.
 
-transpile_function({{FunName, Arity}, Clauses}, Records, FNames, Handle) ->
+transpile_function({{FunName, Arity}, Clauses}, Records) ->
     Type = lists:foldr(
         fun(_, R) -> #type_fun{arg = #type_var{name = "ErlangTerm"}, ret = R} end,
         #type_app{typeconstr = #type_var{name = "Effect"}, args = [#type_var{name = "ErlangTerm"}]},
         lists:seq(1, Arity)),
-    PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Records, FNames, Handle)} ||
+    PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Records)} ||
         Clause <- Clauses],
     {#top_typedecl{typedecl = #typedecl{name = FunName, type = Type}}, PSClauses}.
 
-transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records, FNames, Handle) ->
+transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records) ->
     %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
     %% cannot be expressed as matches in Purescipt BUT we may emulate them in guards!
     %% Guards in purescript are really powerful - using patten guards we will emulate what we want
@@ -250,8 +250,8 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records, FNa
     #clause{
         name = FunName,
         args = PsArgs,
-        guards = PsGuards,
-        value = #expr_var{name = "xd"}
+        guards = [#guard_expr{guard = transpile_expr(G, Records)} || G <- Guards] ++ PsGuards,
+        value = transpile_expr(Body, Records)
     }.
 
 
@@ -283,39 +283,50 @@ transpile_pattern({integer, _, Num}, _) ->
     #pat_num{value = Num};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Records) ->
     transpile_pattern({integer, Ann, -Num}, Records);
-%%
-%%%% Bitstring pattern
-%%transpile_pattern({bin, _, []}, _) ->
-%%    %% The easy case
-%%    %% Empty binary - guard for size eq 0
-%%    Var = state_create_fresh_var(),
-%%    {{{cons, "ErlangBinary", [{var, Var}]}}, [
-%%        {operator, "==", {num, 0}, {cons, "ErlangBinary.unboxed_byte_size", [{var, Var}]}}
-%%    ], []};
-%%transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
-%%    %% Binary string literal
-%%    %% Assert buffer length and then compare with str
-%%    Var = state_create_fresh_var(),
-%%    {{cons, "ErlangBinary", [{var, Var}]}, [
-%%        {operator, "==", {num, length(Str)}, {cons, "ErlangBinary.unboxed_byte_size", [{var, Var}]}},
-%%        {cons, "ErlangBinary.unboxed_strcmp", [{var, Var}, {string, Str}]}
-%%    ], []};
-%%transpile_pattern({bin, _, Segments}, _) ->
-%%    %% Ok the general hard part...
-%%    %% Unfortunately we need to keep track of bindings created in this match
-%%    %% Variables in the size guard can only reference variables from the enclosing scope
-%%    %% present on the variable stack OR variables created during this binding
-%%    %% Fortunately patterns can only be literals or variables
-%%    %% Size specs are guard expressions
-%%    Var = state_create_fresh_var(),
-%%    {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
-%%    {{cons, "ErlangBinary", [{var, Var}]}, G, V};
-%%%% Compound pattern
-%%transpile_pattern({match, _, P1, P2}, Records) ->
-%%    {H1, G1, V1} = transpile_pattern(P1, Records),
-%%    {H2, G2, V2} = transpile_pattern(P2, Records),
-%%    Var = state_create_fresh_var(),
-%%    {ps_named_pattern(Var, H2), [ps_bin_op(H1, "<-", ps_var(Var))] ++ G1 ++ G2, V1 ++ V2};
+
+%% Bitstring pattern
+transpile_pattern({bin, _, []}, _) ->
+    %% The easy case – <<>>
+    %% Empty binary - guard for size eq 0
+    Var = state_create_fresh_var(),
+    {{#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}}, [
+        #guard_expr{guard =
+            #expr_binop{
+                name = "==",
+                lop = #expr_num{value = 0},
+                rop = #expr_app{function = "ErlangBinary.unboxed_byte_size", args = [#expr_var{name = Var}]}}}
+    ], []};
+transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
+    %% Binary string literal – <<"erlang">>
+    %% Assert buffer length and then compare with str
+    Var = state_create_fresh_var(),
+    {{#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}}, [
+        #guard_expr{guard = #expr_binop{
+            name = "==",
+            lop = #expr_num{value = length(Str)},
+            rop = #expr_app{function = "ErlangBinary.unboxed_byte_size", args = [#expr_var{name = Var}]}}},
+        #guard_expr{guard = #expr_binop{
+            name = "==",
+            lop = #expr_num{value = length(Str)},
+            rop = #expr_app{function = "ErlangBinary.unboxed_strcmp", args = [#expr_var{name = Var}, #expr_string{value = Str}]}}}
+    ], []};
+transpile_pattern({bin, _, Segments}, _) ->
+    %% Ok the general hard part...
+    %% Unfortunately we need to keep track of bindings created in this match
+    %% Variables in the size guard can only reference variables from the enclosing scope
+    %% present on the variable stack OR variables created during this binding
+    %% Fortunately patterns can only be literals or variables
+    %% Size specs are guard expressions
+    Var = state_create_fresh_var(),
+    {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
+    {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
+%% Compound pattern
+transpile_pattern({match, _, P1, P2}, Records) ->
+    {H1, G1, V1} = transpile_pattern(P1, Records),
+    {H2, G2, V2} = transpile_pattern(P2, Records),
+    Var = state_create_fresh_var(),
+    {#pat_as{name = Var, pattern = H2},
+        [#guard_assg{lvalue = H1, rvalue = #expr_var{name = Var}} | G1 ++ G2], V1 ++ V2};
 
 %% Cons pattern
 transpile_pattern({cons, _, Head, Tail}, Records) ->
@@ -342,7 +353,7 @@ transpile_pattern({map, _, Associations}, Records) ->
 
 %% Nil pattern
 transpile_pattern({nil, _}, Records) ->
-    error(todo);
+    {#pat_constr{constr = "ErlangEmptyList"}, [], []};
 
 %% Operator pattern
 transpile_pattern({op, _, Op, P1, P2}, Records) ->
@@ -394,9 +405,9 @@ transpile_pattern({var, _, ErlangVar}, _) ->
                     rop = #expr_var{name = state_get_var(ErlangVar)}}}]}
     end;
 
+
 transpile_pattern(Arg, _Records) ->
-    erlscripten_logger:debug("~p", [Arg]),
-    {#pat_var{name = "TODO"}, [], []}.
+    error({unimplemented_pattern, Arg}).
 
 %% When resolving variables in the size spec look to:
 %% 1) The outer scope on the stack
@@ -405,7 +416,14 @@ transpile_pattern(Arg, _Records) ->
 transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
     ok.
 
-transpile_expr(X, Records) -> #expr_var{name = "todo"}.
+transpile_expr([Single], Records) ->
+    transpile_expr(Single, Records);
+transpile_expr({atom, _, Atom}, _Records) ->
+    #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = atom_to_list(Atom)}]};
+transpile_expr({var, _, Var}, _Records) ->
+    #expr_var{name = state_get_var(Var)};
+transpile_expr(X, _Records) ->
+    error({unimplemented_expr, X}).
 
 %% Hacky emulation of a state monad using the process dictionary :P
 -define(BINDINGS, var_bindings).
