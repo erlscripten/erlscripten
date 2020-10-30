@@ -32,13 +32,19 @@ purs_expr_to_str(#expr_binop{name = O, lop = L, rop = R}) ->
 purs_expr_to_str(#expr_num{value = Val}) ->
     io_lib:format("~p", [Val]);
 purs_expr_to_str(#expr_string{value = Val}) ->
-    io_lib:format("~p", [Val]);
+    io_lib:format("~p", [lists:flatten(Val)]);
 purs_expr_to_str(#expr_app{function = F, args = Args}) ->
     io_lib:format("(~s)", [string:join([purs_expr_to_str(P) || P <- [F | Args]], " ")]);
 purs_expr_to_str(#expr_var{name = Var}) ->
     Var;
 purs_expr_to_str(#expr_array{value = Arr}) ->
-    io_lib:format("[~s]", [string:join([purs_expr_to_str(E) || E <- Arr], ", ")]).
+    io_lib:format("[~s]", [string:join([purs_expr_to_str(E) || E <- Arr], ", ")]);
+purs_expr_to_str(#expr_case{expr = Ex, cases = Cases}) ->
+    CasesStr = string:join(
+        [ io_lib:format("~s~s -> ~s", [purs_pat_to_str(Pat), purs_guards_to_str(Guards), purs_expr_to_str(Expr)])
+            || {Pat, Guards, Expr} <- Cases
+        ], "; "),
+    io_lib:format("case ~s of {~s}", [purs_expr_to_str(Ex), CasesStr]).
 
 
 -spec purs_pat_to_str(purs_pat()) -> string().
@@ -64,6 +70,12 @@ purs_guard_to_str(#guard_expr{guard = Guard}) ->
 purs_guard_to_str(#guard_assg{lvalue = LV, rvalue = RV}) ->
     io_lib:format("~s <- ~s", [purs_pat_to_str(LV), purs_expr_to_str(RV)]).
 
+-spec purs_guards_to_str([purs_guard()]) -> string().
+purs_guards_to_str([]) -> "";
+purs_guards_to_str(Guards) ->
+    GuardsStr = string:join([purs_guard_to_str(G) || G <- Guards], ", "),
+    io_lib:format(" | ~s", [GuardsStr]).
+
 -spec purs_clause_to_str(purs_clause()) -> string().
 purs_clause_to_str(#clause{
     name = Name,
@@ -71,10 +83,9 @@ purs_clause_to_str(#clause{
     guards = Guards,
     value = Value}) ->
     ArgsStr = string:join([purs_pat_to_str(P) || P <- Args], " "),
-    Stick = case Guards of [] -> ""; _ -> " | " end,
-    GuardsStr = string:join([purs_guard_to_str(G) || G <- Guards], ", "),
+    GuardsStr = purs_guards_to_str(Guards),
     ValueStr = purs_expr_to_str(Value),
-    io_lib:format("~s ~s~s~s = ~s", [Name, ArgsStr, Stick, GuardsStr, ValueStr]).
+    io_lib:format("~s ~s~s = ~s", [Name, ArgsStr, GuardsStr, ValueStr]).
 
 -spec purs_type_to_str(purs_type()) -> string().
 purs_type_to_str(#type_var{name = Name}) ->

@@ -23,14 +23,29 @@ unify(X, X) -> ok.
 clause(x) -> ok;
 clause(y) -> ko.
 
-tuple({X, X}) -> ok;
-tuple({{X, X}, {X, X, X}}) -> xd.
+pat_tuple({X, X}) -> ok;
+pat_tuple({{X, X}, {X, X, X}}) -> xd.
 
-cons([H|T]) -> ok;
-cons([H|[H|G]]) -> ok;
-cons([]) -> nok.
+-if(?OTP_RELEASE >= 23).
+pat_list([X, X] ++ [X, X]) -> k;
+-elif.
+-endif.
+pat_list([H|T]) -> ok;
+pat_list([H|[H|G]]) -> ok;
+pat_list([]) -> nok;
+pat_list([X,X,X]) -> k;
 
-maps(#{}) -> ok;
-maps(#{dupa := X, pupa := X}) -> ok.
+pat_list([X,X,X|[X]]) -> lol.
 
-pattern_rape(X = {X, X} = [X | X]) -> X.
+pat_maps(#{}) -> ok;
+pat_maps(#{dupa := X, pupa := X}) -> ok.
+
+pat_match(X = {X, X} = [X | X]) -> X.
+
+pat_ops(1 + 2) -> aa;
+pat_ops(1 + 2 * 3 / 4) -> kek.
+
+
+expr_ops(X = ok) -> X + X * X - X ++ X.
+
+expr_app(X) -> expr_app(X).

@@ -67,6 +67,7 @@
 -record(expr_app, {function :: purs_expr(), args :: purs_expr() | [purs_expr()]}).
 -record(expr_var, {name :: string()}).
 -record(expr_array, {value :: [purs_expr()]}).
+-record(expr_case, {expr :: purs_expr(), cases :: [{purs_pat(), [purs_guard()], purs_expr()}]}).
 -type purs_expr()
 :: #expr_binop{}
 | #expr_num{}
@@ -74,6 +75,7 @@
 | #expr_app{}
 | #expr_var{}
 | #expr_array{}
+| #expr_case{}
 .
 -export_type([purs_expr/0]).
 

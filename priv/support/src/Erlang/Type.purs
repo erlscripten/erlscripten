@@ -9,12 +9,14 @@ import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (error, throwException)
 
+-- TODO: add floats
 data ErlangTerm
     = ErlangNum       BI.BigInt
     | ErlangCons      ErlangTerm ErlangTerm
     | ErlangEmptyList
     | ErlangBinary    Buffer
     | ErlangTuple     (Array ErlangTerm)
+    | ErlangFun       Int (Array
 
 instance showErlangTerm :: Show ErlangTerm where
     show (ErlangNum a) =
@@ -50,3 +52,20 @@ erlangListToList :: ErlangTerm -> Maybe (List ErlangTerm)
 erlangListToList ErlangEmptyList = Just Nil
 erlangListToList (ErlangCons h t) | Just et <- erlangListToList t = Just (Cons h et)
 erlangListToList _ = Nothing
+
+erlangPlus :: ErlangTerm -> ErlangTerm -> ErlangTerm
+erlangPlus (ErlangNum x) (ErlangNum y) = ErlangNum (x + y)
+
+erlangMinus :: ErlangTerm -> ErlangTerm -> ErlangTerm
+erlangMinus (ErlangNum x) (ErlangNum y) = ErlangNum (x - y)
+
+erlangMult :: ErlangTerm -> ErlangTerm -> ErlangTerm
+erlangMult (ErlangNum x) (ErlangNum y) = ErlangNum (x * y)
+
+erlangDiv :: ErlangTerm -> ErlangTerm -> ErlangTerm
+erlangDiv (ErlangNum x) (ErlangNum y) = ErlangNum (x / y)
+
+erlangConcat :: ErlangTerm -> ErlangTerm -> ErlangTerm
+erlangConcat l1 l2 = go (reverse  where
+    go ErlangEmptyList l = l
+    go (ErlangCons h t)
