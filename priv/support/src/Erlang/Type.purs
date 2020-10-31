@@ -2,12 +2,16 @@ module Erlang.Type where
 
 import Prelude
 import Node.Buffer (Buffer, toArray, fromArray, toArray, concat)
-import Data.List
-import Data.BigInt as BI
-import Data.Maybe
+import Data.List as DL
+import Data.Array as DA
+import Data.BigInt as DBI
+import Data.Maybe as DM
+import Data.Char as DC
 import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (error, throwException)
+
+type ErlangFun = Partial => List ErlangTerm -> Effect ErlangTerm
 
 -- TODO: add floats
 data ErlangTerm
@@ -16,7 +20,7 @@ data ErlangTerm
     | ErlangEmptyList
     | ErlangBinary    Buffer
     | ErlangTuple     (Array ErlangTerm)
-    | ErlangFun       Int (Array
+    | ErlangFun       Int ErlangFun
 
 instance showErlangTerm :: Show ErlangTerm where
     show (ErlangNum a) =
@@ -53,19 +57,23 @@ erlangListToList ErlangEmptyList = Just Nil
 erlangListToList (ErlangCons h t) | Just et <- erlangListToList t = Just (Cons h et)
 erlangListToList _ = Nothing
 
-erlangPlus :: ErlangTerm -> ErlangTerm -> ErlangTerm
-erlangPlus (ErlangNum x) (ErlangNum y) = ErlangNum (x + y)
+erlangStringToString :: ErlangTerm -> Maybe String
+erlangStringToString = "todo"
 
-erlangMinus :: ErlangTerm -> ErlangTerm -> ErlangTerm
-erlangMinus (ErlangNum x) (ErlangNum y) = ErlangNum (x - y)
+erlangPlus :: ErlangFun
+erlangPlus [ErlangNum x, ErlangNum y] = ErlangNum (x + y)
 
-erlangMult :: ErlangTerm -> ErlangTerm -> ErlangTerm
-erlangMult (ErlangNum x) (ErlangNum y) = ErlangNum (x * y)
+erlangMinus :: ErlangFun
+erlangMinus [ErlangNum x, ErlangNum y] = ErlangNum (x - y)
 
-erlangDiv :: ErlangTerm -> ErlangTerm -> ErlangTerm
-erlangDiv (ErlangNum x) (ErlangNum y) = ErlangNum (x / y)
+erlangMult :: ErlangFun
+erlangMult [ErlangNum x, ErlangNum y] = ErlangNum (x * y)
 
-erlangConcat :: ErlangTerm -> ErlangTerm -> ErlangTerm
-erlangConcat l1 l2 = go (reverse  where
-    go ErlangEmptyList l = l
-    go (ErlangCons h t)
+erlangDiv :: ErlangFun
+erlangDiv [ErlangNum x, ErlangNum y] = ErlangNum (x / y)
+
+erlangApply :: ErlangFun
+erlangApply [ErlangFun arity@(ErlangNum arityVal) fun, args]
+  | Just argsL <- erlangListToList args
+  , length argsL == arityVal =
+    fun args

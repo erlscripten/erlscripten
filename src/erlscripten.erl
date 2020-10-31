@@ -142,11 +142,11 @@ import_resolver_fun_clause({clause, _, _Args, Guards, Body}, FNames) ->
 import_resolver_fun_oplist(Ops, FNames) ->
     [import_resolver_fun_op(Op, FNames) || Op <- Ops].
 
-import_resolver_fun_op({atom, _, _}, _) -> undefined;
-import_resolver_fun_op({integer, _, _}, _) -> undefined;
-import_resolver_fun_op({string, _, _}, _) -> undefined;
-import_resolver_fun_op({var, _, _}, _) -> undefined;
-import_resolver_fun_op({nil, _}, _) -> undefined;
+import_resolver_fun_op({atom, _, _}, _) -> [];
+import_resolver_fun_op({integer, _, _}, _) -> [];
+import_resolver_fun_op({string, _, _}, _) -> [];
+import_resolver_fun_op({var, _, _}, _) -> [];
+import_resolver_fun_op({nil, _}, _) -> [];
 import_resolver_fun_op({bin, _, BinElements}, FNames) ->
     import_resolver_fun_oplist([Op || {bin_element, _, Op, _, _} <- BinElements], FNames);
 import_resolver_fun_op({tuple, _, Ops}, FNames) ->
@@ -183,27 +183,29 @@ import_resolver_fun_op(Op, _) ->
 import_resolver_call({atom, _, What}, Arity, FNames) ->
     import_resolver_call(undefined, What, Arity, FNames);
 import_resolver_call({remote, _, {atom, _, Where}, {atom, _, What}}, Arity, FNames) ->
-    import_resolver_call(Where, What, Arity, FNames).
+    import_resolver_call(Where, What, Arity, FNames);
+import_resolver_call(_, _, _) ->
+    [].
 
 import_resolver_call(undefined, What, Arity, FNames) ->
     %% Check what local are we referencing
     case sets:is_element({atom_to_list(What), Arity}, FNames) of
         true ->
             %% Ok this is a call to a local function in this module
-            undefined;
+            [];
         false ->
             %% io:format("CALLED_LOCAL: ~p\n", [What])
             %% Probably a BIF
-            {erlang_bif, What}
+            [{erlang_bif, What}]
     end;
 import_resolver_call(Where, What, Arity, _) ->
     case module_polifill(Where) of
         {ok, Module} ->
             %%io:format("CALLED_REMOTE: ~p\n", [Module]),
-            {Module, What};
+            [{Module, What}];
         unknown ->
             erlscripten_logger:debug("Assuming transpiled purescript module: ~p", [Where]),
-            {Where, What}
+            [{Where, What}]
     end.
 
 module_polifill(erlang) -> {ok, erlang_bif};
@@ -215,10 +217,7 @@ module_polifill(lists) -> {ok, erlang_lists};
 module_polifill(_) -> unknown.
 
 transpile_function({{FunName, Arity}, Clauses}, Records) ->
-    Type = lists:foldr(
-        fun(_, R) -> #type_fun{arg = #type_var{name = "ErlangTerm"}, ret = R} end,
-        #type_app{typeconstr = #type_var{name = "Effect"}, args = [#type_var{name = "ErlangTerm"}]},
-        lists:seq(1, Arity)),
+    Type = #type_var{name = "Erlang.ErlangFun"},
     PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Records)} ||
         Clause <- Clauses],
     {#top_typedecl{
@@ -236,21 +235,15 @@ transpile_fun_name(Name, Arity) ->
 make_dispatcher_name(Name) ->
     Name ++ "''dispatch".
 
+%% Dispatcher for a given function by available arities
 make_dispatcher_for(Name, Arities) ->
     #clause{
         name = make_dispatcher_name(Name),
-        args = [#pat_var{name = "args"}],
+        args = [#pat_var{name = "arity"}, #pat_var{name = "args"}],
         value = #expr_case{
-            expr = #expr_var{name = "args"},
+            expr = #expr_var{name = "arity"},
             cases = [{
-                lists:foldr(
-                    fun(I, Acc) ->
-                        #pat_constr{
-                            constr = "ErlangCons",
-                            args = [#pat_var{name = io_lib:format("arg_~p", [I])}, Acc]}
-                    end,
-                    #pat_constr{constr = "ErlangEmptyList", args = []},
-                    lists:seq(1, Arity)),
+                #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Arity}]},
                 [], % guards
                 #expr_app{
                     function = #expr_var{name = transpile_fun_name(Name, Arity)},
@@ -261,6 +254,7 @@ make_dispatcher_for(Name, Arities) ->
         }
     }.
 
+%% Dispatcher for all defined functions by arity
 make_dispatchers(Functions) ->
     ArityMap = lists:foldr(
         fun({K, V}, D) -> dict:append(K, V, D) end,
@@ -275,10 +269,11 @@ make_dispatchers(Functions) ->
 global_dispatcher_name() ->
     "main_dispatcher''".
 
+%% Dispatcher of all functions in an actual module by name and arity
 make_global_dispatcher(FunNames) ->
     #clause{
         name = global_dispatcher_name(),
-        args = [#pat_var{name = "function"}, #pat_var{name = "args"}],
+        args = [#pat_var{name = "function"}, #pat_var{name = "arity"}, #pat_var{name = "args"}],
         value = #expr_case{
             expr = #expr_var{name = "function"},
             cases = [{
@@ -286,7 +281,7 @@ make_global_dispatcher(FunNames) ->
                 [], % guards
                 #expr_app{
                     function = #expr_var{name = make_dispatcher_name(Fun)},
-                    args = [#expr_var{name = "args"}]
+                    args = [#expr_var{name = "arity"}, #expr_var{name = "args"}]
                 }}
                 || Fun <- FunNames
             ]
@@ -323,7 +318,7 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records) ->
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Records),
     #clause{
         name = transpile_fun_name(FunName, length(Args)),
-        args = PsArgs,
+        args = [#pat_array{value = PsArgs}],
         guards = [#guard_expr{guard = transpile_expr(G, Records)} || G <- Guards] ++ PsGuards,
         value = transpile_expr(Body, Records)
     }.
@@ -512,28 +507,32 @@ transpile_expr({op, _, Op, L, R}, Records) ->
                 '-' -> "erlangMinus";
                 '*' -> "erlangMult";
                 '/' -> "erlangDiv";
-                '/=' -> "(/=)";
-                '=/=' -> "(=/=)";
-                '==' -> "(==)"; %% FIXME not the same thing
-                '=:=' -> "(==)";
-                '++' -> "lists:append"
+                '/=' -> "erlangNeq";
+                '=/=' -> "erlangExactNeq";
+                '==' -> "erlangEq";
+                '=:=' -> "erlangExactEq";
+                '>' -> "erlangGreater";
+                '<' -> "erlangLesser";
+                '>=' -> "erlangGreaterEq";
+                '=<' -> "erlangLesserEq";
+                '++' -> "Data.List.append"
             end,
     LE = transpile_expr(L, Records),
     RE = transpile_expr(R, Records),
     #expr_app{function = #expr_var{name = OpFun}, args = [LE, RE]};
 
-transpile_expr({call, _, {atom, _, Fun}, Args}, Records) ->
-    FunName = transpile_fun_name(Fun, length(Args)),
+transpile_expr({call, _, Fun, Args}, Records) ->
     #expr_app{
-        function = #expr_var{name = FunName},
-        args = [transpile_expr(Arg, Records) || Arg <- Args]
+        function = #expr_var{name = "Erlang.erlangApply"},
+        args = [transpile_expr(Fun, Records), transpile_expr(Args, Records)]
     };
-transpile_expr({call, _, {atom, _, Fun}, Args}, Records) ->
-    FunName = transpile_fun_name(Fun, length(Args)),
-    #expr_app{
-        function = #expr_var{name = FunName},
-        args = [transpile_expr(Arg, Records) || Arg <- Args]
-    };
+
+transpile_expr({'if', _, Clauses}, Records) ->
+    #expr_case{
+       expr = #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = "true"}]},
+       cases = [transpile_expr(Clause, Records) || Clause <- Clauses]
+      };
+
 
 transpile_expr(X, _Records) ->
     error({unimplemented_expr, X}).
