@@ -44,14 +44,8 @@ parse_transform(Forms, Options) ->
                 %% Now it's time to determine what modules to import
                 %% First filter out functions to transpile
                 FunctionForms = [X || X <- lists:map(fun filter_function_forms/1, Forms), is_tuple(X)],
-                FunctionNames = sets:from_list([Name || {Name, _} <- FunctionForms]),
-                %% Now walk the entire AST and search for calls/remote_calls
-                Calls = lists:usort([X || X <- lists:flatten([import_resolver_fun_clauses(X, FunctionNames) || {_, X} <- FunctionForms]), X /= undefined]),
-                erlscripten_logger:debug("Module calls: ~p", [Calls]),
-                Imports = [#import{
-                    path = [erlang_module_to_purs_module(Import)],
-                    alias = erlang_module_to_qualified_import(Import)
-                } || Import <- lists:usort([M || {M, _} <- Calls])],
+                %% TODO Now walk the entire AST and search for calls/remote_calls
+                Imports = [],
                 %% Now do the dirty work - transpile every function OwO
                 Decls = [Decl ||
                     Function <- FunctionForms,
@@ -133,93 +127,10 @@ filter_function_forms({function, _, FunName, Arity, Clauses}) ->
 filter_function_forms(_) ->
     undefined.
 
-import_resolver_fun_clauses(Clauses, FNames) ->
-    [import_resolver_fun_clause(X, FNames) || X <- Clauses].
-import_resolver_fun_clause({clause, _, _Args, Guards, Body}, FNames) ->
-    [[import_resolver_fun_oplist(Guard, FNames) || Guard <- Guards]
-        , [import_resolver_fun_oplist(Body, FNames)]].
-
-import_resolver_fun_oplist(Ops, FNames) ->
-    [import_resolver_fun_op(Op, FNames) || Op <- Ops].
-
-import_resolver_fun_op({atom, _, _}, _) -> [];
-import_resolver_fun_op({integer, _, _}, _) -> [];
-import_resolver_fun_op({string, _, _}, _) -> [];
-import_resolver_fun_op({var, _, _}, _) -> [];
-import_resolver_fun_op({nil, _}, _) -> [];
-import_resolver_fun_op({bin, _, BinElements}, FNames) ->
-    import_resolver_fun_oplist([Op || {bin_element, _, Op, _, _} <- BinElements], FNames);
-import_resolver_fun_op({tuple, _, Ops}, FNames) ->
-    import_resolver_fun_oplist(Ops, FNames);
-import_resolver_fun_op({op, _, _, Arg1, Arg2}, FNames) ->
-    import_resolver_fun_oplist([Arg1, Arg2], FNames);
-import_resolver_fun_op({match, _, Arg1, Arg2}, FNames) ->
-    import_resolver_fun_oplist([Arg1, Arg2], FNames);
-import_resolver_fun_op({call, _, What, Args}, FNames) ->
-    [import_resolver_call(What, length(Args), FNames)
-        , import_resolver_fun_oplist(Args, FNames)];
-import_resolver_fun_op({'case', _, Op, Clauses}, FNames) ->
-    import_resolver_fun_op(Op, FNames) ++ import_resolver_fun_clauses(Clauses, FNames);
-import_resolver_fun_op({'try', _, Body, Clauses, CatchClauses, After}, FNames) ->
-    [import_resolver_fun_oplist(Body, FNames)
-        , import_resolver_fun_oplist(After, FNames)
-        , import_resolver_fun_clauses(Clauses, FNames)
-        , import_resolver_fun_clauses(CatchClauses, FNames)
-    ];
-import_resolver_fun_op({bc, _, Bin, Generators}, FNames) ->
-    [import_resolver_fun_op(Bin, FNames)
-        , import_resolver_fun_oplist(Generators, FNames)
-    ];
-import_resolver_fun_op({cons, _, Head, Tail}, FNames) ->
-    import_resolver_fun_oplist([Head, Tail], FNames);
-import_resolver_fun_op({record, _, _, RecordFields}, FNames) ->
-    import_resolver_fun_oplist([Op || {record_field, _, _, Op} <- RecordFields], FNames);
-import_resolver_fun_op({generate, _, P, E}, FNames) ->
-    import_resolver_fun_oplist([P, E], FNames);
-import_resolver_fun_op(Op, _) ->
-    io:format("~p\n", [Op]).
-
-%% Determine what module we need to import in order to handle this call
-import_resolver_call({atom, _, What}, Arity, FNames) ->
-    import_resolver_call(undefined, What, Arity, FNames);
-import_resolver_call({remote, _, {atom, _, Where}, {atom, _, What}}, Arity, FNames) ->
-    import_resolver_call(Where, What, Arity, FNames);
-import_resolver_call(_, _, _) ->
-    [].
-
-import_resolver_call(undefined, What, Arity, FNames) ->
-    %% Check what local are we referencing
-    case sets:is_element({atom_to_list(What), Arity}, FNames) of
-        true ->
-            %% Ok this is a call to a local function in this module
-            [];
-        false ->
-            %% io:format("CALLED_LOCAL: ~p\n", [What])
-            %% Probably a BIF
-            [{erlang_bif, What}]
-    end;
-import_resolver_call(Where, What, Arity, _) ->
-    case module_polifill(Where) of
-        {ok, Module} ->
-            %%io:format("CALLED_REMOTE: ~p\n", [Module]),
-            [{Module, What}];
-        unknown ->
-            erlscripten_logger:debug("Assuming transpiled purescript module: ~p", [Where]),
-            [{Where, What}]
-    end.
-
-module_polifill(erlang) -> {ok, erlang_bif};
-module_polifill(binary) -> {ok, erlang_binary};
-module_polifill(base58) -> {ok, erlang_base58};
-module_polifill(base64) -> {ok, erlang_base64};
-module_polifill(crypto) -> {ok, erlang_crypto};
-module_polifill(lists) -> {ok, erlang_lists};
-module_polifill(_) -> unknown.
-
 transpile_function({{FunName, Arity}, Clauses}, Records) ->
     Type = #type_var{name = "Erlang.ErlangFun"},
     PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Records)} ||
-        Clause <- Clauses],
+                    Clause <- Clauses],
     {#top_typedecl{
         typedecl = #typedecl{name = transpile_fun_name(FunName, Arity),
             type = Type}}, PSClauses}.
@@ -319,10 +230,35 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records) ->
     #clause{
         name = transpile_fun_name(FunName, length(Args)),
         args = [#pat_array{value = PsArgs}],
-        guards = [#guard_expr{guard = transpile_expr(G, Records)} || G <- Guards] ++ PsGuards,
+        guards = [transpile_boolean_guards(Guards, Records) | PsGuards],
         value = transpile_expr(Body, Records)
     }.
 
+
+transpile_boolean_guards(Guards, Records) ->
+    #guard_expr{
+       guard = lists:foldl(
+                fun(Alt, AccAlts) ->
+                        #expr_app{
+                           function = #expr_var{name = "erlangOr"},
+                           args =
+                               [ lists:foldl(
+                                   fun(G, AccConjs) ->
+                                           #expr_app{
+                                              function = #expr_var{name = "erlangAnd"},
+                                              args =
+                                                  [ #expr_binop{
+                                                       name = "==",
+                                                       lop = transpile_expr(G, Records),
+                                                       rop = transpile_expr({atom, any, true}, Records)
+                                                      }
+                                                  , AccConjs
+                                                  ]}
+                                   end, transpile_expr({atom, any, true}, Records), Alt)
+                               , AccAlts
+                               ]}
+                end, transpile_expr({atom, any, false}, Records), Guards)
+      }.
 
 transpile_pattern_sequence(PatternSequence, Records) ->
     state_push_var_stack(), %% Push fully bound variables
@@ -340,14 +276,16 @@ transpile_pattern_sequence(PatternSequence, Records) ->
 %% for cosmetic reasons values_eq are aggregated and evaluated only after all g_match got executed
 %% https://erlang.org/doc/apps/erts/absform.html#patterns
 %% Atomic Literals
+transpile_pattern({atom, Ann, Atom}, Records) when is_atom(Atom) ->
+    transpile_pattern({atom, Ann, atom_to_list(Atom)}, Records);
 transpile_pattern({atom, _, Atom}, _) ->
     {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = Atom}]}, [], []};
 transpile_pattern({char, _, Char}, _) ->
     error(todo);
 transpile_pattern({float, _, Float}, _) ->
     error(todo);
-transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
-    error({todo, too_big_int});
+%% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
+%%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
     #pat_num{value = Num};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Records) ->
@@ -363,7 +301,7 @@ transpile_pattern({bin, _, []}, _) ->
         #expr_binop{
             name = "==",
             lop = #expr_num{value = 0},
-            rop = #expr_app{function = "ErlangBinary.unboxed_byte_size", args = [#expr_var{name = Var}]}}}
+            rop = #expr_app{function = #expr_var{name = "ErlangBinary.unboxed_byte_size"}, args = [#expr_var{name = Var}]}}}
     ], []};
 transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
     %% Binary string literal – <<"erlang">>
@@ -373,11 +311,15 @@ transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}
         #guard_expr{guard = #expr_binop{
             name = "==",
             lop = #expr_num{value = length(Str)},
-            rop = #expr_app{function = "ErlangBinary.unboxed_byte_size", args = [#expr_var{name = Var}]}}},
+                               rop = #expr_app{
+                                        function = #expr_var{name =  "ErlangBinary.unboxed_byte_size"},
+                                        args = [#expr_var{name = Var}]}}},
         #guard_expr{guard = #expr_binop{
             name = "==",
             lop = #expr_num{value = length(Str)},
-            rop = #expr_app{function = "ErlangBinary.unboxed_strcmp", args = [#expr_var{name = Var}, #expr_string{value = Str}]}}}
+            rop = #expr_app{
+                     function = #expr_var{name = "ErlangBinary.unboxed_strcmp"},
+                     args = [#expr_var{name = Var}, #expr_string{value = Str}]}}}
     ], []};
 transpile_pattern({bin, _, Segments}, _) ->
     %% Ok the general hard part...
@@ -492,47 +434,124 @@ transpile_pattern(Arg, _Records) ->
 transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
     ok.
 
+transpile_expr([], _) ->
+    error(empty_body);
 transpile_expr([Single], Records) ->
     transpile_expr(Single, Records);
 
+transpile_expr([{match, _, Pat, Val}|Rest], Records) ->
+    {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Records),
+    #expr_case{
+       expr = transpile_expr(Val, Records),
+       cases =
+           [ {PSPat, PSGuards,
+              transpile_expr(Rest, Records)
+             }
+           , {pat_wildcard, [], #expr_app{function = #expr_var{name = "error"}, args = [#expr_string{value = "bad_match"}]}}
+           ]
+      };
+
+transpile_expr([Expr|Rest], Records) ->
+    #expr_binop{
+       name = ">>",
+       lop = transpile_expr(Expr, Records),
+       rop = transpile_expr(Rest, Records)
+      };
+
+transpile_expr({atom, Ann, Atom}, Records) when is_atom(Atom) ->
+    transpile_expr({atom, Ann, atom_to_list(Atom)}, Records);
 transpile_expr({atom, _, Atom}, _Records) ->
-    #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = atom_to_list(Atom)}]};
+    #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = Atom}]};
 
 transpile_expr({var, _, Var}, _Records) ->
     #expr_var{name = state_get_var(Var)};
 
+transpile_expr({integer, _, Int}, _Records) ->
+    #expr_num{value = Int};
+
 transpile_expr({op, _, Op, L, R}, Records) ->
     OpFun = case Op of
-                '+' -> "erlangPlus";
-                '-' -> "erlangMinus";
-                '*' -> "erlangMult";
-                '/' -> "erlangDiv";
-                '/=' -> "erlangNeq";
+                '+'   -> "erlangPlus";
+                '-'   -> "erlangMinus";
+                '*'   -> "erlangMult";
+                '/'   -> "erlangDiv";
+                'div' -> "erlangDiv";
+                '/='  -> "erlangNeq";
                 '=/=' -> "erlangExactNeq";
-                '==' -> "erlangEq";
+                '=='  -> "erlangEq";
                 '=:=' -> "erlangExactEq";
-                '>' -> "erlangGreater";
-                '<' -> "erlangLesser";
-                '>=' -> "erlangGreaterEq";
-                '=<' -> "erlangLesserEq";
-                '++' -> "Data.List.append"
+                '>'   -> "erlangGreater";
+                '<'   -> "erlangLesser";
+                '>='  -> "erlangGreaterEq";
+                '=<'  -> "erlangLesserEq";
+                '++'  -> "erlangAppend";
+                '--'  -> "erlangUnAppend";
+                '&&'  -> "erlangAnd";
+                '||'  -> "erlangOr";
+                'andalso' -> "erlangAnd";
+                'orelse'  -> "erlangOr"
             end,
     LE = transpile_expr(L, Records),
     RE = transpile_expr(R, Records),
     #expr_app{function = #expr_var{name = OpFun}, args = [LE, RE]};
 
+transpile_expr({call, _, {atom, _, Fun}, Args}, Records) ->
+    #expr_app{
+       function = #expr_var{name = transpile_fun_name(Fun, length(Args))},
+       args = [transpile_expr(Arg, Records) || Arg <- Args]
+      };
+transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, Records) ->
+    transpile_expr({call, fixme, {atom, fixme, Fun}, Args}, Records);
 transpile_expr({call, _, Fun, Args}, Records) ->
     #expr_app{
         function = #expr_var{name = "Erlang.erlangApply"},
         args = [transpile_expr(Fun, Records), transpile_expr(Args, Records)]
     };
 
-transpile_expr({'if', _, Clauses}, Records) ->
-    #expr_case{
-       expr = #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = "true"}]},
-       cases = [transpile_expr(Clause, Records) || Clause <- Clauses]
+transpile_expr({nil, _}, _) ->
+    #expr_var{name = "ErlangEmptyList"};
+transpile_expr({cons, _, H, T}, Records) ->
+    #expr_app{
+       function = #expr_var{name = "ErlangCons"},
+       args = [transpile_expr(H, Records), transpile_expr(T, Records)]
       };
 
+transpile_expr({'if', _, Clauses}, Records) ->
+    #expr_case{
+       expr = transpile_expr({atom, any, true}, Records),
+       cases = [{expr_wildcard, Guards, transpile_expr(Cont, Records)} ||
+                   {clause, _, [], Guards, Cont} <- Clauses]
+      };
+
+transpile_expr({'case', _, Expr, Clauses}, Records) ->
+    #expr_case{
+       expr = transpile_expr(Expr, Records),
+       cases =
+           [ begin
+                 {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Records),
+                 {PSPat, [transpile_boolean_guards(Guards, Records) | PSGuards], transpile_expr(Cont, Records)}
+             end
+            || {clause, _, Pat, Guards, Cont} <- Clauses
+           ]
+      };
+
+transpile_expr({'fun', _, {function, Fun, Arity}}, Records) when is_atom(Fun) ->
+    #expr_app{
+       function = #expr_var{name = "ErlangFun"},
+       args =
+           [ #expr_num{value = Arity}
+           , #expr_var{name = transpile_fun_name(Fun, Arity)}
+           ]
+      };
+
+transpile_expr({tuple, _, Exprs}, Records) ->
+    #expr_app{
+       function = #expr_var{name = "ErlangTuple"},
+       args =
+           [ transpile_expr(Expr, Records)
+             || Expr <- Exprs
+           ]
+      };
 
 transpile_expr(X, _Records) ->
     error({unimplemented_expr, X}).
