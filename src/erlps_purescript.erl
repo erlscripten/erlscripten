@@ -44,7 +44,9 @@ purs_expr_to_str(#expr_case{expr = Ex, cases = Cases}) ->
         [ io_lib:format("~s~s -> ~s", [purs_pat_to_str(Pat), purs_guards_to_str(Guards), purs_expr_to_str(Expr)])
             || {Pat, Guards, Expr} <- Cases
         ], "; "),
-    io_lib:format("case ~s of {~s}", [purs_expr_to_str(Ex), CasesStr]).
+    io_lib:format("case ~s of {~s}", [purs_expr_to_str(Ex), CasesStr]);
+purs_expr_to_str(#expr_lambda{args = Args, body = Body}) ->
+    io_lib:format("\\~s -> ~s", [string:join([purs_pat_to_str(Arg) || Arg <- Args], " "), purs_expr_to_str(Body)]).
 
 
 -spec purs_pat_to_str(purs_pat()) -> string().

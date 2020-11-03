@@ -49,3 +49,6 @@ pat_ops(1 + 2 * 3 / 4) -> kek.
 expr_ops(X = ok) -> X + X * X - X ++ X.
 
 expr_app(X) -> expr_app(X).
+
+bifs() ->
+    length([]) + erlang:length([]).

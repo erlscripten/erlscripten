@@ -6,8 +6,13 @@
 
 -include("erlps_purescript.hrl").
 
-version() -> "v0.0.1".
 
+-record(env,
+        { current_module :: string()
+        , records :: map()
+        }).
+
+version() -> "v0.0.1".
 
 parse_transform(Forms, Options) ->
     code:ensure_loaded(erlscripten_logger),
@@ -36,20 +41,28 @@ parse_transform(Forms, Options) ->
                 {ok, Handle} = file:open(PursModuleFile, [write]),
 
                 %% Ok It's time for some canonical imports which will be used a lot :)
-                DefaultImports = [
-                    #import{path = ["Prelude"]},
-                    #import{path = ["Erlang", "Type"], explicit = ["ErlangTerm(..)"]}
-                    #import{path = ["Effect"], explicit = ["Effect"]}
-                ],
+                DefaultImports =
+                    [ #import{path = ["Prelude"]}
+                    , #import{path = ["Data", "List"], alias = "DL"}
+                    , #import{path = ["Data", "Maybe"], alias = "DM"}
+                    , #import{path = ["Erlang", "Type"], explicit = ["ErlangTerm(..)"]}
+                    , #import{path = ["Effect"], explicit = ["Effect"]}
+                    ],
                 %% Now it's time to determine what modules to import
                 %% First filter out functions to transpile
                 FunctionForms = [X || X <- lists:map(fun filter_function_forms/1, Forms), is_tuple(X)],
                 %% TODO Now walk the entire AST and search for calls/remote_calls
                 Imports = [],
+
+                Env = #env{
+                         current_module = ModuleName,
+                         records = Records
+                        },
                 %% Now do the dirty work - transpile every function OwO
                 Decls = [Decl ||
-                    Function <- FunctionForms,
-                    {TypeDecl, Clauses} <- [transpile_function(Function, Records)],
+                    Function = {{FunName, Arity}, _} <- FunctionForms,
+                    element(1, check_builtin(ModuleName, FunName, Arity)) =:= local,
+                    {TypeDecl, Clauses} <- [transpile_function(Function, Env)],
                     Decl <- [TypeDecl | Clauses]
                 ],
                 Dispatchers = [#top_clause{clause = Disp}
@@ -57,7 +70,7 @@ parse_transform(Forms, Options) ->
                 Module = #module{
                     name = erlang_module_to_purs_module(ModuleName),
                     imports = DefaultImports ++ Imports,
-                    decls = Decls ++ Dispatchers
+                    decls = Decls %++ Dispatchers
                 },
                 file:write(Handle, erlps_purescript:purs_module_to_str(Module))
         end,
@@ -127,9 +140,9 @@ filter_function_forms({function, _, FunName, Arity, Clauses}) ->
 filter_function_forms(_) ->
     undefined.
 
-transpile_function({{FunName, Arity}, Clauses}, Records) ->
+transpile_function({{FunName, Arity}, Clauses}, Env) ->
     Type = #type_var{name = "Erlang.ErlangFun"},
-    PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Records)} ||
+    PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Env)} ||
                     Clause <- Clauses],
     {#top_typedecl{
         typedecl = #typedecl{name = transpile_fun_name(FunName, Arity),
@@ -141,6 +154,71 @@ transpile_fun_name(Name, Arity) when is_binary(Name) ->
     transpile_fun_name(binary_to_list(Name), Arity);
 transpile_fun_name(Name, Arity) ->
     io_lib:format("~s''~p", [Name, Arity]).
+
+builtins() ->
+    Operators = [ {"+",   "op_plus"}
+                , {"-",   "op_minus"}
+                , {"*",   "op_mult"}
+                , {"/",   "op_div"}
+                , {"div", "op_div"}
+                , {"/=",  "op_neq"}
+                , {"=/=", "op_exactNeq"}
+                , {"==",  "op_eq"}
+                , {"=:=", "op_exactEq"}
+                , {">",   "op_greater"}
+                , {"<",   "op_lesser"}
+                , {">=",  "op_greaterEq"}
+                , {"=<",  "op_lesserEq"}
+                , {"++",  "op_append"}
+                , {"--",  "op_unAppend"}
+                , {"&&",  "op_and"}
+                , {"||",  "op_or"}
+                , {"andalso", "op_and"}
+                , {"orelse" , "op_or"}
+                ],
+    maps:from_list(lists:append(
+        [ {{"erlang", Op, 2}, io_lib:format("erlang''~s", [Fun])}
+          || {Op, Fun} <- Operators],
+        [ {{Module, Fun, Arity}, io_lib:format("~s''~s''~p", [Module, Fun, Arity])}
+          || {Module, Fun, Arity} <-
+                 lists:concat(
+                   [ [ {"lists", "keyfind", 3}
+                     , {"lists", "keymember", 3}
+                     , {"lists", "keysearch", 3}
+                     , {"lists", "member", 2}
+                     , {"lists", "reverse", 2}
+                     ]
+                   , [ {"erlang", atom_to_list(BIF), Arity}
+                       || {BIF, Arity} <- erlang:module_info(exports),
+                          proplists:get_value(atom_to_list(BIF), Operators, none) =:= none
+                     ]
+                   ]
+                  )
+        ])).
+
+check_builtin(Module, Name, Arity) ->
+    Key = {Module, Name, Arity},
+    case builtins() of
+        #{Key := Builtin} -> {builtin, Builtin};
+        _ -> {local, Name}
+    end.
+
+
+transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
+    transpile_fun_ref(Module, Name, Arity, Env).
+transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Name) ->
+    transpile_fun_ref(Module, atom_to_list(Name), Arity, Env);
+transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Module) ->
+    transpile_fun_ref(atom_to_list(Module), Name, Arity, Env);
+transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
+    case check_builtin(Module, Name, Arity) of
+        {builtin, Builtin} ->
+            #expr_var{name = "ErlangBuiltins." ++ Builtin};
+        {local, Local} ->
+            if CurModule == Module -> #expr_var{name = Local};
+               true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "." ++ Local}
+            end
+    end.
 
 -spec make_dispatcher_name(string()) -> string().
 make_dispatcher_name(Name) ->
@@ -199,7 +277,7 @@ make_global_dispatcher(FunNames) ->
         }
     }.
 
-transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records) ->
+transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
     %% cannot be expressed as matches in Purescipt BUT we may emulate them in guards!
     %% Guards in purescript are really powerful - using patten guards we will emulate what we want
@@ -226,16 +304,16 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Records) ->
     %% only then unsafely access the specified byte in the binary
     state_clear_vars(),
     state_clear_var_stack(),
-    {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Records),
+    {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
     #clause{
         name = transpile_fun_name(FunName, length(Args)),
         args = [#pat_array{value = PsArgs}],
-        guards = [transpile_boolean_guards(Guards, Records) | PsGuards],
-        value = transpile_expr(Body, Records)
+        guards = [transpile_boolean_guards(Guards, Env) | PsGuards],
+        value = transpile_expr(Body, Env)
     }.
 
 
-transpile_boolean_guards(Guards, Records) ->
+transpile_boolean_guards(Guards, Env) ->
     #guard_expr{
        guard = lists:foldl(
                 fun(Alt, AccAlts) ->
@@ -249,20 +327,20 @@ transpile_boolean_guards(Guards, Records) ->
                                               args =
                                                   [ #expr_binop{
                                                        name = "==",
-                                                       lop = transpile_expr(G, Records),
-                                                       rop = transpile_expr({atom, any, true}, Records)
+                                                       lop = transpile_expr(G, Env),
+                                                       rop = transpile_expr({atom, any, true}, Env)
                                                       }
                                                   , AccConjs
                                                   ]}
-                                   end, transpile_expr({atom, any, true}, Records), Alt)
+                                   end, transpile_expr({atom, any, false}, Env), Alt)
                                , AccAlts
                                ]}
-                end, transpile_expr({atom, any, false}, Records), Guards)
+                end, transpile_expr({atom, any, true}, Env), Guards)
       }.
 
-transpile_pattern_sequence(PatternSequence, Records) ->
+transpile_pattern_sequence(PatternSequence, Env) ->
     state_push_var_stack(), %% Push fully bound variables
-    S = [transpile_pattern(Pattern, Records) || Pattern <- PatternSequence, is_tuple(Pattern)],
+    S = [transpile_pattern(Pattern, Env) || Pattern <- PatternSequence, is_tuple(Pattern)],
     PSArgs = [A || {A, _, _} <- S],
     %% First the guards which will create the variable bindings
     %% Then the guards which will ensure term equality
@@ -276,8 +354,8 @@ transpile_pattern_sequence(PatternSequence, Records) ->
 %% for cosmetic reasons values_eq are aggregated and evaluated only after all g_match got executed
 %% https://erlang.org/doc/apps/erts/absform.html#patterns
 %% Atomic Literals
-transpile_pattern({atom, Ann, Atom}, Records) when is_atom(Atom) ->
-    transpile_pattern({atom, Ann, atom_to_list(Atom)}, Records);
+transpile_pattern({atom, Ann, Atom}, Env) when is_atom(Atom) ->
+    transpile_pattern({atom, Ann, atom_to_list(Atom)}, Env);
 transpile_pattern({atom, _, Atom}, _) ->
     {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = Atom}]}, [], []};
 transpile_pattern({char, _, Char}, _) ->
@@ -288,8 +366,8 @@ transpile_pattern({float, _, Float}, _) ->
 %%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
     #pat_num{value = Num};
-transpile_pattern({op, _, "-", {integer, Ann, Num}}, Records) ->
-    transpile_pattern({integer, Ann, -Num}, Records);
+transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
+    transpile_pattern({integer, Ann, -Num}, Env);
 
 %% Bitstring pattern
 transpile_pattern({bin, _, []}, _) ->
@@ -332,29 +410,29 @@ transpile_pattern({bin, _, Segments}, _) ->
     {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
 %% Compound pattern
-transpile_pattern({match, _, P1, P2}, Records) ->
-    {H1, G1, V1} = transpile_pattern(P1, Records),
-    {H2, G2, V2} = transpile_pattern(P2, Records),
+transpile_pattern({match, _, P1, P2}, Env) ->
+    {H1, G1, V1} = transpile_pattern(P1, Env),
+    {H2, G2, V2} = transpile_pattern(P2, Env),
     Var = state_create_fresh_var(),
     {#pat_as{name = Var, pattern = H2},
         [#guard_assg{lvalue = H1, rvalue = #expr_var{name = Var}} | G1 ++ G2], V1 ++ V2};
 
 %% Cons pattern
-transpile_pattern({cons, _, Head, Tail}, Records) ->
-    {H, GH, VH} = transpile_pattern(Head, Records),
-    {T, GT, VT} = transpile_pattern(Tail, Records),
+transpile_pattern({cons, _, Head, Tail}, Env) ->
+    {H, GH, VH} = transpile_pattern(Head, Env),
+    {T, GT, VT} = transpile_pattern(Tail, Env),
     {#pat_constr{constr = "ErlangCons", args = [H, T]}, GH ++ GT, VH ++ VT};
 
 %% Map pattern
-transpile_pattern({map, _, Associations}, Records) ->
+transpile_pattern({map, _, Associations}, Env) ->
     MapVar = state_create_fresh_var(),
     {G, V} =
         lists:foldl(fun({map_field_exact, _, Key, Value}, {Gs, Vs}) ->
             begin
-                {ValPat, GV, VV} = transpile_pattern(Value, Records),
-                KeyExpr = transpile_expr(Key, Records),
+                {ValPat, GV, VV} = transpile_pattern(Value, Env),
+                KeyExpr = transpile_expr(Key, Env),
                 QueryGuard = #guard_assg{
-                    lvalue = #pat_constr{constr = "Just", args = [ValPat]},
+                    lvalue = #pat_constr{constr = "DM.Just", args = [ValPat]},
                     rvalue = #expr_app{
                         function = #expr_var{name = "Map.lookup"},
                         args = [KeyExpr, #expr_var{name = MapVar}]}},
@@ -363,39 +441,39 @@ transpile_pattern({map, _, Associations}, Records) ->
     {#pat_var{name = MapVar}, G, V};
 
 %% Nil pattern
-transpile_pattern({nil, _}, Records) ->
+transpile_pattern({nil, _}, Env) ->
     {#pat_constr{constr = "ErlangEmptyList"}, [], []};
 
 %% Operator pattern
-transpile_pattern({op, _, '++', {nil, _}, P2}, Records) ->
-    transpile_pattern(P2, Records);
-transpile_pattern({op, Ann, '++', {cons, AnnC, H, T}, P2}, Records) ->
-    transpile_pattern({cons, AnnC, H, {op, Ann, '++', T, P2}}, Records);
-transpile_pattern(P = {op, Ann, Op, P1, P2}, Records) ->
+transpile_pattern({op, _, '++', {nil, _}, P2}, Env) ->
+    transpile_pattern(P2, Env);
+transpile_pattern({op, Ann, '++', {cons, AnnC, H, T}, P2}, Env) ->
+    transpile_pattern({cons, AnnC, H, {op, Ann, '++', T, P2}}, Env);
+transpile_pattern(P = {op, Ann, Op, P1, P2}, Env) ->
     case compute_constexpr(P) of
         {ok, Res} -> Res;
         error -> error({illegal_operator_pattern, P})
     end;
-transpile_pattern({op, _, Op, P1}, Records) ->
+transpile_pattern({op, _, Op, P1}, Env) ->
     %% this is an occurrence of an expression that can be evaluated to a number at compile time
     error(todo);
 
 %% Record index pattern
-transpile_pattern({record_index, _, RecordName, Field}, Records) ->
+transpile_pattern({record_index, _, RecordName, Field}, Env) ->
     error(todo);
 
 %% Record pattern
-transpile_pattern({record, Ann, RecordName, RecordFields}, Records) ->
+transpile_pattern({record, Ann, RecordName, RecordFields}, Env) ->
     %% Convert this to a tuple
     Matches = [record_fields(X) || X <- RecordFields],
     Fields = [{atom, Ann, RecordName}] ++
         [proplists:get_value(FieldName, Matches, {var, Ann, "_"}) ||
-            {FieldName, _} <- maps:get(RecordName, Records)],
-    transpile_pattern({tuple, Ann, Fields}, Records);
+            {FieldName, _} <- maps:get(RecordName, Env#env.records)],
+    transpile_pattern({tuple, Ann, Fields}, Env);
 
 %% Tuple pattern
-transpile_pattern({tuple, _, Args}, Records) ->
-    S = [transpile_pattern(Arg, Records) || Arg <- Args, is_tuple(Arg)],
+transpile_pattern({tuple, _, Args}, Env) ->
+    S = [transpile_pattern(Arg, Env) || Arg <- Args, is_tuple(Arg)],
     PSArgs = [A || {A, _, _} <- S],
     PsVarGuards = lists:flatten([G || {_, G, _} <- S]),
     PsValGuards = lists:flatten([G || {_, _, G} <- S]),
@@ -424,7 +502,7 @@ transpile_pattern({var, _, ErlangVar}, _) ->
     end;
 
 
-transpile_pattern(Arg, _Records) ->
+transpile_pattern(Arg, _Env) ->
     error({unimplemented_pattern, Arg}).
 
 %% When resolving variables in the size spec look to:
@@ -436,124 +514,141 @@ transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
 
 transpile_expr([], _) ->
     error(empty_body);
-transpile_expr([Single], Records) ->
-    transpile_expr(Single, Records);
+transpile_expr([Single], Env) ->
+    transpile_expr(Single, Env);
 
-transpile_expr([{match, _, Pat, Val}|Rest], Records) ->
-    {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Records),
+transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
+    {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Env),
     #expr_case{
-       expr = transpile_expr(Val, Records),
+       expr = transpile_expr(Val, Env),
        cases =
            [ {PSPat, PSGuards,
-              transpile_expr(Rest, Records)
+              transpile_expr(Rest, Env)
              }
            , {pat_wildcard, [], #expr_app{function = #expr_var{name = "error"}, args = [#expr_string{value = "bad_match"}]}}
            ]
       };
 
-transpile_expr([Expr|Rest], Records) ->
+transpile_expr([Expr|Rest], Env) ->
     #expr_binop{
        name = ">>",
-       lop = transpile_expr(Expr, Records),
-       rop = transpile_expr(Rest, Records)
+       lop = transpile_expr(Expr, Env),
+       rop = transpile_expr(Rest, Env)
       };
 
-transpile_expr({atom, Ann, Atom}, Records) when is_atom(Atom) ->
-    transpile_expr({atom, Ann, atom_to_list(Atom)}, Records);
-transpile_expr({atom, _, Atom}, _Records) ->
+transpile_expr({atom, Ann, Atom}, Env) when is_atom(Atom) ->
+    transpile_expr({atom, Ann, atom_to_list(Atom)}, Env);
+transpile_expr({atom, _, Atom}, _Env) ->
     #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = Atom}]};
 
-transpile_expr({var, _, Var}, _Records) ->
+transpile_expr({var, _, Var}, _Env) ->
     #expr_var{name = state_get_var(Var)};
 
-transpile_expr({integer, _, Int}, _Records) ->
+transpile_expr({integer, _, Int}, _Env) ->
     #expr_num{value = Int};
 
-transpile_expr({op, _, Op, L, R}, Records) ->
-    OpFun = case Op of
-                '+'   -> "erlangPlus";
-                '-'   -> "erlangMinus";
-                '*'   -> "erlangMult";
-                '/'   -> "erlangDiv";
-                'div' -> "erlangDiv";
-                '/='  -> "erlangNeq";
-                '=/=' -> "erlangExactNeq";
-                '=='  -> "erlangEq";
-                '=:=' -> "erlangExactEq";
-                '>'   -> "erlangGreater";
-                '<'   -> "erlangLesser";
-                '>='  -> "erlangGreaterEq";
-                '=<'  -> "erlangLesserEq";
-                '++'  -> "erlangAppend";
-                '--'  -> "erlangUnAppend";
-                '&&'  -> "erlangAnd";
-                '||'  -> "erlangOr";
-                'andalso' -> "erlangAnd";
-                'orelse'  -> "erlangOr"
-            end,
-    LE = transpile_expr(L, Records),
-    RE = transpile_expr(R, Records),
-    #expr_app{function = #expr_var{name = OpFun}, args = [LE, RE]};
+transpile_expr({op, _, Op, L, R}, Env) ->
+    OpFun = transpile_fun_ref("erlang", Op, 2, Env),
+    LE = transpile_expr(L, Env),
+    RE = transpile_expr(R, Env),
+    #expr_app{function = OpFun, args = [LE, RE]};
 
-transpile_expr({call, _, {atom, _, Fun}, Args}, Records) ->
+transpile_expr({call, _, {atom, _, Fun}, Args}, Env) ->
     #expr_app{
-       function = #expr_var{name = transpile_fun_name(Fun, length(Args))},
-       args = [transpile_expr(Arg, Records) || Arg <- Args]
+       function = transpile_fun_ref(Fun, length(Args), Env),
+       args = [transpile_expr(Arg, Env) || Arg <- Args]
       };
-transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, Records) ->
-    transpile_expr({call, fixme, {atom, fixme, Fun}, Args}, Records);
-transpile_expr({call, _, Fun, Args}, Records) ->
+transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, Env) ->
+    #expr_app{
+       function = transpile_fun_ref(Module, Fun, length(Args), Env),
+       args = [transpile_expr(Arg, Env) || Arg <- Args]
+      };
+transpile_expr({call, _, Fun, Args}, Env) ->
     #expr_app{
         function = #expr_var{name = "Erlang.erlangApply"},
-        args = [transpile_expr(Fun, Records), transpile_expr(Args, Records)]
+        args = [transpile_expr(Fun, Env), transpile_expr(Args, Env)]
     };
 
 transpile_expr({nil, _}, _) ->
     #expr_var{name = "ErlangEmptyList"};
-transpile_expr({cons, _, H, T}, Records) ->
+transpile_expr({cons, _, H, T}, Env) ->
     #expr_app{
        function = #expr_var{name = "ErlangCons"},
-       args = [transpile_expr(H, Records), transpile_expr(T, Records)]
+       args = [transpile_expr(H, Env), transpile_expr(T, Env)]
       };
 
-transpile_expr({'if', _, Clauses}, Records) ->
+transpile_expr({'if', _, Clauses}, Env) ->
     #expr_case{
-       expr = transpile_expr({atom, any, true}, Records),
-       cases = [{expr_wildcard, Guards, transpile_expr(Cont, Records)} ||
+       expr = transpile_expr({atom, any, true}, Env),
+       cases = [{pat_wildcard,
+                 [#guard_expr{guard = transpile_expr(G, Env)} || G <- Guards],
+                 transpile_expr(Cont, Env)} ||
                    {clause, _, [], Guards, Cont} <- Clauses]
       };
 
-transpile_expr({'case', _, Expr, Clauses}, Records) ->
+transpile_expr({'case', _, Expr, Clauses}, Env) ->
     #expr_case{
-       expr = transpile_expr(Expr, Records),
+       expr = transpile_expr(Expr, Env),
        cases =
            [ begin
-                 {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Records),
-                 {PSPat, [transpile_boolean_guards(Guards, Records) | PSGuards], transpile_expr(Cont, Records)}
+                 {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
+                 {PSPat, [transpile_boolean_guards(Guards, Env) | PSGuards], transpile_expr(Cont, Env)}
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
            ]
       };
 
-transpile_expr({'fun', _, {function, Fun, Arity}}, Records) when is_atom(Fun) ->
+transpile_expr({'fun', _, {function, Fun, Arity}}, Env) when is_atom(Fun) ->
     #expr_app{
        function = #expr_var{name = "ErlangFun"},
        args =
            [ #expr_num{value = Arity}
-           , #expr_var{name = transpile_fun_name(Fun, Arity)}
+           , transpile_fun_ref(Fun, Arity, Env)
            ]
       };
 
-transpile_expr({tuple, _, Exprs}, Records) ->
+transpile_expr({tuple, _, Exprs}, Env) ->
     #expr_app{
        function = #expr_var{name = "ErlangTuple"},
        args =
-           [ transpile_expr(Expr, Records)
+           [ transpile_expr(Expr, Env)
              || Expr <- Exprs
            ]
       };
 
-transpile_expr(X, _Records) ->
+transpile_expr({lc, _, Ret, []}, Env) ->
+    #expr_app{
+       function = #expr_var{name = "ErlangCons"},
+       args = [transpile_expr(Ret, Env), #expr_var{name = "ErlangEmptyList"}]
+      };
+transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Env) ->
+    Var = state_create_fresh_var(),
+    {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
+    #expr_app{
+       function = #expr_var{name = "erlangListFlatMap"},
+       args =
+           [ transpile_expr(Source, Env)
+           , #expr_lambda{
+                args = [#pat_var{name = Var}],
+                body = #expr_case{
+                          expr = #expr_var{name = Var},
+                          cases = [ {PSPat, Guards, transpile_expr({lc, Ann, Ret, Rest}, Env)}
+                                  , {pat_wildcard, [], #expr_var{name = "ErlangEmptyList"}}
+                                  ]
+                         }
+               }
+           ]
+      };
+transpile_expr({lc, Ann, Ret, [Expr|Rest]}, Env) ->
+    #expr_case{
+       expr = transpile_expr(Expr, Env),
+       cases = [ {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = "true"}]}, [],
+                  transpile_expr({lc, Ann, Ret, Rest}, Env)}
+               , {pat_wildcard, [], #expr_var{name = "ErlangEmptyList"}}
+               ]
+      };
+
+transpile_expr(X, _Env) ->
     error({unimplemented_expr, X}).
 
 compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed
