@@ -324,10 +324,10 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
 transpile_boolean_guards([], _Env) -> [];
 transpile_boolean_guards(Guards, Env) ->
     Alts = [
-      lists:foldl(fun(G, AccConjs) -> {op, any, "andalso", G, AccConjs} end,
+      lists:foldl(fun(G, AccConjs) -> {op, any, "andalso", AccConjs, G} end,
         hd(Alt), tl(Alt)) || Alt <- Guards ],
     E = lists:foldl(
-      fun(Alt, AccAlts) -> {op, any, "orelse", Alt, AccAlts} end,
+      fun(Alt, AccAlts) -> {op, any, "orelse", AccAlts, Alt} end,
       hd(Alts), tl(Alts)),
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#guard_assg{
