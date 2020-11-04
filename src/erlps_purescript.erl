@@ -121,7 +121,7 @@ pp_expr(#expr_num{value = Val}) ->
 pp_expr(#expr_string{value = Val}) ->
     text(io_lib:format("~p", [lists:flatten(Val)]));
 pp_expr(#expr_app{function = F, args = Args}) ->
-    paren(hsep([pp_expr(F) | lists:map(fun pp_expr/1, Args)]));
+    paren(par([pp_expr(F) | lists:map(fun pp_expr/1, Args)]));
 pp_expr(#expr_var{name = Var}) ->
     text(Var);
 pp_expr(#expr_array{value = Arr}) ->
@@ -164,7 +164,7 @@ pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();
 pp_guards(Guards) ->
-    hsep([text("|") | lists:map(fun pp_guard/1, Guards)]).
+    par([text("|") | lists:map(fun pp_guard/1, Guards)]).
 
 -spec pp_clause(Name :: string(), purs_clause()) -> doc().
 pp_clause(Name, #clause{
@@ -172,7 +172,7 @@ pp_clause(Name, #clause{
     guards = Guards,
     value = Value}) ->
     block(
-      hsep([text(Name), hsep(lists:map(fun pp_pat/1, Args)), pp_guards(Guards), text("=")]),
+      hsep([text(Name), par(lists:map(fun pp_pat/1, Args)), pp_guards(Guards), text("=")]),
       pp_expr(Value)).
 
 -spec pp_type(purs_type()) -> doc().
