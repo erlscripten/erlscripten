@@ -11,7 +11,7 @@ import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (error, throwException)
 
-type ErlangFun = Partial => DL.List ErlangTerm -> Effect ErlangTerm
+type ErlangFun = Partial => Array ErlangTerm -> Effect ErlangTerm
 
 -- TODO: add floats
 data ErlangTerm
@@ -21,6 +21,7 @@ data ErlangTerm
     | ErlangBinary    Buffer
     | ErlangTuple     (Array ErlangTerm)
     | ErlangFun       Int ErlangFun
+    | ErlangAtom      String
 
 instance showErlangTerm :: Show ErlangTerm where
     show (ErlangNum a) =
@@ -35,6 +36,9 @@ instance showErlangTerm :: Show ErlangTerm where
         show $ unsafePerformEffect $ toArray a
     show (ErlangTuple a) =
         show a
+    show (ErlangFun arity _) =
+        "<some_function/" <> show arity <> ">"
+    show (ErlangAtom atom) = atom
 
 instance eqErlangTerm :: Eq ErlangTerm where
     eq (ErlangNum a) (ErlangNum b) = a == b

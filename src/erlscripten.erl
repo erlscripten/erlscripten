@@ -45,7 +45,8 @@ parse_transform(Forms, Options) ->
                     [ #import{path = ["Prelude"]}
                     , #import{path = ["Data", "List"], alias = "DL"}
                     , #import{path = ["Data", "Maybe"], alias = "DM"}
-                    , #import{path = ["Erlang", "Type"], explicit = ["ErlangTerm(..)"]}
+                    , #import{path = ["Erlang", "Builtins"]}
+                    , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
                     , #import{path = ["Effect"], explicit = ["Effect"]}
                     ],
                 %% Now it's time to determine what modules to import
@@ -139,7 +140,7 @@ filter_function_forms(_) ->
     undefined.
 
 transpile_function({{FunName, Arity}, Clauses}, Env) ->
-    Type = #type_var{name = "Erlang.ErlangFun"},
+    Type = #type_var{name = "ErlangFun"},
     PSClauses = [transpile_function_clause(FunName, Clause, Env) ||
                     Clause <- Clauses],
     #valdecl{
@@ -213,7 +214,7 @@ transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Module) ->
 transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
     case check_builtin(Module, Name, Arity) of
         {builtin, Builtin} ->
-            #expr_var{name = "ErlangBuiltins." ++ Builtin};
+            #expr_var{name = "Erlang.Builtins." ++ Builtin};
         {local, Local} ->
             if CurModule == Module -> #expr_var{name = Local};
                true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "." ++ Local}
@@ -325,12 +326,12 @@ transpile_boolean_guards(Guards, Env) ->
        guard = lists:foldl(
                 fun(Alt, AccAlts) ->
                         #expr_app{
-                           function = #expr_var{name = "erlangOr"},
+                           function = transpile_fun_ref("erlang", 'orelse', 2, Env),
                            args =
                                [ lists:foldl(
                                    fun(G, AccConjs) ->
                                            #expr_app{
-                                              function = #expr_var{name = "erlangAnd"},
+                                              function = transpile_fun_ref("erlang", 'andalso', 2, Env),
                                               args =
                                                   [ #expr_binop{
                                                        name = "==",
@@ -572,7 +573,7 @@ transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, 
       };
 transpile_expr({call, _, Fun, Args}, Env) ->
     #expr_app{
-        function = #expr_var{name = "Erlang.erlangApply"},
+        function = #expr_var{name = "Erlang.Builtins.erlang''apply''2"},
         args = [transpile_expr(Fun, Env), transpile_expr(Args, Env)]
     };
 

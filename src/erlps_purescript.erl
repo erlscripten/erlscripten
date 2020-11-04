@@ -35,15 +35,17 @@
 
 
 format_module(Module) ->
-    prettypr:format(pp_module(Module)).
+    Retarded = prettypr:format(pp_module(Module)),
+    NotRetarded = string:replace(Retarded, "\t", "        ", all),
+    NotRetarded.
 
 %% OPTIONS
 
--define(aeso_pretty_opts, aeso_pretty_opts).
+-define(erlps_pretty_opts, erlps_pretty_opts).
 
 -spec options() -> options().
 options() ->
-    case get(?aeso_pretty_opts) of
+    case get(?erlps_pretty_opts) of
         undefined -> [];
         Opts      -> Opts
     end.
@@ -52,8 +54,15 @@ options() ->
 option(Key, Default) ->
     proplists:get_value(Key, options(), Default).
 
+-spec with_options(options(), fun(() -> A)) -> A.
+with_options(Options, Fun) ->
+    put(?erlps_pretty_opts, Options),
+    Res = Fun(),
+    erase(?erlps_pretty_opts),
+    Res.
+
 -spec indent() -> non_neg_integer().
-indent() -> option(indent, 2).
+indent() -> option(indent, 4).
 
 %% HELPERS
 
@@ -63,13 +72,6 @@ par(Ds) -> par(Ds, indent()).
 -spec par([doc()], non_neg_integer()) -> doc().
 par([], _) -> empty();
 par(Ds, N) -> prettypr:par(Ds, N).
-
--spec follow(doc(), doc(), non_neg_integer()) -> doc().
-follow(A, B, N) ->
-    sep([A, nest(N, B)]).
-
--spec follow(doc(), doc()) -> doc().
-follow(A, B) -> follow(A, B, indent()).
 
 -spec above([doc()]) -> doc().
 above([])       -> empty();
@@ -164,7 +166,7 @@ pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();
 pp_guards(Guards) ->
-    par([text("|") | lists:map(fun pp_guard/1, Guards)]).
+    par([text("|") | punctuate(text(","), lists:map(fun pp_guard/1, Guards))]).
 
 -spec pp_clause(Name :: string(), purs_clause()) -> doc().
 pp_clause(Name, #clause{
