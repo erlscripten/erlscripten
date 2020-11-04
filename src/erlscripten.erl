@@ -316,35 +316,25 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
     #clause{
         args = [#pat_array{value = PsArgs}],
-        guards = [transpile_boolean_guards(Guards, Env) | PsGuards],
+        guards = PsGuards ++ transpile_boolean_guards(Guards, Env),
         value = transpile_expr(Body, Env)
     }.
 
 
+transpile_boolean_guards([], _Env) -> [];
 transpile_boolean_guards(Guards, Env) ->
-    #guard_expr{
-       guard = lists:foldl(
-                fun(Alt, AccAlts) ->
-                        #expr_app{
-                           function = transpile_fun_ref("erlang", 'orelse', 2, Env),
-                           args =
-                               [ lists:foldl(
-                                   fun(G, AccConjs) ->
-                                           #expr_app{
-                                              function = transpile_fun_ref("erlang", 'andalso', 2, Env),
-                                              args =
-                                                  [ #expr_binop{
-                                                       name = "==",
-                                                       lop = transpile_expr(G, Env),
-                                                       rop = transpile_expr({atom, any, true}, Env)
-                                                      }
-                                                  , AccConjs
-                                                  ]}
-                                   end, transpile_expr({atom, any, false}, Env), Alt)
-                               , AccAlts
-                               ]}
-                end, transpile_expr({atom, any, true}, Env), Guards)
-      }.
+    E = lists:foldl(
+      fun(Alt, AccAlts) ->
+        Conj = lists:foldl(
+          fun(G, AccConjs) ->
+            {op, any, "andalso", G, AccConjs}
+          end, hd(Alt), tl(Alt)),
+        {op, any, "orelse", Conj, AccAlts}
+      end, hd(Guards), tl(Guards)),
+    [#guard_assg{
+       lvalue = transpile_expr({atom, any, true}, Env),
+       rvalue = transpile_expr(E, Env)
+    }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->
     state_push_var_stack(), %% Push fully bound variables
@@ -610,7 +600,7 @@ transpile_expr({'case', _, Expr, Clauses}, Env) ->
        cases =
            [ begin
                  {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
-                 {PSPat, [transpile_boolean_guards(Guards, Env) | PSGuards], transpile_expr(Cont, Env)}
+                 {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env), transpile_expr(Cont, Env)}
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
            ]
