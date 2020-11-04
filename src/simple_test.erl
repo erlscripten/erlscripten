@@ -55,3 +55,9 @@
 
 eq_pattern([1,2,3] = X) -> X;
 eq_pattern(X = [1,2]) -> X.
+
+eq_guard([X,X]) -> X;
+eq_guard([X,Y]) when X>Y -> X+Y;
+eq_guard([X,Y]) -> eq_guard([Y,X]).
+
+eq_guard(X, Y, Z) when X==Y; Y==Z, 1==2 -> Y.
