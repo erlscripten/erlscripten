@@ -11,139 +11,232 @@
 
 -include("erlps_purescript.hrl").
 
+-import(prettypr, [text/1, sep/1, above/2, beside/2, nest/2, empty/0]).
+
 %% API
 -export([
-    purs_expr_to_str/1,
-    purs_pat_to_str/1,
-    purs_guard_to_str/1,
-    purs_clause_to_str/1,
-    purs_type_to_str/1,
-    purs_typedecl_to_str/1,
-    purs_import_to_str/1,
-    purs_top_decl_to_str/1,
-    purs_module_to_str/1
+    format_module/1
 ]).
 
-%% TODO: USE PRETTY PRINTER
-
--spec purs_expr_to_str(purs_expr()) -> string().
-purs_expr_to_str(#expr_binop{name = O, lop = L, rop = R}) ->
-    io_lib:format("(~s ~s ~s)", [purs_expr_to_str(L), O, purs_expr_to_str(R)]);
-purs_expr_to_str(#expr_num{value = Val}) ->
-    io_lib:format("~p", [Val]);
-purs_expr_to_str(#expr_string{value = Val}) ->
-    io_lib:format("~p", [lists:flatten(Val)]);
-purs_expr_to_str(#expr_app{function = F, args = Args}) ->
-    io_lib:format("(~s)", [string:join([purs_expr_to_str(P) || P <- [F | Args]], " ")]);
-purs_expr_to_str(#expr_var{name = Var}) ->
-    Var;
-purs_expr_to_str(#expr_array{value = Arr}) ->
-    io_lib:format("[~s]", [string:join([purs_expr_to_str(E) || E <- Arr], ", ")]);
-purs_expr_to_str(#expr_case{expr = Ex, cases = Cases}) ->
-    CasesStr = string:join(
-        [ io_lib:format("~s~s -> ~s", [purs_pat_to_str(Pat), purs_guards_to_str(Guards), purs_expr_to_str(Expr)])
-            || {Pat, Guards, Expr} <- Cases
-        ], "; "),
-    io_lib:format("case ~s of {~s}", [purs_expr_to_str(Ex), CasesStr]);
-purs_expr_to_str(#expr_lambda{args = Args, body = Body}) ->
-    io_lib:format("\\~s -> ~s", [string:join([purs_pat_to_str(Arg) || Arg <- Args], " "), purs_expr_to_str(Body)]).
+-export([
+    pp_expr/1,
+    pp_pat/1,
+    pp_guard/1,
+    pp_clause/2,
+    pp_type/1,
+    pp_import/1,
+    pp_valdecl/1,
+    pp_module/1
+]).
 
 
--spec purs_pat_to_str(purs_pat()) -> string().
-purs_pat_to_str(pat_wildcard) ->
-    "_";
-purs_pat_to_str(#pat_num{value = Val}) ->
-    io_lib:format("~p", [Val]);
-purs_pat_to_str(#pat_string{value = Val}) ->
-    io_lib:format("~p", [Val]);
-purs_pat_to_str(#pat_var{name = Var}) ->
-    Var;
-purs_pat_to_str(#pat_array{value = Arr}) ->
-    io_lib:format("[~s]", [string:join([purs_pat_to_str(E) || E <- Arr], ", ")]);
-purs_pat_to_str(#pat_as{name = Name, pattern = Pat}) ->
-    io_lib:format("~s@(~s)", [Name, purs_pat_to_str(Pat)]);
-purs_pat_to_str(#pat_constr{constr = Constr, args = Args}) ->
-    io_lib:format("(~s)", [string:join([purs_pat_to_str(P) || P <- [#pat_var{name = Constr} | Args]], " ")]).
+-type doc() :: prettypr:document().
+-type options() :: [{indent, non_neg_integer()} | show_generated].
 
 
--spec purs_guard_to_str(purs_guard()) -> string().
-purs_guard_to_str(#guard_expr{guard = Guard}) ->
-    purs_expr_to_str(Guard);
-purs_guard_to_str(#guard_assg{lvalue = LV, rvalue = RV}) ->
-    io_lib:format("~s <- ~s", [purs_pat_to_str(LV), purs_expr_to_str(RV)]).
+format_module(Module) ->
+    prettypr:format(pp_module(Module)).
 
--spec purs_guards_to_str([purs_guard()]) -> string().
-purs_guards_to_str([]) -> "";
-purs_guards_to_str(Guards) ->
-    GuardsStr = string:join([purs_guard_to_str(G) || G <- Guards], ", "),
-    io_lib:format(" | ~s", [GuardsStr]).
+%% OPTIONS
 
--spec purs_clause_to_str(purs_clause()) -> string().
-purs_clause_to_str(#clause{
-    name = Name,
+-define(aeso_pretty_opts, aeso_pretty_opts).
+
+-spec options() -> options().
+options() ->
+    case get(?aeso_pretty_opts) of
+        undefined -> [];
+        Opts      -> Opts
+    end.
+
+-spec option(atom(), any()) -> any().
+option(Key, Default) ->
+    proplists:get_value(Key, options(), Default).
+
+-spec indent() -> non_neg_integer().
+indent() -> option(indent, 2).
+
+%% HELPERS
+
+-spec par([doc()]) -> doc().
+par(Ds) -> par(Ds, indent()).
+
+-spec par([doc()], non_neg_integer()) -> doc().
+par([], _) -> empty();
+par(Ds, N) -> prettypr:par(Ds, N).
+
+-spec follow(doc(), doc(), non_neg_integer()) -> doc().
+follow(A, B, N) ->
+    sep([A, nest(N, B)]).
+
+-spec follow(doc(), doc()) -> doc().
+follow(A, B) -> follow(A, B, indent()).
+
+-spec above([doc()]) -> doc().
+above([])       -> empty();
+above([D])      -> D;
+above([D | Ds]) -> lists:foldl(fun(X, Y) -> above(Y, X) end, D, Ds).
+
+-spec beside([doc()]) -> doc().
+beside([])       -> empty();
+beside([D])      -> D;
+beside([D | Ds]) -> lists:foldl(fun(X, Y) -> beside(Y, X) end, D, Ds).
+
+-spec hsep([doc()]) -> doc().
+hsep(Ds) -> beside(punctuate(text(" "), [ D || D <- Ds, D /= empty() ])).
+
+-spec hsep(doc(), doc()) -> doc().
+hsep(D1, D2) -> hsep([D1, D2]).
+
+-spec punctuate(doc(), [doc()]) -> [doc()].
+punctuate(_Sep, [])      -> [];
+punctuate(_Sep, [D])     -> [D];
+punctuate(Sep, [D | Ds]) -> [beside(D, Sep) | punctuate(Sep, Ds)].
+
+-spec paren(doc()) -> doc().
+paren(D) -> beside([text("("), D, text(")")]).
+
+-spec indent(doc()) -> doc().
+indent(D) -> nest(indent(), D).
+
+%% block(Header, Body) ->
+%%  Header
+%%      Body
+-spec block(doc(), doc()) -> doc().
+block(Header, Body) ->
+    sep([ Header, indent(Body) ]).
+
+-spec comma_brackets(string(), string(), [doc()]) -> doc().
+comma_brackets(Open, Close, Ds) ->
+    beside([text(Open), par(punctuate(text(","), Ds), 0), text(Close)]).
+
+
+
+%% PURESCRIPT
+
+-spec pp_expr(purs_expr()) -> doc().
+pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
+    paren(hsep([pp_expr(L), text(O), pp_expr(R)]));
+pp_expr(#expr_num{value = Val}) ->
+    text(integer_to_list(Val));
+pp_expr(#expr_string{value = Val}) ->
+    text(io_lib:format("~p", [lists:flatten(Val)]));
+pp_expr(#expr_app{function = F, args = Args}) ->
+    paren(hsep([pp_expr(F) | lists:map(fun pp_expr/1, Args)]));
+pp_expr(#expr_var{name = Var}) ->
+    text(Var);
+pp_expr(#expr_array{value = Arr}) ->
+    comma_brackets("[", "]", lists:map(fun pp_expr/1, Arr));
+pp_expr(#expr_case{expr = Ex, cases = Cases}) ->
+    block(hsep([text("case"), pp_expr(Ex), text("of")]),
+          above([ block(hsep([pp_pat(Pat), pp_guards(Guards), text("->")]),
+                        pp_expr(Expr)
+                       )
+                 || {Pat, Guards, Expr} <- Cases
+                ])
+         );
+pp_expr(#expr_lambda{args = Args, body = Body}) ->
+    block(beside([text("\\"), hsep([pp_pat(Arg) || Arg <- Args]), text(" -> ")]),
+          pp_expr(Body)).
+
+-spec pp_pat(purs_pat()) -> doc().
+pp_pat(pat_wildcard) ->
+    text("_");
+pp_pat(#pat_num{value = Val}) ->
+    text(integer_to_list(Val));
+pp_pat(#pat_string{value = Val}) ->
+    text(io_lib:format("~p", [Val]));
+pp_pat(#pat_var{name = Var}) ->
+    text(Var);
+pp_pat(#pat_array{value = Arr}) ->
+    comma_brackets("[", "]", [pp_pat(E) || E <- Arr]);
+pp_pat(#pat_as{name = Name, pattern = Pat}) ->
+    beside([text(Name), text("@"), pp_pat(Pat)]);
+pp_pat(#pat_constr{constr = Constr, args = Args}) ->
+    paren(hsep([pp_pat(P) || P <- [#pat_var{name = Constr} | Args]])).
+
+
+-spec pp_guard(purs_guard()) -> doc().
+pp_guard(#guard_expr{guard = Guard}) ->
+    pp_expr(Guard);
+pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
+    hsep([pp_pat(LV), text("<-"), pp_expr(RV)]).
+
+-spec pp_guards([purs_guard()]) -> doc().
+pp_guards([]) -> empty();
+pp_guards(Guards) ->
+    hsep([text("|") | lists:map(fun pp_guard/1, Guards)]).
+
+-spec pp_clause(Name :: string(), purs_clause()) -> doc().
+pp_clause(Name, #clause{
     args = Args,
     guards = Guards,
     value = Value}) ->
-    ArgsStr = string:join([purs_pat_to_str(P) || P <- Args], " "),
-    GuardsStr = purs_guards_to_str(Guards),
-    ValueStr = purs_expr_to_str(Value),
-    io_lib:format("~s ~s~s = ~s", [Name, ArgsStr, GuardsStr, ValueStr]).
+    block(
+      hsep([text(Name), hsep(lists:map(fun pp_pat/1, Args)), pp_guards(Guards), text("=")]),
+      pp_expr(Value)).
 
--spec purs_type_to_str(purs_type()) -> string().
-purs_type_to_str(#type_var{name = Name}) ->
-    Name;
-purs_type_to_str(#type_app{typeconstr = Constr, args = Args}) ->
-    io_lib:format("(~s ~s)", [purs_type_to_str(Constr),
-        string:join([purs_type_to_str(A) || A <- Args], " ")]);
-purs_type_to_str(#type_fun{arg = Arg, ret = Ret}) ->
-    io_lib:format("(~s -> ~s)", [purs_type_to_str(Arg), purs_type_to_str(Ret)]).
+-spec pp_type(purs_type()) -> doc().
+pp_type(#type_var{name = Name}) ->
+    text(Name);
+pp_type(#type_app{typeconstr = Constr, args = Args}) ->
+    paren(hsep([pp_type(Constr) | lists:map(fun pp_type/1, Args)]));
+pp_type(#type_fun{arg = Arg, ret = Ret}) ->
+    hsep([pp_type(Arg), text("->"), pp_type(Ret)]).
 
--spec purs_typedecl_to_str(purs_typedecl()) -> string().
-purs_typedecl_to_str(#typedecl{name = Name, type = Type}) ->
-    io_lib:format("~s :: Partial => ~s", [Name, purs_type_to_str(Type)]).
-
--spec purs_import_to_str(purs_import()) -> string().
-purs_import_to_str(#import{
-    path = Path,
-    alias = Alias,
-    qualify = Qualify,
-    hiding = Hiding,
-    explicit = Explicit
-}) ->
-    io_lib:format("import ~s ~s ~s ~s ~s", [
-        if Qualify -> "qualified"; true -> "" end,
-        string:join(Path, "."),
+-spec pp_import(purs_import()) -> doc().
+pp_import(#import{ path = Path
+                 , alias = Alias
+                 , qualify = Qualify
+                 , hiding = Hiding
+                 , explicit = Explicit
+                 }) ->
+    hsep([
+        text("import"),
+        if Qualify -> text("qualified"); true -> empty() end,
+        beside(punctuate(text("."), lists:map(fun prettypr:text/1, Path))),
         case Alias of
-            false -> "";
-            _ -> "as " ++ Alias
+            false -> empty();
+            _     -> hsep(text("as"), text(Alias))
         end,
-        if Hiding -> "hiding"; true -> "" end,
+        if Hiding -> text("hiding"); true -> empty() end,
         case Explicit of
-            [] -> "";
-            _ -> "(" ++ string:join(Explicit, ", ") ++ ")"
+            [] -> empty();
+            _  -> comma_brackets("(", ")", lists:map(fun prettypr:text/1, Explicit))
         end
     ]).
 
--spec purs_top_decl_to_str(purs_top_decl()) -> string().
-purs_top_decl_to_str(#top_typedecl{typedecl = Decl}) ->
-    purs_typedecl_to_str(Decl);
-purs_top_decl_to_str(#top_clause{clause = Clause}) ->
-    purs_clause_to_str(Clause).
+-spec pp_valdecl(purs_valdecl()) -> doc().
+pp_valdecl(#valdecl{
+              name = Name,
+              type = Type,
+              clauses = Clauses
+             }) ->
+    above([ case Type of
+                no_type -> empty();
+                _ActualType ->
+                    hsep([text(Name), text(":: Partial =>"), pp_type(Type)])
+            end
+          | [ pp_clause(Name, Clause) || Clause <- Clauses ]
+          ]).
 
--spec purs_module_to_str(purs_module()) -> string().
-purs_module_to_str(#module{name = Name, imports = Imports, decls = Decls}) ->
-    Format =
-        "module ~s where\n"
-        "{-\n"
-        "This file has been autogenerated\n"
-        "DO NOT EDIT - Your changes WILL be overwritten\n"
-        "Use this code at your own risk - the authors are just a mischievous raccoon and a haskell devote\n"
-        "Erlscripten ~s\n"
-        "-}\n"
-        "\n"
-        "~s\n"
-        "\n\n"
-        "~s",
-    ImportStr = string:join([purs_import_to_str(I) || I <- Imports], "\n"),
-    DeclsStr = string:join([purs_top_decl_to_str(D) || D <- Decls], "\n\n"),
-    io_lib:format(Format, [Name, erlscripten:version(), ImportStr, DeclsStr]).
+-spec pp_top_decl(purs_top_decl()) -> doc().
+pp_top_decl(TD = #valdecl{}) ->
+    pp_valdecl(TD).
+
+-spec pp_module(purs_module()) -> doc().
+pp_module(#module{name = Name, imports = Imports, decls = Decls}) ->
+    Comment =
+        above(lists:map(
+                fun prettypr:text/1,
+                [ "{-"
+                , "This file has been autogenerated"
+                , "DO NOT EDIT - Your changes WILL be overwritten"
+                , "Use this code at your own risk - the authors are just a mischievous raccoon and a haskell devote"
+                , io_lib:format("Erlscripten ~s", [erlscripten:version()])
+                , "-}\n"])),
+    above([ hsep([text("module"), text(Name), text("where")])
+          , Comment
+          , above(lists:map(fun pp_import/1, Imports))
+          , text("\n")
+          , above(punctuate(text("\n"), lists:map(fun pp_top_decl/1, Decls)))
+          ]).

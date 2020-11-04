@@ -16,39 +16,39 @@
 %% API
 -export([]).
 
-ident(X) -> X.
+ ident(X) -> X.
 
-unify(X, X) -> ok.
+ unify(X, X) -> ok.
 
-clause(x) -> ok;
-clause(y) -> ko.
+ clause(x) -> ok;
+ clause(y) -> ko.
 
-pat_tuple({X, X}) -> ok;
-pat_tuple({{X, X}, {X, X, X}}) -> xd.
+ pat_tuple({X, X}) -> ok;
+ pat_tuple({{X, X}, {X, X, X}}) -> xd.
 
--if(?OTP_RELEASE >= 23).
-pat_list([X, X] ++ [X, X]) -> k;
--elif.
--endif.
-pat_list([H|T]) -> ok;
-pat_list([H|[H|G]]) -> ok;
-pat_list([]) -> nok;
-pat_list([X,X,X]) -> k;
+ -if(?OTP_RELEASE >= 23).
+ pat_list([X, X] ++ [X, X]) -> k;
+ -elif.
+ -endif.
+ pat_list([H|T]) -> ok;
+ pat_list([H|[H|G]]) -> ok;
+ pat_list([]) -> nok;
+ pat_list([X,X,X]) -> k;
 
-pat_list([X,X,X|[X]]) -> lol.
+ pat_list([X,X,X|[X]]) -> lol.
 
-pat_maps(#{}) -> ok;
-pat_maps(#{dupa := X, pupa := X}) -> ok.
+ pat_maps(#{}) -> ok;
+ pat_maps(#{dupa := X, pupa := X}) -> ok.
 
-pat_match(X = {X, X} = [X | X]) -> X.
+ pat_match(X = {X, X} = [X | X]) -> X.
 
-pat_ops(1 + 2) -> aa;
-pat_ops(1 + 2 * 3 / 4) -> kek.
+ pat_ops(1 + 2) -> aa;
+ pat_ops(1 + 2 * 3 / 4) -> kek.
 
 
-expr_ops(X = ok) -> X + X * X - X ++ X.
+ expr_ops(X = ok) -> X + X * X - X ++ X.
 
-expr_app(X) -> expr_app(X).
+ expr_app(X) -> expr_app(X).
 
-bifs() ->
-    length([]) + erlang:length([]).
+ bifs() ->
+     length([]) + erlang:length([]).

@@ -27,19 +27,18 @@
 -export_type([purs_import/0]).
 
 
--record(top_typedecl, {typedecl :: purs_typedecl()}).
--record(top_clause, {clause :: purs_clause()}).
 -type purs_top_decl()
-:: #top_typedecl{}
-| #top_clause{}
+:: purs_valdecl()
 .
 -export_type([purs_top_decl/0]).
 
-
--record(typedecl, {name :: string(), type :: purs_type()}).
--type purs_typedecl() :: #typedecl{}.
--export_type([purs_typedecl/0]).
-
+-record(valdecl, {
+    name :: string(),
+    type = no_type :: no_type | purs_type(),
+    clauses :: [purs_clause()]
+}).
+-type purs_valdecl() :: #valdecl{}.
+-export_type([purs_valdecl/0]).
 
 -record(type_var, {name :: string()}).
 -record(type_app, {typeconstr :: purs_type(), args :: [purs_type()]}).
@@ -51,9 +50,7 @@
 .
 -export_type([purs_type/0]).
 
-
 -record(clause, {
-    name :: string(),
     args :: [purs_pat()],
     guards = [] :: [purs_guard()],
     value :: purs_expr()}).

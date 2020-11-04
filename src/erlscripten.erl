@@ -59,20 +59,18 @@ parse_transform(Forms, Options) ->
                          records = Records
                         },
                 %% Now do the dirty work - transpile every function OwO
-                Decls = [Decl ||
+                Decls = [transpile_function(Function, Env) ||
                     Function = {{FunName, Arity}, _} <- FunctionForms,
-                    element(1, check_builtin(ModuleName, FunName, Arity)) =:= local,
-                    {TypeDecl, Clauses} <- [transpile_function(Function, Env)],
-                    Decl <- [TypeDecl | Clauses]
+                    element(1, check_builtin(ModuleName, FunName, Arity)) =:= local
                 ],
-                Dispatchers = [#top_clause{clause = Disp}
-                    || Disp <- make_dispatchers(FunctionForms)],
+                %% Dispatchers = [#top_clause{clause = Disp}
+                    %% || Disp <- make_dispatchers(FunctionForms)],
                 Module = #module{
                     name = erlang_module_to_purs_module(ModuleName),
                     imports = DefaultImports ++ Imports,
                     decls = Decls %++ Dispatchers
                 },
-                file:write(Handle, erlps_purescript:purs_module_to_str(Module))
+                file:write(Handle, erlps_purescript:format_module(Module))
         end,
         Forms
     catch Error:Reason:StackTrace ->
@@ -142,11 +140,13 @@ filter_function_forms(_) ->
 
 transpile_function({{FunName, Arity}, Clauses}, Env) ->
     Type = #type_var{name = "Erlang.ErlangFun"},
-    PSClauses = [#top_clause{clause = transpile_function_clause(FunName, Clause, Env)} ||
+    PSClauses = [transpile_function_clause(FunName, Clause, Env) ||
                     Clause <- Clauses],
-    {#top_typedecl{
-        typedecl = #typedecl{name = transpile_fun_name(FunName, Arity),
-            type = Type}}, PSClauses}.
+    #valdecl{
+       name = transpile_fun_name(FunName, Arity),
+       clauses = PSClauses,
+       type = Type
+      }.
 
 transpile_fun_name(Name, Arity) when is_atom(Name) ->
     transpile_fun_name(atom_to_list(Name), Arity);
@@ -226,22 +226,26 @@ make_dispatcher_name(Name) ->
 
 %% Dispatcher for a given function by available arities
 make_dispatcher_for(Name, Arities) ->
-    #clause{
-        name = make_dispatcher_name(Name),
-        args = [#pat_var{name = "arity"}, #pat_var{name = "args"}],
-        value = #expr_case{
-            expr = #expr_var{name = "arity"},
-            cases = [{
-                #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Arity}]},
-                [], % guards
-                #expr_app{
-                    function = #expr_var{name = transpile_fun_name(Name, Arity)},
-                    args = [#expr_var{name = io_lib:format("arg_~p", [I])}
-                        || I <- lists:seq(1, Arity)]}}
-                || Arity <- Arities
-            ]
-        }
-    }.
+    #valdecl{
+       name = make_dispatcher_name(Name),
+       clauses =
+           [#clause{
+               args = [#pat_var{name = "arity"}, #pat_var{name = "args"}],
+               value =
+                   #expr_case{
+                      expr = #expr_var{name = "arity"},
+                      cases =
+                          [{#pat_constr{constr = "ErlangNum", args = [#pat_num{value = Arity}]},
+                            [], % guards
+                            #expr_app{
+                               function = #expr_var{name = transpile_fun_name(Name, Arity)},
+                               args = [#expr_var{name = io_lib:format("arg_~p", [I])}
+                                       || I <- lists:seq(1, Arity)]}}
+                           || Arity <- Arities
+                          ]
+                     }
+              }
+           ]}.
 
 %% Dispatcher for all defined functions by arity
 make_dispatchers(Functions) ->
@@ -260,22 +264,26 @@ global_dispatcher_name() ->
 
 %% Dispatcher of all functions in an actual module by name and arity
 make_global_dispatcher(FunNames) ->
-    #clause{
-        name = global_dispatcher_name(),
-        args = [#pat_var{name = "function"}, #pat_var{name = "arity"}, #pat_var{name = "args"}],
-        value = #expr_case{
-            expr = #expr_var{name = "function"},
-            cases = [{
-                #pat_string{value = Fun},
-                [], % guards
-                #expr_app{
-                    function = #expr_var{name = make_dispatcher_name(Fun)},
-                    args = [#expr_var{name = "arity"}, #expr_var{name = "args"}]
-                }}
-                || Fun <- FunNames
-            ]
-        }
-    }.
+    #valdecl{
+       name = global_dispatcher_name(),
+       clauses =
+           [#clause{
+               args = [#pat_var{name = "function"}, #pat_var{name = "arity"}, #pat_var{name = "args"}],
+               value =
+                   #expr_case{
+                      expr = #expr_var{name = "function"},
+                      cases =
+                          [{#pat_string{value = Fun},
+                            [], % guards
+                            #expr_app{
+                               function = #expr_var{name = make_dispatcher_name(Fun)},
+                               args = [#expr_var{name = "arity"}, #expr_var{name = "args"}]
+                              }}
+                           || Fun <- FunNames
+                          ]
+                     }
+              }
+           ]}.
 
 transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
@@ -306,7 +314,6 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
     #clause{
-        name = transpile_fun_name(FunName, length(Args)),
         args = [#pat_array{value = PsArgs}],
         guards = [transpile_boolean_guards(Guards, Env) | PsGuards],
         value = transpile_expr(Body, Env)
