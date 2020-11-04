@@ -418,6 +418,16 @@ transpile_pattern({bin, _, Segments}, _) ->
     {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
 %% Compound pattern
+transpile_pattern({match, _, {var, _, _} = V, P}, Env) ->
+    {H, G, V1} = transpile_pattern(P, Env),
+    case transpile_pattern(V, Env) of
+      pat_wildcard ->
+        {H, G, V1};
+      {#pat_var{name = N}, [], V2} ->
+        {#pat_as{name = N, pattern = H}, G, V1++V2}
+    end;
+transpile_pattern({match, Ann, P, {var, _, _} = V}, Env) ->
+    transpile_pattern({match, Ann, V, P}, Env);
 transpile_pattern({match, _, P1, P2}, Env) ->
     {H1, G1, V1} = transpile_pattern(P1, Env),
     {H2, G2, V2} = transpile_pattern(P2, Env),
