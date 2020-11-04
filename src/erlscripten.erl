@@ -363,7 +363,7 @@ transpile_pattern({float, _, Float}, _) ->
 %% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
 %%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
-    #pat_num{value = Num};
+    {#pat_num{value = Num}, [], []};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
     transpile_pattern({integer, Ann, -Num}, Env);
 

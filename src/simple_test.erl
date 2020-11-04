@@ -52,3 +52,6 @@
 
  bifs() ->
      length([]) + erlang:length([]).
+
+eq_pattern([1,2,3] = X) -> X;
+eq_pattern(X = [1,2]) -> X.
