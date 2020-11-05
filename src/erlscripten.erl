@@ -45,7 +45,8 @@ parse_transform(Forms, Options) ->
                     [ #import{path = ["Prelude"]}
                     , #import{path = ["Data", "List"], alias = "DL"}
                     , #import{path = ["Data", "Maybe"], alias = "DM"}
-                    , #import{path = ["Erlang", "Builtins"]}
+                    , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
+                    , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
                     , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
                     , #import{path = ["Effect"], explicit = ["Effect"]}
                     , #import{path = ["Control", "Applicative"]}
@@ -175,6 +176,7 @@ builtins() ->
                 , {"--",  "op_unAppend"}
                 , {"&&",  "op_and"}
                 , {"||",  "op_or"}
+                , {"!",   "send"}
                 , {"andalso", "op_and"}
                 , {"orelse" , "op_or"}
                 ],
@@ -205,7 +207,7 @@ check_builtin(Module, Name, Arity) ->
     Key = {Module, Name, Arity},
     case builtins() of
         #{Key := Builtin} -> {builtin, Builtin};
-        _ -> {local, Name}
+        _ -> local
     end.
 
 
@@ -218,10 +220,17 @@ transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Module) ->
 transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
     case check_builtin(Module, Name, Arity) of
         {builtin, Builtin} ->
-            #expr_var{name = "Erlang.Builtins." ++ Builtin};
-        {local, Local} ->
-            if CurModule == Module -> #expr_var{name = Local};
-               true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "." ++ Local}
+            #expr_var{name = "BIF." ++ Builtin};
+        local ->
+            %% TODO: import resolving
+            %% assuming nobody overwrites autoimported stuff
+            case check_builtin("erlang", Name, Arity) of
+                {builtin, BuiltinAnyway} ->
+                    #expr_var{name = "BIF." ++ BuiltinAnyway};
+                local -> if CurModule == Module -> #expr_var{name = transpile_fun_name(Name, Arity)};
+                        true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "."
+                                          ++ transpile_fun_name(Name, Arity)}
+                     end
             end
     end.
 
