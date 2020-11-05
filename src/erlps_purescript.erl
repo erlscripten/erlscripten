@@ -62,7 +62,7 @@ with_options(Options, Fun) ->
     Res.
 
 -spec indent() -> non_neg_integer().
-indent() -> option(indent, 4).
+indent() -> option(indent, 2).
 
 %% HELPERS
 
@@ -161,12 +161,13 @@ pp_pat(#pat_constr{constr = Constr, args = Args}) ->
 pp_guard(#guard_expr{guard = Guard}) ->
     pp_expr(Guard);
 pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
-    hsep([pp_pat(LV), text("<-"), pp_expr(RV)]).
+    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV)).
 
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();
 pp_guards(Guards) ->
-    par([text("|") | punctuate(text(","), lists:map(fun pp_guard/1, Guards))]).
+    block(text("|"),
+          par(punctuate(text(","), lists:map(fun pp_guard/1, Guards)))).
 
 -spec pp_clause(Name :: string(), purs_clause()) -> doc().
 pp_clause(Name, #clause{
@@ -216,7 +217,7 @@ pp_valdecl(#valdecl{
     above([ case Type of
                 no_type -> empty();
                 _ActualType ->
-                    hsep([text(Name), text(":: Partial =>"), pp_type(Type)])
+                    hsep([text(Name), text("::"), pp_type(Type)])
             end
           | [ pp_clause(Name, Clause) || Clause <- Clauses ]
           ]).
