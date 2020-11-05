@@ -46,6 +46,7 @@ instance showErlangTerm :: Show ErlangTerm where
         show m
 
 instance eqErlangTerm :: Eq ErlangTerm where
+    eq (ErlangAtom a) (ErlangAtom b) = a == b
     eq (ErlangNum a) (ErlangNum b) = a == b
     eq (ErlangCons ha ta) (ErlangCons hb tb) = ha == hb && ta == tb
     eq ErlangEmptyList ErlangEmptyList = true

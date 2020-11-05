@@ -568,7 +568,7 @@ transpile_expr([Single], Env) ->
 
 transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
     {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Env),
-    #expr_case{
+    R = #expr_case{
        expr = transpile_expr(Val, Env),
        cases =
            [ {PSPat, PSGuards,
@@ -578,7 +578,9 @@ transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
               #expr_app{function = #expr_var{name = "error"},
                         args = [#expr_string{value = "bad_match"}]}}
            ]
-      };
+      },
+    state_pop_var_stack(),
+    R;
 
 transpile_expr([Expr|Rest], Env) ->
     #expr_binop{
@@ -647,7 +649,9 @@ transpile_expr({'case', _, Expr, Clauses}, Env) ->
        cases =
            [ begin
                  {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
-                 {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env), transpile_expr(Cont, Env)}
+                 R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env), transpile_expr(Cont, Env)},
+                 state_pop_var_stack(),
+                 R
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
            ] ++ [{pat_wildcard, [], #expr_app{function = #expr_var{name = "error"},
@@ -686,7 +690,7 @@ transpile_expr({lc, _, Ret, []}, Env) ->
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Env) ->
     Var = state_create_fresh_var(),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
-    effect_apply(eff_fun,
+    R = effect_apply(eff_fun,
        transpile_fun_ref(internal, "listFlatMap", 2, Env),
        [ transpile_expr(Source, Env)
        , #expr_lambda{
@@ -698,7 +702,9 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Env) ->
                               ]
                      }
            }
-       ]);
+       ]),
+    state_pop_var_stack(),
+    R;
 transpile_expr({lc, Ann, Ret, [Expr|Rest]}, Env) ->
     transpile_expr({'case', Ann, Expr,
                     [ {clause, Ann, {atom, Ann, true}, {lc, Ann, Ret, Rest}}
@@ -747,6 +753,8 @@ state_clear_var_stack() ->
 state_push_var_stack() ->
     put(?BINDINGS_STACK, [state_get_vars() | get(?BINDINGS_STACK)]).
 state_pop_var_stack() ->
-    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))).
+    O = hd(get(?BINDINGS_STACK)),
+    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
+    put(?BINDINGS, O).
 state_peek_var_stack() ->
     hd(get(?BINDINGS_STACK)).
