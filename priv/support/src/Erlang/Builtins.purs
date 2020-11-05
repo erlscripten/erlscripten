@@ -7,6 +7,7 @@ import Data.Array as DA
 import Data.List as DL
 import Control.Monad
 import Effect.Exception (throw)
+import Effect
 
 -- erlang''op_plus :: ErlangFun
 -- erlang''op_plus [ErlangNum x, ErlangNum y] = pure $ ErlangNum (x + y)
@@ -35,12 +36,6 @@ import Effect.Exception (throw)
 -- erlang''length''1 [l] = pure $ ErlangNum (go 0 l) where
 --   go acc ErlangEmptyList = acc
 --   go acc (ErlangCons _ t) = go (acc + 1) t
-
-internal''escapeEffect''1 :: ErlangFun
-internal''escapeEffect''1 args = throw "unimplemented"
-
-internal''apply''2 :: ErlangFun
-internal''apply''2 args = throw "unimplemented"
 
 
 lists''keysearch''3 :: ErlangFun
