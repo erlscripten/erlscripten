@@ -380,10 +380,12 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     state_clear_vars(),
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
+    PSBody = erlps_optimize:optimize_expr(transpile_expr(Body, Env)),
+    erlscripten_logger:info("~p\n\n", [PSBody]),
     #clause{
-        args = [#pat_array{value = PsArgs}],
-        guards = PsGuards ++ transpile_boolean_guards(Guards, Env),
-        value = transpile_expr(Body, Env)
+       args = [#pat_array{value = PsArgs}],
+       guards = erlps_optimize:optimize_expr(PsGuards ++ transpile_boolean_guards(Guards, Env)),
+       value = PSBody
     }.
 
 
@@ -398,7 +400,7 @@ transpile_boolean_guards(Guards, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#guard_assg{
        lvalue = TruePat,
-       rvalue = escape_effect(transpile_expr(E, Env))
+       rvalue = escape_effect_guard(transpile_expr(E, Env))
     }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->
@@ -589,6 +591,11 @@ transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
 escape_effect(Expr) ->
     #expr_app{
        function = #expr_var{name = "unsafePerformEffect"},
+       args = [Expr]
+      }.
+escape_effect_guard(Expr) ->
+    #expr_app{
+       function = #expr_var{name = "unsafePerformEffectGuard"},
        args = [Expr]
       }.
 
