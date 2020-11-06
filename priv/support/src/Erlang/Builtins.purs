@@ -27,11 +27,6 @@ import Effect
 --   , DL.length argsL == arityVal =
 --     fun args
 
--- lists''reverse''2 :: ErlangFun
--- lists''reverse''2 [ErlangEmptyList, acc] = pure acc
--- lists''reverse''2 [ErlangCons h t, acc] =
---   lists''reverse''2 [t, ErlangCons h acc]
-
 -- erlang''length''1 :: ErlangFun
 -- erlang''length''1 [l] = pure $ ErlangNum (go 0 l) where
 --   go acc ErlangEmptyList = acc
@@ -45,13 +40,68 @@ lists''keymember''3 :: ErlangFun
 lists''keymember''3 args = throw "unimplemented"
 
 lists''reverse''2 :: ErlangFun
-lists''reverse''2 args = throw "unimplemented"
+lists''reverse''2 [ErlangEmptyList, acc] = pure acc
+lists''reverse''2 [ErlangCons h t, acc] =
+  lists''reverse''2 [t, ErlangCons h acc]
 
 lists''member''2 :: ErlangFun
 lists''member''2 args = throw "unimplemented"
 
 lists''keyfind''3 :: ErlangFun
 lists''keyfind''3 args = throw "unimplemented"
+
+--------------------------------------------------------------------------------
+
+
+erlang''op_exactNeq :: ErlangFun
+erlang''op_exactNeq args = throw "unimplemented"
+
+erlang''op_exactEq :: ErlangFun
+erlang''op_exactEq args = throw "unimplemented"
+
+erlang''op_neq :: ErlangFun
+erlang''op_neq args = throw "unimplemented"
+
+erlang''op_eq :: ErlangFun
+erlang''op_eq args = throw "unimplemented"
+
+erlang''op_and :: ErlangFun
+erlang''op_and args = throw "unimplemented"
+
+erlang''op_lesser :: ErlangFun
+erlang''op_lesser [ErlangNum x, ErlangNum y] =
+  pure (if x < y then ErlangAtom "true" else ErlangAtom "false")
+
+erlang''op_div :: ErlangFun
+erlang''op_div args = throw "unimplemented"
+
+erlang''op_mult :: ErlangFun
+erlang''op_mult args = throw "unimplemented"
+
+erlang''op_minus :: ErlangFun
+erlang''op_minus args = throw "unimplemented"
+
+erlang''op_plus :: ErlangFun
+erlang''op_plus args = throw "unimplemented"
+
+erlang''op_greaterEq :: ErlangFun
+erlang''op_greaterEq args = throw "unimplemented"
+
+erlang''op_greater :: ErlangFun
+erlang''op_greater args = throw "unimplemented"
+
+erlang''op_or :: ErlangFun
+erlang''op_or args = throw "unimplemented"
+
+erlang''op_lesserEq :: ErlangFun
+erlang''op_lesserEq args = throw "unimplemented"
+
+erlang''op_unAppend :: ErlangFun
+erlang''op_unAppend args = throw "unimplemented"
+
+erlang''op_append :: ErlangFun
+erlang''op_append args = throw "unimplemented"
+
 
 
 erlang''process_display''2 :: ErlangFun
@@ -62,9 +112,6 @@ erlang''integer_to_binary''2 args = throw "unimplemented"
 
 erlang''integer_to_list''2 :: ErlangFun
 erlang''integer_to_list''2 args = throw "unimplemented"
-
-erlang''op_div :: ErlangFun
-erlang''op_div args = throw "unimplemented"
 
 erlang''fun_info_mfa''1 :: ErlangFun
 erlang''fun_info_mfa''1 args = throw "unimplemented"
@@ -77,9 +124,6 @@ erlang''get_stacktrace''0 args = throw "unimplemented"
 
 erlang''registered''0 :: ErlangFun
 erlang''registered''0 args = throw "unimplemented"
-
-erlang''op_exactNeq :: ErlangFun
-erlang''op_exactNeq args = throw "unimplemented"
 
 erlang''get_module_info''1 :: ErlangFun
 erlang''get_module_info''1 args = throw "unimplemented"
@@ -222,9 +266,6 @@ erlang''dist_get_stat''1 args = throw "unimplemented"
 erlang''binary_to_integer''2 :: ErlangFun
 erlang''binary_to_integer''2 args = throw "unimplemented"
 
-erlang''op_and :: ErlangFun
-erlang''op_and args = throw "unimplemented"
-
 erlang''alloc_sizes''1 :: ErlangFun
 erlang''alloc_sizes''1 args = throw "unimplemented"
 
@@ -273,10 +314,6 @@ erlang''spawn_link''1 args = throw "unimplemented"
 erlang''is_tuple''1 :: ErlangFun
 erlang''is_tuple''1 args = throw "unimplemented"
 
-erlang''op_lesser :: ErlangFun
-erlang''op_lesser [ErlangNum x, ErlangNum y] =
-  pure (if x < y then ErlangAtom "true" else ErlangAtom "false")
-
 erlang''bnot''1 :: ErlangFun
 erlang''bnot''1 args = throw "unimplemented"
 
@@ -321,9 +358,6 @@ erlang''display_string''1 args = throw "unimplemented"
 
 erlang''finish_loading''1 :: ErlangFun
 erlang''finish_loading''1 args = throw "unimplemented"
-
-erlang''op_mult :: ErlangFun
-erlang''op_mult args = throw "unimplemented"
 
 erlang''spawn_link''3 :: ErlangFun
 erlang''spawn_link''3 args = throw "unimplemented"
@@ -451,9 +485,6 @@ erlang''spawn''1 args = throw "unimplemented"
 erlang''throw''1 :: ErlangFun
 erlang''throw''1 args = throw "unimplemented"
 
-erlang''op_exactEq :: ErlangFun
-erlang''op_exactEq args = throw "unimplemented"
-
 erlang''float_to_list''2 :: ErlangFun
 erlang''float_to_list''2 args = throw "unimplemented"
 
@@ -493,9 +524,6 @@ erlang''apply''2 args = throw "unimplemented"
 erlang''nodes''0 :: ErlangFun
 erlang''nodes''0 args = throw "unimplemented"
 
-erlang''op_minus :: ErlangFun
-erlang''op_minus args = throw "unimplemented"
-
 erlang''insert_element''3 :: ErlangFun
 erlang''insert_element''3 args = throw "unimplemented"
 
@@ -534,9 +562,6 @@ erlang''resume_process''1 args = throw "unimplemented"
 
 erlang''rem''2 :: ErlangFun
 erlang''rem''2 args = throw "unimplemented"
-
-erlang''op_plus :: ErlangFun
-erlang''op_plus args = throw "unimplemented"
 
 erlang''port_close''1 :: ErlangFun
 erlang''port_close''1 args = throw "unimplemented"
@@ -733,12 +758,6 @@ erlang''start_timer''3 args = throw "unimplemented"
 erlang''float_to_binary''1 :: ErlangFun
 erlang''float_to_binary''1 args = throw "unimplemented"
 
-erlang''op_greaterEq :: ErlangFun
-erlang''op_greaterEq args = throw "unimplemented"
-
-erlang''op_or :: ErlangFun
-erlang''op_or args = throw "unimplemented"
-
 erlang''erase''1 :: ErlangFun
 erlang''erase''1 args = throw "unimplemented"
 
@@ -817,9 +836,6 @@ erlang''localtime_to_universaltime''2 args = throw "unimplemented"
 erlang''cancel_timer''2 :: ErlangFun
 erlang''cancel_timer''2 args = throw "unimplemented"
 
-erlang''op_lesserEq :: ErlangFun
-erlang''op_lesserEq args = throw "unimplemented"
-
 erlang''display''1 :: ErlangFun
 erlang''display''1 args = throw "unimplemented"
 
@@ -834,9 +850,6 @@ erlang''port_info''2 args = throw "unimplemented"
 
 erlang''get''0 :: ErlangFun
 erlang''get''0 args = throw "unimplemented"
-
-erlang''op_eq :: ErlangFun
-erlang''op_eq args = throw "unimplemented"
 
 erlang''unregister''1 :: ErlangFun
 erlang''unregister''1 args = throw "unimplemented"
@@ -873,9 +886,6 @@ erlang''spawn_opt''4 args = throw "unimplemented"
 
 erlang''group_leader''0 :: ErlangFun
 erlang''group_leader''0 args = throw "unimplemented"
-
-erlang''op_greater :: ErlangFun
-erlang''op_greater args = throw "unimplemented"
 
 erlang''dt_put_tag''1 :: ErlangFun
 erlang''dt_put_tag''1 args = throw "unimplemented"
@@ -952,9 +962,6 @@ erlang''bump_reductions''1 args = throw "unimplemented"
 erlang''send_nosuspend''3 :: ErlangFun
 erlang''send_nosuspend''3 args = throw "unimplemented"
 
-erlang''op_unAppend :: ErlangFun
-erlang''op_unAppend args = throw "unimplemented"
-
 erlang''make_tuple''3 :: ErlangFun
 erlang''make_tuple''3 args = throw "unimplemented"
 
@@ -981,9 +988,6 @@ erlang''spawn_monitor''1 args = throw "unimplemented"
 
 erlang''min''2 :: ErlangFun
 erlang''min''2 args = throw "unimplemented"
-
-erlang''op_append :: ErlangFun
-erlang''op_append args = throw "unimplemented"
 
 erlang''float_to_binary''2 :: ErlangFun
 erlang''float_to_binary''2 args = throw "unimplemented"
@@ -1020,9 +1024,6 @@ erlang''list_to_tuple''1 args = throw "unimplemented"
 
 erlang''universaltime''0 :: ErlangFun
 erlang''universaltime''0 args = throw "unimplemented"
-
-erlang''op_neq :: ErlangFun
-erlang''op_neq args = throw "unimplemented"
 
 erlang''bitstring_to_list''1 :: ErlangFun
 erlang''bitstring_to_list''1 args = throw "unimplemented"

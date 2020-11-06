@@ -9,9 +9,11 @@
 -module(erlps_optimize).
 -author("radrow").
 
--include("erlps_purescript.hrl").
 
 -export([optimize_expr/1]).
+
+-include("erlps_purescript.hrl").
+-include("erlps_utils.hrl").
 
 -type(peepholable()) :: purs_expr() | purs_guard() | [peepholable()].
 
@@ -111,11 +113,12 @@ peephole(_,
               {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = "false"}]},
                [],
                F
-              }
+              },
+              {pat_wildcard, [], ?case_clause}
              ]
     }) ->
     peephole(first,
-             #expr_app{function = #expr_var{name = "erlIf"},
+             #expr_app{function = #expr_var{name = "erlCaseIf"},
                        args = [Expr, T, F]
                       });
 

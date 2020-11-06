@@ -11,22 +11,21 @@ import Effect.Exception(throw, catchException)
 import Prelude
 import Control.Semigroupoid((<<<), (>>>))
 
-erlIf :: forall a. ErlangTerm -> a -> a -> a
-erlIf (ErlangAtom "true") t _  = t
-erlIf (ErlangAtom "false") _ e = e
-erlIf _ _ _ = error "if_clause"
+erlCaseIf :: forall a. ErlangTerm -> a -> a -> a
+erlCaseIf (ErlangAtom "true") t _  = t
+erlCaseIf (ErlangAtom "false") _ e = e
+erlCaseIf _ _ _ = error "case_clause"
 
 error :: forall a. String -> a
 error = throw >>> unsafePerformEffect
 
-applyTerm :: ErlangFun
-applyTerm [ErlangFun arityVal fun, args]
-  | DM.Just argsL <- erlangListToList args
-  , DL.length argsL == arityVal = fun (DA.fromFoldable argsL)
+applyTerm :: Partial => ErlangTerm -> ErlangFun
+applyTerm (ErlangFun arityVal fun) argsL |
+  DA.length argsL == arityVal = fun argsL
 
 unsafePerformEffectGuard :: Effect ErlangTerm -> ErlangTerm
 unsafePerformEffectGuard action =
-  unsafePerformEffect (catchException (\_ -> pure (ErlangAtom "false") action))
+  unsafePerformEffect (catchException (\_ -> pure (ErlangAtom "false")) action)
 
 rbind :: forall a b. (a -> Effect b) -> Effect a -> Effect b
 rbind = flip bind

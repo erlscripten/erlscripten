@@ -13,10 +13,4 @@
 -compile(nowarn).
 -compile(export_all).
 
-test() ->
-    case 123123123 of
-	true ->
-	    444;
-	false ->
-	    888888
-    end.
+app(F, X) ->  F(X, X, X).

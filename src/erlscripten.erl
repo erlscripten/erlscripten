@@ -5,6 +5,7 @@
 -export([version/0]).
 
 -include("erlps_purescript.hrl").
+-include("erlps_utils.hrl").
 
 
 -record(env,
@@ -90,53 +91,6 @@ parse_transform(Forms, Options) ->
         )
     end.
 
-
--define(make_pat_var(Var),
-    #pat_var{name = Var}).
--define(make_pat_int(Int),
-    #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Int}]}).
--define(make_pat_atom(Atom),
-    #pat_constr{constr = "ErlangAtom", args = [#pat_string{value = atom_to_list(Atom)}]}).
--define(make_pat_tuple(Stuff),
-    #pat_constr{constr = "ErlangTuple", args = [#pat_array{value = Stuff}]}).
--define(make_pat_cons(H, T),
-    #pat_constr{constr = "ErlangCons", args = [H, T]}).
--define(make_pat_empty_list,
-    ?make_pat_var("ErlangEmptyList")).
--define(make_pat_map(Map),
-        #pat_constr{constr = "ErlangMap", args = [Map]}).
-make_pat_list([]) ->
-    ?make_pat_empty_list;
-make_pat_list([H|T]) ->
-    ?make_pat_cons(H, make_pat_list(T)).
-
-
--define(make_expr_var(Var),
-    #expr_var{name = Var}).
--define(make_expr_int(Int),
-    #expr_app{function = ?make_expr_var("ErlangNum"), args = [#expr_num{value = Int}]}).
--define(make_expr_atom(Atom),
-    #expr_app{function = ?make_expr_var("ErlangAtom"), args = [#expr_string{value = atom_to_list(Atom)}]}).
--define(make_expr_tuple(Stuff),
-    #expr_app{function = ?make_expr_var("ErlangTuple"), args = [#expr_array{value = Stuff}]}).
--define(make_expr_cons(H, T),
-    #expr_app{function = ?make_expr_var("ErlangCons"), args = [H, T]}).
--define(make_expr_empty_list,
-    ?make_expr_var("ErlangEmptyList")).
--define(make_expr_map(Map),
-    #expr_app{function = ?make_expr_var("ErlangMap"), args = [Map]}).
--define(make_expr_lambda(Args, Body),
-    #expr_app{function = ?make_expr_var("ErlangFun"),
-              args = [#expr_num{value = length(Args)},
-                      #expr_lambda{
-                         args = [#pat_array{value = Args}],
-                         body = Body
-                        }
-                     ]}).
-make_expr_list([]) ->
-    ?make_expr_empty_list;
-make_expr_list([H|T]) ->
-    ?make_expr_cons(H, make_expr_list(T)).
 
 filter_module_attributes({attribute, _, file, {Filename, _}}) -> {file, Filename};
 filter_module_attributes({attribute, _, module, Module}) when is_atom(Module) -> {module, atom_to_list(Module)};
@@ -381,7 +335,6 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
     PSBody = erlps_optimize:optimize_expr(transpile_expr(Body, Env)),
-    erlscripten_logger:info("~p\n\n", [PSBody]),
     #clause{
        args = [#pat_array{value = PsArgs}],
        guards = erlps_optimize:optimize_expr(PsGuards ++ transpile_boolean_guards(Guards, Env)),
@@ -677,8 +630,10 @@ transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, 
      );
 transpile_expr({call, _, Fun, Args}, Env) ->
     effect_apply(pure_kleisli_fun,
-      #expr_var{name = "applyTerm"},
-      [transpile_expr(Fun, Env), transpile_expr(Args, Env)]
+                 effect_apply(pure_kleisli_fun,
+                              #expr_var{name = "applyTerm"},
+                              transpile_expr(Fun, Env)),
+                 [transpile_expr(Arg, Env) || Arg <- Args]
      );
 
 transpile_expr({nil, _}, _) ->
@@ -714,8 +669,7 @@ transpile_expr({'case', _, Expr, Clauses}, Env) ->
                  R
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
-           ] ++ [{pat_wildcard, [], #expr_app{function = #expr_var{name = "error"},
-                                              args = [#expr_string{value = "case_clause"}]}}]
+           ] ++ [{pat_wildcard, [], ?case_clause}]
       },
     #expr_binop{
        name = ">>=",
