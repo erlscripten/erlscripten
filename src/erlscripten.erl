@@ -576,32 +576,42 @@ transpile_expr([Single], Env) ->
 transpile_expr([{match, _, {var, _, [$_ | _]}, Expr}|Rest], Env) ->
     %% When matching to an wildcard pattern we may skip the case statement
     transpile_expr([Expr|Rest], Env);
-%%transpile_expr([{match, _, {var, _, ErlangVar}, Expr}|Rest], Env) ->
-%%    %% When matching with a variable which is not bound in the current scope we may skip a case statement
-%%    ok;
 transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
     Var = state_create_fresh_var(),
-    {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Env),
-    Case = #expr_case{
-       expr = #expr_var{name = Var},
-       cases =
-           [ {PSPat, PSGuards,
-              transpile_expr(Rest, Env)
-             }
-           , {pat_wildcard, [],
-              #expr_app{function = #expr_var{name = "error"},
-                        args = [#expr_string{value = "bad_match"}]}}
-           ]
-      },
-    state_pop_var_stack(),
-    #expr_binop{
-       name = ">>=",
-       lop = transpile_expr(Val, Env),
-       rop = #expr_lambda{
-                args = [#pat_var{name = Var}],
-                body = Case
-               }
-      };
+    case transpile_pattern_sequence([Pat], Env) of
+        {[#pat_var{} = V], []} ->
+            Body = transpile_expr(Rest, Env),
+            state_pop_var_stack(),
+            #expr_binop{
+               name = ">>=",
+               lop = transpile_expr(Val, Env),
+               rop = #expr_lambda{
+                        args = [V],
+                        body = Body
+                       }
+            };
+        {[PSPat], PSGuards} ->
+            Case = #expr_case{
+               expr = #expr_var{name = Var},
+               cases =
+                   [ {PSPat, PSGuards,
+                      transpile_expr(Rest, Env)
+                     }
+                   , {pat_wildcard, [],
+                      #expr_app{function = #expr_var{name = "error"},
+                                args = [#expr_string{value = "bad_match"}]}}
+                   ]
+              },
+            state_pop_var_stack(),
+            #expr_binop{
+               name = ">>=",
+               lop = transpile_expr(Val, Env),
+               rop = #expr_lambda{
+                        args = [#pat_var{name = Var}],
+                        body = Case
+                       }
+              }
+      end;
 transpile_expr([Expr|Rest], Env) ->
     #expr_binop{
        name = "*>",
