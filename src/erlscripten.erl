@@ -567,9 +567,10 @@ transpile_expr([Single], Env) ->
     transpile_expr(Single, Env);
 
 transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
+    Var = state_create_fresh_var(),
     {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Env),
-    R = #expr_case{
-       expr = transpile_expr(Val, Env),
+    Case = #expr_case{
+       expr = #expr_var{name = Var},
        cases =
            [ {PSPat, PSGuards,
               transpile_expr(Rest, Env)
@@ -580,8 +581,14 @@ transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
            ]
       },
     state_pop_var_stack(),
-    R;
-
+    #expr_binop{
+       name = ">>=",
+       lop = transpile_expr(Val, Env),
+       rop = #expr_lambda{
+                args = [#pat_var{name = Var}],
+                body = Case
+               }
+      };
 transpile_expr([Expr|Rest], Env) ->
     #expr_binop{
        name = "*>",
@@ -634,10 +641,11 @@ transpile_expr({cons, _, H, T}, Env) ->
      );
 
 transpile_expr({'if', _, Clauses}, Env) ->
+    {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     #expr_case{
-       expr = transpile_expr({atom, any, true}, Env),
+       expr = #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = "true"}]},
        cases = [{pat_wildcard,
-                 [#guard_expr{guard = escape_effect(transpile_expr(G, Env))} || G <- Guards],
+         [#guard_assg{lvalue = TruePat, rvalue = escape_effect(transpile_expr(G, Env))} || G <- Guards],
                  transpile_expr(Cont, Env)} ||
                    {clause, _, [], Guards, Cont} <- Clauses]
       };
@@ -676,11 +684,12 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, Env) when is_atom(Fun) ->
 transpile_expr({tuple, _, Exprs}, Env) ->
     effect_apply(pure_fun,
                  #expr_var{name = "ErlangTuple"},
+                #expr_app{function = #expr_var{name = "sequence"}, args = [
                  #expr_array{
                     value =
                         [ transpile_expr(Expr, Env)
                           || Expr <- Exprs
-                        ]});
+                        ]}]});
 
 transpile_expr({lc, _, Ret, []}, Env) ->
     pure(#expr_app{

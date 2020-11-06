@@ -64,3 +64,11 @@ eq_guard(X, Y, Z) when X==Y; Y==Z, 1==2 -> Y.
 
 test_1(X) ->
     ident({X}).
+
+%% Match as last fails :(
+%%test_2(X) ->
+%%    X=1.
+
+test_3(X) ->
+    X=1,
+    2.
