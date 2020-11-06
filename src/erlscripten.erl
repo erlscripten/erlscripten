@@ -675,17 +675,29 @@ transpile_expr({'if', _, Clauses}, Env) ->
 
 transpile_expr({'case', _, Expr, Clauses}, Env) ->
     Var = state_create_fresh_var(),
-    Case = #expr_case{
-       expr = #expr_var{name = Var},
-       cases =
-           [ begin
+    UserCases = [ begin
                  {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
                  R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env), transpile_expr(Cont, Env)},
                  state_pop_var_stack(),
                  R
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
-           ] ++ [{pat_wildcard, [], ?case_clause}]
+           ],
+    WildcardCase = [{pat_wildcard, [], ?case_clause}],
+    Cases = case UserCases of
+              [] ->
+                WildcardCase;
+              _ ->
+                case lists:last(UserCases) of
+                    {#pat_var{}, [], _} ->
+                        UserCases;
+                    _ ->
+                        UserCases ++ WildcardCase
+                end
+    end,
+    Case = #expr_case{
+       expr = #expr_var{name = Var},
+       cases = Cases
       },
     #expr_binop{
        name = ">>=",
