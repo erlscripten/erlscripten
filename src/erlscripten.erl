@@ -335,10 +335,12 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
     PSBody = erlps_optimize:optimize_expr(transpile_expr(Body, Env)),
+    io:format(user, "~p\n", [PSBody]),
+    erlps_purescript:pp_expr(#expr_do{ statements = PSBody }),
     #clause{
        args = [#pat_array{value = PsArgs}],
        guards = erlps_optimize:optimize_expr(PsGuards ++ transpile_boolean_guards(Guards, Env)),
-       value = PSBody
+       value = #expr_do{ statements = PSBody }
     }.
 
 
@@ -353,7 +355,7 @@ transpile_boolean_guards(Guards, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#guard_assg{
        lvalue = TruePat,
-       rvalue = escape_effect_guard(transpile_expr(E, Env))
+       rvalue = escape_effect_guard(#expr_do{ statements = transpile_expr(E, Env) })
     }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->
@@ -578,24 +580,20 @@ transpile_expr([{match, _, {var, _, [$_ | _]}, Expr}|Rest], Env) ->
     transpile_expr([Expr|Rest], Env);
 transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
     Var = state_create_fresh_var(),
+    VStms = transpile_expr(Val, Env),
+    BindingsStms = lists:droplast(VStms),
+    ValueExpr = lists:last(VStms),
     case transpile_pattern_sequence([Pat], Env) of
         {[#pat_var{} = V], []} ->
-            Body = transpile_expr(Rest, Env),
+            BodyStms = transpile_expr(Rest, Env),
             state_pop_var_stack(),
-            #expr_binop{
-               name = ">>=",
-               lop = transpile_expr(Val, Env),
-               rop = #expr_lambda{
-                        args = [V],
-                        body = Body
-                       }
-            };
+            BindingsStms ++ [#expr_do_ass{lvalue = V, rvalue = ValueExpr}] ++ BodyStms;
         {[PSPat], PSGuards} ->
             Case = #expr_case{
                expr = #expr_var{name = Var},
                cases =
                    [ {PSPat, PSGuards,
-                      transpile_expr(Rest, Env)
+                      #expr_do{statements = transpile_expr(Rest, Env)}
                      }
                    , {pat_wildcard, [],
                       #expr_app{function = #expr_var{name = "error"},
@@ -603,75 +601,64 @@ transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
                    ]
               },
             state_pop_var_stack(),
-            #expr_binop{
-               name = ">>=",
-               lop = transpile_expr(Val, Env),
-               rop = #expr_lambda{
-                        args = [#pat_var{name = Var}],
-                        body = Case
-                       }
-              }
+            BindingsStms ++ [#expr_do_ass{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}, Case]
       end;
 transpile_expr([Expr|Rest], Env) ->
-    #expr_binop{
-       name = "*>",
-       lop = transpile_expr(Expr, Env),
-       rop = transpile_expr(Rest, Env)
-      };
+    lists:flatten(transpile_expr(Expr, Env) ++ transpile_expr(Rest, Env));
 
 transpile_expr({atom, _, Atom}, _Env) ->
-    pure(?make_expr_atom(Atom));
+    [pure(?make_expr_atom(Atom))];
 
 transpile_expr({var, _, Var}, _Env) ->
-    pure(#expr_var{name = state_get_var(Var)});
+    [pure(#expr_var{name = state_get_var(Var)})];
 
 transpile_expr({integer, _, Int}, _Env) ->
-    pure(?make_expr_int(Int));
+    [pure(?make_expr_int(Int))];
 
 transpile_expr({op, _, Op, L, R}, Env) ->
     OpFun = transpile_fun_ref("erlang", Op, 2, Env),
-    LE = transpile_expr(L, Env),
-    RE = transpile_expr(R, Env),
-    effect_apply(pure_kleisli_fun, OpFun, [LE, RE]);
+    [LE] = transpile_expr(L, Env),
+    [RE] = transpile_expr(R, Env),
+    [effect_apply(pure_kleisli_fun, OpFun, [LE, RE])];
 
 transpile_expr({call, _, {atom, _, Fun}, Args}, Env) ->
-    effect_apply(pure_kleisli_fun,
+    [effect_apply(pure_kleisli_fun,
       transpile_fun_ref(Fun, length(Args), Env),
-      [transpile_expr(Arg, Env) || Arg <- Args]
-     );
+      [V || [V] <- [transpile_expr(Arg, Env) || Arg <- Args]]
+     )];
 transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, Env) ->
-    effect_apply(pure_kleisli_fun,
+    [effect_apply(pure_kleisli_fun,
       transpile_fun_ref(Module, Fun, length(Args), Env),
-      [transpile_expr(Arg, Env) || Arg <- Args]
-     );
+      [V || [V] <- [transpile_expr(Arg, Env) || Arg <- Args]]
+     )];
 transpile_expr({call, _, Fun, Args}, Env) ->
-    effect_apply(pure_kleisli_fun,
+    [effect_apply(pure_kleisli_fun,
                  effect_apply(pure_kleisli_fun,
                               #expr_var{name = "applyTerm"},
                               transpile_expr(Fun, Env)),
-                 [transpile_expr(Arg, Env) || Arg <- Args]
-     );
+                 [V || [V] <- [transpile_expr(Arg, Env) || Arg <- Args]]
+     )];
 
 transpile_expr({nil, _}, _) ->
-    pure(?make_expr_empty_list);
+    [pure(?make_expr_empty_list)];
 transpile_expr({cons, _, H, T}, Env) ->
-    effect_apply(eff_fun,
+    [effect_apply(eff_fun,
       effect_apply(pure_fun,
                    #expr_var{name = "ErlangCons"},
-                   transpile_expr(H, Env)
+                   hd(transpile_expr(H, Env))
                   ),
-      transpile_expr(T, Env)
-     );
+      hd(transpile_expr(T, Env))
+     )];
 
 transpile_expr({'if', _, Clauses}, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
-    #expr_case{
+    [#expr_case{
        expr = ?make_expr_atom(true),
        cases = [{pat_wildcard,
          [#guard_assg{lvalue = TruePat, rvalue = escape_effect(transpile_expr(G, Env))} || G <- Guards],
                  transpile_expr(Cont, Env)} ||
                    {clause, _, [], Guards, Cont} <- Clauses]
-      };
+      }];
 
 transpile_expr({'case', _, Expr, Clauses}, Env) ->
     Var = state_create_fresh_var(),
@@ -709,22 +696,22 @@ transpile_expr({'case', _, Expr, Clauses}, Env) ->
       };
 
 transpile_expr({'fun', _, {function, Fun, Arity}}, Env) when is_atom(Fun) ->
-    pure(#expr_app{function = #expr_var{name = "ErlangFun"},
+    [pure(#expr_app{function = #expr_var{name = "ErlangFun"},
                    args = [#expr_num{value = Arity},
-                           transpile_fun_ref(Fun, Arity, Env)]});
+                           transpile_fun_ref(Fun, Arity, Env)]})];
 
 transpile_expr({tuple, _, Exprs}, Env) ->
-    effect_apply(pure_fun,
+    [effect_apply(pure_fun,
                  #expr_var{name = "ErlangTuple"},
                  #expr_app{function = #expr_var{name = "sequence"}, args = [
                  #expr_array{
                     value =
-                        [ transpile_expr(Expr, Env)
+                        [H || [H] <- [ transpile_expr(Expr, Env)
                           || Expr <- Exprs
-                        ]}]});
+                        ]]}]})];
 
 transpile_expr({lc, _, Ret, []}, Env) ->
-    pure(make_expr_list([transpile_expr(Ret, Env)]));
+    [pure(make_expr_list([H || [H] <- [transpile_expr(Ret, Env)]]))];
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Env) ->
     Var = state_create_fresh_var(),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
