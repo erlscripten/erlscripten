@@ -17,12 +17,12 @@ type ErlangFun = Partial => Array ErlangTerm -> Effect ErlangTerm
 -- TODO: add floats
 data ErlangTerm
     = ErlangNum       Int
+    | ErlangAtom      String
     | ErlangCons      ErlangTerm ErlangTerm
     | ErlangEmptyList
     | ErlangBinary    Buffer
     | ErlangTuple     (Array ErlangTerm)
     | ErlangFun       Int ErlangFun
-    | ErlangAtom      String
     | ErlangMap       (Map.Map ErlangTerm ErlangTerm)
 
 instance showErlangTerm :: Show ErlangTerm where
@@ -58,6 +58,7 @@ instance eqErlangTerm :: Eq ErlangTerm where
 
 instance ordErlangTerm :: Ord ErlangTerm where
     compare (ErlangNum a) (ErlangNum b) = compare a b
+    compare (ErlangAtom a) (ErlangAtom b) = compare a b
     compare (ErlangCons ha ta) (ErlangCons hb tb) = compare [ha, ta] [hb, tb]
     compare ErlangEmptyList ErlangEmptyList = EQ
     compare (ErlangBinary a) (ErlangBinary b) =
@@ -66,17 +67,19 @@ instance ordErlangTerm :: Ord ErlangTerm where
     compare (ErlangMap m1) (ErlangMap m2) = compare m1 m2
 
     compare   (ErlangNum _)     _ = GT
-    compare _ (ErlangNum _)       = GT
+    compare _ (ErlangNum _)       = LT
+    compare   (ErlangAtom _)    _ = GT
+    compare _ (ErlangAtom _)      = LT
     compare   (ErlangCons _ _)  _ = GT
-    compare _ (ErlangCons _ _)    = GT
+    compare _ (ErlangCons _ _)    = LT
     compare   (ErlangEmptyList) _ = GT
-    compare _ (ErlangEmptyList)   = GT
+    compare _ (ErlangEmptyList)   = LT
     compare   (ErlangBinary _)  _ = GT
-    compare _ (ErlangBinary _)    = GT
+    compare _ (ErlangBinary _)    = LT
     compare   (ErlangTuple _)   _ = GT
-    compare _ (ErlangTuple _)     = GT
+    compare _ (ErlangTuple _)     = LT
     compare   (ErlangMap _)     _ = GT
-    compare _ (ErlangMap _)       = GT
+    compare _ (ErlangMap _)       = LT
 
     compare _ _ = unsafePerformEffect $ throw "illegal compare"
 
@@ -92,6 +95,11 @@ erlangListToList :: ErlangTerm -> DM.Maybe (DL.List ErlangTerm)
 erlangListToList ErlangEmptyList = DM.Just DL.Nil
 erlangListToList (ErlangCons h t) | DM.Just et <- erlangListToList t = DM.Just (DL.Cons h et)
 erlangListToList _ = DM.Nothing
+
+arrayToErlangList :: Array ErlangTerm -> ErlangTerm
+arrayToErlangList arr = go (DL.fromFoldable arr) where
+  go DL.Nil = ErlangEmptyList
+  go (DL.Cons h t) = ErlangCons h (go t)
 
 erlangStringToString :: ErlangTerm -> DM.Maybe String
 erlangStringToString term = DM.Nothing -- FIXME

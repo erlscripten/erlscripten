@@ -274,7 +274,8 @@ erlang''is_tuple''1 :: ErlangFun
 erlang''is_tuple''1 args = throw "unimplemented"
 
 erlang''op_lesser :: ErlangFun
-erlang''op_lesser args = throw "unimplemented"
+erlang''op_lesser [ErlangNum x, ErlangNum y] =
+  pure (if x < y then ErlangAtom "true" else ErlangAtom "false")
 
 erlang''bnot''1 :: ErlangFun
 erlang''bnot''1 args = throw "unimplemented"

@@ -14,9 +14,6 @@ import Control.Semigroupoid((<<<), (>>>))
 error :: forall a. String -> a
 error = throw >>> unsafePerformEffect
 
-escapeEffect :: Effect ErlangTerm -> ErlangTerm
-escapeEffect args = ErlangAtom "unimplemented"
-
 applyTerm :: ErlangFun
 applyTerm [ErlangFun arityVal fun, args]
   | DM.Just argsL <- erlangListToList args

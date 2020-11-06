@@ -51,6 +51,7 @@ parse_transform(Forms, Options) ->
                     , #import{path = ["Erlang", "Helpers"]}
                     , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
                     , #import{path = ["Effect"], explicit = ["Effect"]}
+                    , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
                     , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
                     , #import{path = ["Control", "Applicative"]}
                     , #import{path = ["Control", "Monad"]}
@@ -88,6 +89,54 @@ parse_transform(Forms, Options) ->
             io_lib:format("Error: ~s\nReason: ~p\nStacktrace: ~p\n", [atom_to_list(Error), Reason, StackTrace])
         )
     end.
+
+
+-define(make_pat_var(Var),
+    #pat_var{name = Var}).
+-define(make_pat_int(Int),
+    #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Int}]}).
+-define(make_pat_atom(Atom),
+    #pat_constr{constr = "ErlangAtom", args = [#pat_string{value = atom_to_list(Atom)}]}).
+-define(make_pat_tuple(Stuff),
+    #pat_constr{constr = "ErlangTuple", args = [#pat_array{value = Stuff}]}).
+-define(make_pat_cons(H, T),
+    #pat_constr{constr = "ErlangCons", args = [H, T]}).
+-define(make_pat_empty_list,
+    ?make_pat_var("ErlangEmptyList")).
+-define(make_pat_map(Map),
+        #pat_constr{constr = "ErlangMap", args = [Map]}).
+make_pat_list([]) ->
+    ?make_pat_empty_list;
+make_pat_list([H|T]) ->
+    ?make_pat_cons(H, make_pat_list(T)).
+
+
+-define(make_expr_var(Var),
+    #expr_var{name = Var}).
+-define(make_expr_int(Int),
+    #expr_app{function = ?make_expr_var("ErlangNum"), args = [#expr_num{value = Int}]}).
+-define(make_expr_atom(Atom),
+    #expr_app{function = ?make_expr_var("ErlangAtom"), args = [#expr_string{value = atom_to_list(Atom)}]}).
+-define(make_expr_tuple(Stuff),
+    #expr_app{function = ?make_expr_var("ErlangTuple"), args = [#expr_array{value = Stuff}]}).
+-define(make_expr_cons(H, T),
+    #expr_app{function = ?make_expr_var("ErlangCons"), args = [H, T]}).
+-define(make_expr_empty_list,
+    ?make_expr_var("ErlangEmptyList")).
+-define(make_expr_map(Map),
+    #expr_app{function = ?make_expr_var("ErlangMap"), args = [Map]}).
+-define(make_expr_lambda(Args, Body),
+    #expr_app{function = ?make_expr_var("ErlangFun"),
+              args = [#expr_num{value = length(Args)},
+                      #expr_lambda{
+                         args = [#pat_array{value = Args}],
+                         body = Body
+                        }
+                     ]}).
+make_expr_list([]) ->
+    ?make_expr_empty_list;
+make_expr_list([H|T]) ->
+    ?make_expr_cons(H, make_expr_list(T)).
 
 filter_module_attributes({attribute, _, file, {Filename, _}}) -> {file, Filename};
 filter_module_attributes({attribute, _, module, Module}) when is_atom(Module) -> {module, atom_to_list(Module)};
@@ -253,7 +302,7 @@ make_dispatcher_for(Name, Arities) ->
                    #expr_case{
                       expr = #expr_var{name = "arity"},
                       cases =
-                          [{#pat_constr{constr = "ErlangNum", args = [#pat_num{value = Arity}]},
+                          [{?make_pat_int(Arity),
                             [], % guards
                             #expr_app{
                                function = #expr_var{name = transpile_fun_name(Name, Arity)},
@@ -368,10 +417,8 @@ transpile_pattern_sequence(PatternSequence, Env) ->
 %% for cosmetic reasons values_eq are aggregated and evaluated only after all g_match got executed
 %% https://erlang.org/doc/apps/erts/absform.html#patterns
 %% Atomic Literals
-transpile_pattern({atom, Ann, Atom}, Env) when is_atom(Atom) ->
-    transpile_pattern({atom, Ann, atom_to_list(Atom)}, Env);
 transpile_pattern({atom, _, Atom}, _) ->
-    {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = Atom}]}, [], []};
+    {?make_pat_atom(Atom), [], []};
 transpile_pattern({char, _, Char}, _) ->
     error(todo);
 transpile_pattern({float, _, Float}, _) ->
@@ -379,7 +426,7 @@ transpile_pattern({float, _, Float}, _) ->
 %% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
 %%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
-    {#pat_constr{constr = "ErlangNum", args = [#pat_num{value = Num}]}, [], []};
+    {?make_pat_int(Num), [], []};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
     transpile_pattern({integer, Ann, -Num}, Env);
 
@@ -445,7 +492,7 @@ transpile_pattern({match, _, P1, P2}, Env) ->
 transpile_pattern({cons, _, Head, Tail}, Env) ->
     {H, GH, VH} = transpile_pattern(Head, Env),
     {T, GT, VT} = transpile_pattern(Tail, Env),
-    {#pat_constr{constr = "ErlangCons", args = [H, T]}, GH ++ GT, VH ++ VT};
+    {?make_pat_cons(H, T), GH ++ GT, VH ++ VT};
 
 %% Map pattern
 transpile_pattern({map, _, Associations}, Env) ->
@@ -465,11 +512,11 @@ transpile_pattern({map, _, Associations}, Env) ->
                         args = [KeyExpr, #expr_var{name = MapVar}]}},
                 {[QueryGuard | GV ++ Gs], VV ++ Vs}
             end end, {[], []}, Associations),
-    {#pat_constr{constr = "ErlangMap", args = [#pat_var{name = MapVar}]}, G, V};
+    {?make_pat_map(#pat_var{name = MapVar}), G, V};
 
 %% Nil pattern
-transpile_pattern({nil, _}, Env) ->
-    {#pat_constr{constr = "ErlangEmptyList"}, [], []};
+transpile_pattern({nil, _}, _Env) ->
+    {?make_pat_empty_list, [], []};
 
 %% Operator pattern
 transpile_pattern({op, _, '++', {nil, _}, P2}, Env) ->
@@ -504,7 +551,7 @@ transpile_pattern({tuple, _, Args}, Env) ->
     PSArgs = [A || {A, _, _} <- S],
     PsVarGuards = lists:flatten([G || {_, G, _} <- S]),
     PsValGuards = lists:flatten([G || {_, _, G} <- S]),
-    {#pat_constr{constr = "ErlangTuple", args = [#pat_array{value = PSArgs}]}, PsVarGuards, PsValGuards};
+    {?make_pat_tuple(PSArgs), PsVarGuards, PsValGuards};
 
 %% Universal pattern
 transpile_pattern({var, _, [$_ | _]}, _) ->
@@ -541,7 +588,7 @@ transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
 
 escape_effect(Expr) ->
     #expr_app{
-       function = #expr_var{name = "escapeEffect"},
+       function = #expr_var{name = "unsafePerformEffect"},
        args = [Expr]
       }.
 
@@ -596,16 +643,14 @@ transpile_expr([Expr|Rest], Env) ->
        rop = transpile_expr(Rest, Env)
       };
 
-transpile_expr({atom, Ann, Atom}, Env) when is_atom(Atom) ->
-    transpile_expr({atom, Ann, atom_to_list(Atom)}, Env);
 transpile_expr({atom, _, Atom}, _Env) ->
-    pure(#expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = Atom}]});
+    pure(?make_expr_atom(Atom));
 
 transpile_expr({var, _, Var}, _Env) ->
     pure(#expr_var{name = state_get_var(Var)});
 
 transpile_expr({integer, _, Int}, _Env) ->
-    pure(#expr_app{function = #expr_var{name = "ErlangNum"}, args = [#expr_num{value = Int}]});
+    pure(?make_expr_int(Int));
 
 transpile_expr({op, _, Op, L, R}, Env) ->
     OpFun = transpile_fun_ref("erlang", Op, 2, Env),
@@ -630,7 +675,7 @@ transpile_expr({call, _, Fun, Args}, Env) ->
      );
 
 transpile_expr({nil, _}, _) ->
-    pure(#expr_var{name = "ErlangEmptyList"});
+    pure(?make_expr_empty_list);
 transpile_expr({cons, _, H, T}, Env) ->
     effect_apply(eff_fun,
       effect_apply(pure_fun,
@@ -643,7 +688,7 @@ transpile_expr({cons, _, H, T}, Env) ->
 transpile_expr({'if', _, Clauses}, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     #expr_case{
-       expr = #expr_app{function = #expr_var{name = "ErlangAtom"}, args = [#expr_string{value = "true"}]},
+       expr = ?make_expr_atom(true),
        cases = [{pat_wildcard,
          [#guard_assg{lvalue = TruePat, rvalue = escape_effect(transpile_expr(G, Env))} || G <- Guards],
                  transpile_expr(Cont, Env)} ||
@@ -675,16 +720,14 @@ transpile_expr({'case', _, Expr, Clauses}, Env) ->
       };
 
 transpile_expr({'fun', _, {function, Fun, Arity}}, Env) when is_atom(Fun) ->
-    effect_apply(pure_fun,
-                 #expr_var{name = "ErlangFun"},
-                 [ #expr_num{value = Arity}
-                 , transpile_fun_ref(Fun, Arity, Env)
-                 ]);
+    pure(#expr_app{function = #expr_var{name = "ErlangFun"},
+                   args = [#expr_num{value = Arity},
+                           transpile_fun_ref(Fun, Arity, Env)]});
 
 transpile_expr({tuple, _, Exprs}, Env) ->
     effect_apply(pure_fun,
                  #expr_var{name = "ErlangTuple"},
-                #expr_app{function = #expr_var{name = "sequence"}, args = [
+                 #expr_app{function = #expr_var{name = "sequence"}, args = [
                  #expr_array{
                     value =
                         [ transpile_expr(Expr, Env)
@@ -692,25 +735,22 @@ transpile_expr({tuple, _, Exprs}, Env) ->
                         ]}]});
 
 transpile_expr({lc, _, Ret, []}, Env) ->
-    pure(#expr_app{
-            function = #expr_var{name = "ErlangCons"},
-            args = [transpile_expr(Ret, Env), #expr_var{name = "ErlangEmptyList"}]
-           });
+    pure(make_expr_list([transpile_expr(Ret, Env)]));
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Env) ->
     Var = state_create_fresh_var(),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
-    R = effect_apply(eff_fun,
-       transpile_fun_ref(internal, "listFlatMap", 2, Env),
+    R = effect_apply(pure_kleisli_fun,
+       transpile_fun_ref(lists, "flatmap", 2, Env),
        [ transpile_expr(Source, Env)
-       , #expr_lambda{
-            args = [#pat_var{name = Var}],
-            body = #expr_case{
-                      expr = #expr_var{name = Var},
-                      cases = [ {PSPat, Guards, transpile_expr({lc, Ann, Ret, Rest}, Env)}
-                              , {pat_wildcard, [], pure(#expr_var{name = "ErlangEmptyList"})}
-                              ]
-                     }
-           }
+       , pure(?make_expr_lambda(
+                [#pat_var{name = Var}],
+                #expr_case{
+                   expr = #expr_var{name = Var},
+                   cases = [ {PSPat, Guards, transpile_expr({lc, Ann, Ret, Rest}, Env)}
+                           , {pat_wildcard, [], pure(?make_expr_empty_list)}
+                           ]
+                  }
+          ))
        ]),
     state_pop_var_stack(),
     R;

@@ -11,7 +11,7 @@
 
 -include("erlps_purescript.hrl").
 
--import(prettypr, [text/1, sep/1, above/2, beside/2, nest/2, empty/0]).
+-import(prettypr, [text/1, sep/1, above/2, beside/2, nest/2, empty/0, follow/2]).
 
 %% API
 -export([
@@ -117,7 +117,7 @@ comma_brackets(Open, Close, Ds) ->
 
 -spec pp_expr(purs_expr()) -> doc().
 pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
-    paren(hsep([pp_expr(L), text(O), pp_expr(R)]));
+    paren(block(hsep(pp_expr(L), text(O)), pp_expr(R)));
 pp_expr(#expr_num{value = Val}) ->
     text(integer_to_list(Val));
 pp_expr(#expr_string{value = Val}) ->
@@ -166,7 +166,7 @@ pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();
 pp_guards(Guards) ->
-    block(text("|"),
+    hsep(text("|"),
           par(punctuate(text(","), lists:map(fun pp_guard/1, Guards)))).
 
 -spec pp_clause(Name :: string(), purs_clause()) -> doc().
@@ -175,7 +175,9 @@ pp_clause(Name, #clause{
     guards = Guards,
     value = Value}) ->
     block(
-      hsep([text(Name), par(lists:map(fun pp_pat/1, Args)), pp_guards(Guards), text("=")]),
+      block(
+        hsep(text(Name), par(lists:map(fun pp_pat/1, Args))),
+        hsep(pp_guards(Guards), text("="))),
       pp_expr(Value)).
 
 -spec pp_type(purs_type()) -> doc().
