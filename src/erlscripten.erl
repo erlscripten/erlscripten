@@ -573,6 +573,12 @@ transpile_expr([], _) ->
 transpile_expr([Single], Env) ->
     transpile_expr(Single, Env);
 
+transpile_expr([{match, _, {var, _, [$_ | _]}, Expr}|Rest], Env) ->
+    %% When matching to an wildcard pattern we may skip the case statement
+    transpile_expr([Expr|Rest], Env);
+%%transpile_expr([{match, _, {var, _, ErlangVar}, Expr}|Rest], Env) ->
+%%    %% When matching with a variable which is not bound in the current scope we may skip a case statement
+%%    ok;
 transpile_expr([{match, _, Pat, Val}|Rest], Env) ->
     Var = state_create_fresh_var(),
     {[PSPat], PSGuards} = transpile_pattern_sequence([Pat], Env),
