@@ -167,7 +167,7 @@ transpile_fun_name(Name, Arity) when is_atom(Name) ->
 transpile_fun_name(Name, Arity) when is_binary(Name) ->
     transpile_fun_name(binary_to_list(Name), Arity);
 transpile_fun_name(Name, Arity) ->
-    io_lib:format("erlps''~s''~p", [Name, Arity]).
+    io_lib:format("erlps__~s__~p", [Name, Arity]).
 
 builtins() ->
     Operators = [ {"+",   "op_plus"}
@@ -192,9 +192,9 @@ builtins() ->
                 , {"orelse",  "op_or"}
                 ],
     maps:from_list(lists:concat([
-        [ {{"erlang", Op, 2}, io_lib:format("erlang''~s", [Fun])}
+        [ {{"erlang", Op, 2}, io_lib:format("erlang__~s", [Fun])}
           || {Op, Fun} <- Operators],
-        [ {{Module, Fun, Arity}, io_lib:format("~s''~s''~p", [Module, Fun, Arity])}
+        [ {{Module, Fun, Arity}, io_lib:format("~s__~s__~p", [Module, Fun, Arity])}
           || {Module, Fun, Arity} <-
                  lists:concat(
                    [ [ {"lists", "keyfind", 3}
@@ -244,7 +244,7 @@ transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
 
 -spec make_dispatcher_name(string()) -> string().
 make_dispatcher_name(Name) ->
-    Name ++ "''dispatch".
+    Name ++ "__dispatch".
 
 %% Dispatcher for a given function by available arities
 make_dispatcher_for(Name, Arities) ->
@@ -282,7 +282,7 @@ make_dispatchers(Functions) ->
     ] ++ [Global].
 
 global_dispatcher_name() ->
-    "main_dispatcher''".
+    "main_dispatcher__".
 
 %% Dispatcher of all functions in an actual module by name and arity
 make_global_dispatcher(FunNames) ->
