@@ -103,3 +103,7 @@ arrayToErlangList arr = go (DL.fromFoldable arr) where
 
 erlangStringToString :: ErlangTerm -> DM.Maybe String
 erlangStringToString term = DM.Nothing -- FIXME
+
+boolToTerm :: Boolean -> ErlangTerm
+boolToTerm true = ErlangAtom "true"
+boolToTerm false = ErlangAtom "false"

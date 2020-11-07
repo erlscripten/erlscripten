@@ -335,13 +335,13 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
     state_clear_vars(),
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
-    PSBody = erlps_optimize:optimize_expr(lists:flatten(transpile_body(Body, Env))),
-    io:format(user, "~p\n", [PSBody]),
-    erlps_purescript:pp_expr(#expr_do{ statements = PSBody }),
+    PSBody = erlps_optimize:optimize_expr(
+      #expr_do{statements = lists:flatten(transpile_body(Body, Env))}
+    ),
     #clause{
        args = [#pat_array{value = PsArgs}],
        guards = erlps_optimize:optimize_expr(PsGuards ++ transpile_boolean_guards(Guards, Env)),
-       value = #expr_do{ statements = PSBody }
+       value = PSBody
     }.
 
 
@@ -598,13 +598,12 @@ transpile_body([{match, _, Pat, Val}|Rest], Env) ->
             [#expr_do_ass{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}, Case]
       end;
 transpile_body([{'if', _, Clauses}|Rest], Env) ->
-    {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#expr_case{
        expr = ?make_expr_atom(true),
        cases = [{pat_wildcard,
-         [#guard_assg{lvalue = TruePat, rvalue = escape_effect(transpile_expr(G, Env))} || [G] <- Guards],
-                 #expr_do{statements = lists:flatten(transpile_body(Cont, Env))}} ||
-                   {clause, _, [], Guards, Cont} <- Clauses]
+         transpile_boolean_guards(GuardSequence, Env),
+                 #expr_do{statements = lists:flatten(transpile_body(Body, Env))}} ||
+                   {clause, _, [], GuardSequence, Body} <- Clauses]
       } | transpile_body(Rest, Env)];
 
 transpile_body([{'case', _, Expr, Clauses}|Rest], Env) ->

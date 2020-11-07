@@ -53,24 +53,14 @@ lists''keyfind''3 args = throw "unimplemented"
 --------------------------------------------------------------------------------
 
 
-erlang''op_exactNeq :: ErlangFun
-erlang''op_exactNeq args = throw "unimplemented"
 
-erlang''op_exactEq :: ErlangFun
-erlang''op_exactEq args = throw "unimplemented"
 
-erlang''op_neq :: ErlangFun
-erlang''op_neq args = throw "unimplemented"
-
-erlang''op_eq :: ErlangFun
-erlang''op_eq args = throw "unimplemented"
 
 erlang''op_and :: ErlangFun
 erlang''op_and args = throw "unimplemented"
 
-erlang''op_lesser :: ErlangFun
-erlang''op_lesser [ErlangNum x, ErlangNum y] =
-  pure (if x < y then ErlangAtom "true" else ErlangAtom "false")
+erlang''op_or :: ErlangFun
+erlang''op_or args = throw "unimplemented"
 
 erlang''op_div :: ErlangFun
 erlang''op_div args = throw "unimplemented"
@@ -84,17 +74,31 @@ erlang''op_minus args = throw "unimplemented"
 erlang''op_plus :: ErlangFun
 erlang''op_plus args = throw "unimplemented"
 
+
+erlang''op_exactNeq :: ErlangFun
+erlang''op_exactNeq [a, b] = pure $ boolToTerm $ a /= b
+
+erlang''op_exactEq :: ErlangFun
+erlang''op_exactEq [a, b] = pure $ boolToTerm $ a == b
+
+erlang''op_neq :: ErlangFun
+erlang''op_neq [a, b] = pure $ boolToTerm $ a /= b -- Fixme
+
+erlang''op_eq :: ErlangFun
+erlang''op_eq [a, b] = pure $ boolToTerm $ a == b -- Fixme
+
 erlang''op_greaterEq :: ErlangFun
-erlang''op_greaterEq args = throw "unimplemented"
+erlang''op_greaterEq [a, b] = pure $ boolToTerm $ a >= b
 
 erlang''op_greater :: ErlangFun
-erlang''op_greater args = throw "unimplemented"
-
-erlang''op_or :: ErlangFun
-erlang''op_or args = throw "unimplemented"
+erlang''op_greater [a, b] = pure $ boolToTerm $ a > b
 
 erlang''op_lesserEq :: ErlangFun
-erlang''op_lesserEq args = throw "unimplemented"
+erlang''op_lesserEq [a, b] = pure $ boolToTerm $ a <= b
+
+erlang''op_lesser :: ErlangFun
+erlang''op_lesser [a, b] = pure $ boolToTerm $ a < b
+
 
 erlang''op_unAppend :: ErlangFun
 erlang''op_unAppend args = throw "unimplemented"
@@ -804,7 +808,9 @@ erlang''get_keys''0 :: ErlangFun
 erlang''get_keys''0 args = throw "unimplemented"
 
 erlang''is_list''1 :: ErlangFun
-erlang''is_list''1 args = throw "unimplemented"
+erlang''is_list''1 [ErlangEmptyList] = pure $ boolToTerm true
+erlang''is_list''1 [ErlangCons _ _] = pure $ boolToTerm true
+erlang''is_list''1 [_] = pure $ boolToTerm false
 
 erlang''node''0 :: ErlangFun
 erlang''node''0 args = throw "unimplemented"

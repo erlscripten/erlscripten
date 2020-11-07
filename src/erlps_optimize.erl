@@ -24,6 +24,9 @@ optimize_expr(Expr) ->
 peephole(Phase, L) when is_list(L) ->
     peephole_list(Phase, L, []);
 
+%% do only one thing
+peephole(_, #expr_do{statements = [Expr]}) ->
+  peephole(first, Expr);
 %% sequence [pure X, pure Y, pure Z, ...] --> pure [X, Y, Z, ...]
 peephole(Phase,
          #expr_app{

@@ -140,7 +140,6 @@ pp_expr(#expr_lambda{args = Args, body = Body}) ->
     block(beside([text("\\"), hsep([pp_pat(Arg) || Arg <- Args]), text(" -> ")]),
           pp_expr(Body));
 pp_expr(#expr_do{statements = Stm}) ->
-    io:format(user, "BODY: ~p\n", [Stm]),
     paren(block(text("do"), above([pp_expr(E) || E <- Stm])));
 pp_expr(#expr_do_ass{lvalue = LV, rvalue = RV}) ->
     block(hsep(pp_pat(LV), text("<-")), pp_expr(RV)).
