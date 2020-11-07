@@ -346,7 +346,99 @@ transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
 
 
 transpile_boolean_guards([], _Env) -> [];
+transpile_boolean_guards([SingleConj], Env) ->
+    GSeq = [transpile_boolean_guards_singleton(E, Env) || E <- SingleConj],
+    %% If all of them compiled to guards then we won :)
+    case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
+      [] ->
+          lists:flatten(GSeq);
+      _ ->
+          %% Well - just fallback to the general case :P
+          transpile_boolean_guards_fallback([SingleConj], Env)
+    end;
 transpile_boolean_guards(Guards, Env) ->
+    %% Well alternatives are hard and we don't worry about them right now :P
+    transpile_boolean_guards_fallback(Guards, Env).
+
+transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEL"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
+  Pat = #pat_constr{constr = "ErlangTuple", args = [pat_wildcard]},
+  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
+  Pat = #pat_constr{constr = "ErlangNum", args = [pat_wildcard]},
+  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
+  Pat = #pat_constr{constr = "ErlangAtom", args = [pat_wildcard]},
+  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
+  Pat = #pat_constr{constr = "ErlangFun", args = [#pat_num{value = Arity}, pat_wildcard]},
+  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
+    LE = guard_trivial_expr(Lop, Env),
+    RE = guard_trivial_expr(Rop, Env),
+    %%Operators = [ {"+",   "op_plus"}
+    %%          , {"-",   "op_minus"}
+    %%          , {"*",   "op_mult"}
+    %%          , {"/",   "op_div"}
+    %%          , {"div", "op_div"}
+    %%          , {"/=",  "op_neq"}
+    %%          , {"=/=", "op_exactNeq"}
+    %%          , {"==",  "op_eq"}
+    %%          , {"=:=", "op_exactEq"}
+    %%          , {">",   "op_greater"}
+    %%          , {"<",   "op_lesser"}
+    %%          , {">=",  "op_greaterEq"}
+    %%          , {"=<",  "op_lesserEq"}
+    %%          , {"++",  "op_append"}
+    %%          , {"--",  "op_unAppend"}
+    %%          , {"&&",  "op_and"}
+    %%          , {"||",  "op_or"}
+    %%          , {"!",   "send"}
+    %%          , {"andalso", "op_and"}
+    %%          , {"orelse",  "op_or"}
+    %%          ],
+    Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
+    F = fun(N) -> [#guard_expr{guard = #expr_binop{name = N, lop = LE, rop = RE}}] end,
+    case {LE, RE} of
+        {error, _} -> error;
+        {_, error} -> error;
+        _ ->
+            case Op of
+                "==" ->
+                  %% TODO: special case for floats ;P
+                  F("==");
+                "=:=" ->
+                  %% TODO: special case for floats ;P
+                  F("==");
+                "=<" ->
+                  F("<=");
+                "<" ->
+                  F("<");
+                ">=" ->
+                  F(">=");
+                ">" ->
+                  F(">");
+                _ ->
+                  erlscripten_logger:debug("Unhandled guard op ~p", [Op]),
+                  error
+            end
+    end;
+transpile_boolean_guards_singleton(_Expr, _Env) -> error.
+
+guard_trivial_expr({var, _, V}, _Env) ->
+    #expr_var{name = state_get_var(V)};
+guard_trivial_expr({nil, _}, _Env) ->
+    ?make_expr_empty_list;
+guard_trivial_expr({atom, _, Atom}, _Env) ->
+    ?make_expr_atom(Atom);
+guard_trivial_expr({integer, _, Num}, _Env) ->
+    ?make_expr_int(Num);
+guard_trivial_expr(Expr, Env) ->
+    error.
+
+transpile_boolean_guards_fallback(Guards, Env) ->
+    erlscripten_logger:info("Erlscripten was unable to remove effects in guard sequence - Falling back to inefficient code in\n~p ", [Guards]),
     Alts = [
       lists:foldl(fun(G, AccConjs) -> {op, any, "andalso", AccConjs, G} end,
         hd(Alt), tl(Alt)) || Alt <- Guards ],

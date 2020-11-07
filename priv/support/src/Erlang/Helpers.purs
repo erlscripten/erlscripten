@@ -32,3 +32,8 @@ rbind = flip bind
 
 rbindOver :: forall a b. Effect (a -> Effect b) -> Effect a -> Effect b
 rbindOver = (<<<)((>>>)(>>=))(>>=)  -- don't ask, just beta-reduce
+
+isEL :: ErlangTerm -> Boolean
+isEL ErlangEmptyList = true
+isEL (ErlangCons _ _) = true
+isEL _ = false
