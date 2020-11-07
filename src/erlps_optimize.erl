@@ -141,6 +141,12 @@ peephole(first, #expr_case{expr = Expr, cases = Cases}) ->
 peephole(first, #expr_lambda{args = Args, body = Body}) ->
     peephole(second,
              #expr_lambda{args = Args, body = peephole(first, Body)});
+peephole(first, #expr_do{statements = Stms}) ->
+    peephole(second, #expr_do{statements = peephole(first, Stms)});
+peephole(first, #expr_do_ass{lvalue = Pat, rvalue = Expr}) ->
+    peephole(second,
+             #expr_do_ass{lvalue = Pat, rvalue = peephole(first, Expr)});
+
 peephole(first, #guard_expr{guard = Expr}) ->
     peephole(second,
              #guard_expr{guard = peephole(first, Expr)});

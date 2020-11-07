@@ -140,10 +140,10 @@ pp_expr(#expr_lambda{args = Args, body = Body}) ->
     block(beside([text("\\"), hsep([pp_pat(Arg) || Arg <- Args]), text(" -> ")]),
           pp_expr(Body));
 pp_expr(#expr_do{statements = Stm}) ->
-    block(text("do"), above([pp_expr(E) || E <- Stm]));
+    io:format(user, "BODY: ~p\n", [Stm]),
+    paren(block(text("do"), above([pp_expr(E) || E <- Stm])));
 pp_expr(#expr_do_ass{lvalue = LV, rvalue = RV}) ->
-    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV));
-pp_expr([FuckIt]) -> pp_expr(FuckIt). %% TODO: @radrow fixme ;)
+    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV)).
 
 -spec pp_pat(purs_pat()) -> doc().
 pp_pat(pat_wildcard) ->
