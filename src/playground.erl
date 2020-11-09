@@ -13,6 +13,9 @@
 -compile(nowarn).
 -compile(export_all).
 
+f(X) ->
+    ok.
+
 f() ->
-    f(),
-    f().
+    f(1),
+    f(2).

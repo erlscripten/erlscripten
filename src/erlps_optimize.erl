@@ -26,10 +26,21 @@ peephole(Phase, L) when is_list(L) ->
 
 %% do X --> X
 peephole(_, #expr_do{statements = [], return = Expr}) ->
-  peephole(first, Expr);
+    peephole(first, Expr);
 %% _ <- S --> S
 peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
     peephole(first, #do_expr{expr = Expr});
+%% V <- pure X --> let V = X
+peephole(_, #do_bind{lvalue = LV,
+                     rvalue = #expr_app{function = #expr_var{name = "pure"},
+                                        args = [Arg]
+                                       }
+                    }) ->
+    peephole(first, #do_let{lvalue = LV, rvalue = Arg});
+%% do finishing with do
+peephole(_, #expr_do{statements = Stmts0, return = #expr_do{statements = Stmts1, return = Ret}}
+        ) ->
+    peephole(first, #expr_do{statements = Stmts0 ++ Stmts1, return = Ret});
 %% sequence [pure X, pure Y, pure Z, ...] --> pure [X, Y, Z, ...]
 peephole(Phase,
          #expr_app{
@@ -148,11 +159,14 @@ peephole(first, #expr_lambda{args = Args, body = Body}) ->
     peephole(second,
              #expr_lambda{args = Args, body = peephole(first, Body)});
 peephole(first, #expr_do{statements = Stms, return = Ret}) ->
-    peephole(second, #expr_do{statements = peephole(first, Stms), return = peephole(first, Ret)});
+    peephole(second, #expr_do{statements = flatten_do(peephole(first, Stms)),
+                              return = peephole(first, Ret)});
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
              #do_bind{lvalue = Pat, rvalue = peephole(first, Expr)});
-
+peephole(first, #do_let{lvalue = Pat, rvalue = Expr}) ->
+    peephole(second,
+             #do_let{lvalue = Pat, rvalue = peephole(first, Expr)});
 peephole(first, #guard_expr{guard = Expr}) ->
     peephole(second,
              #guard_expr{guard = peephole(first, Expr)});
@@ -167,3 +181,16 @@ peephole_list(_, [], Acc) ->
     lists:reverse(Acc);
 peephole_list(Phase, [H|T], Acc) ->
     peephole_list(Phase, T, [peephole(Phase, H)|Acc]).
+
+flatten_do(Do) ->
+    flatten_do(Do, []).
+flatten_do([], Acc) ->
+    lists:reverse(Acc);
+flatten_do([#do_expr{expr = #expr_do{statements = Stmts, return = Ret}}|Rest], Acc) ->
+    flatten_do(Stmts ++ [#do_expr{expr = Ret}] ++ Rest, Acc);
+flatten_do([#do_bind{lvalue = LV,
+                     rvalue = #expr_do{statements = Stmts, return = Ret}}|Rest],
+           Acc) ->
+    flatten_do(Stmts ++ [#do_bind{lvalue = LV, rvalue = Ret}] ++ Rest, Acc);
+flatten_do([Stmt|Rest], Acc) ->
+    flatten_do(Rest, [Stmt|Acc]).

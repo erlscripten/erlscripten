@@ -81,9 +81,11 @@
 -export_type([purs_expr/0]).
 
 -record(do_bind, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
+-record(do_let, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
 -record(do_expr, {expr :: purs_expr()}).
 -type purs_do_statement()
 :: #do_bind{}
+| #do_let{}
 | #do_expr{}
 .
 

@@ -764,12 +764,18 @@ transpile_expr({call, Ann, {atom, AtomAnn, Fun}, Args}, Stmts, Env = #env{curren
                    Stmts, Env);
 transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, Stmts0, Env) ->
     {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
+    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
     PSFun = transpile_fun_ref(Module, Fun, length(Args), Env),
-    {#expr_app{function = PSFun, args = PSArgs}, Stmts1};
+    { #expr_app{function = PSFun, args = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}
+    , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg} || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
+      ++ Stmts1};
 transpile_expr({call, _, Fun, Args}, Stmts0, Env) ->
     {PSFun, Stmts1} = transpile_expr(Fun, Stmts0, Env),
     {PSArgs, Stmts2} = transpile_exprs(Args, Stmts1, Env),
-    {#expr_app{function = PSFun, args = PSArgs}, Stmts2};
+    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
+    { #expr_app{function = PSFun, args = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}
+    , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg} || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
+      ++ Stmts2};
 
 transpile_expr({nil, _}, Stmts, _) ->
     {pure(?make_expr_empty_list), Stmts};

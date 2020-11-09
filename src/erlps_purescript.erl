@@ -145,6 +145,8 @@ pp_expr(#expr_do{statements = Stm, return = Ret}) ->
 -spec pp_do_statement(purs_do_statement()) -> doc().
 pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
     block(hsep(pp_pat(LV), text("<-")), pp_expr(RV));
+pp_do_statement(#do_let{lvalue = LV, rvalue = RV}) ->
+    block(hsep([text("let"), pp_pat(LV), text("=")]), pp_expr(RV));
 pp_do_statement(#do_expr{expr = Expr}) ->
     pp_expr(Expr).
 
