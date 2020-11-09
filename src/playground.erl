@@ -13,9 +13,7 @@
 -compile(nowarn).
 -compile(export_all).
 
-f(X) ->
-    ok.
+test() ->
+    X = 3,
+    X.
 
-f() ->
-    f(1),
-    f(2).

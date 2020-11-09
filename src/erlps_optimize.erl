@@ -138,6 +138,13 @@ peephole(_,
              #expr_app{function = #expr_var{name = "erlCaseIf"},
                        args = [Expr, T, F]
                       });
+%% case X of V -> V --> X
+peephole(_,
+  #expr_case{
+     expr = Expr,
+     cases = [{#pat_var{name = Var}, [], #expr_var{name = Var}}|_]
+    }) ->
+    peephole(first, Expr);
 
 peephole(first, #expr_binop{name = Op, lop = Lop, rop = Rop}) ->
     peephole(second,
@@ -158,8 +165,8 @@ peephole(first, #expr_case{expr = Expr, cases = Cases}) ->
 peephole(first, #expr_lambda{args = Args, body = Body}) ->
     peephole(second,
              #expr_lambda{args = Args, body = peephole(first, Body)});
-peephole(first, #expr_do{statements = Stms, return = Ret}) ->
-    peephole(second, #expr_do{statements = flatten_do(peephole(first, Stms)),
+peephole(first, #expr_do{statements = Stmts, return = Ret}) ->
+    peephole(second, #expr_do{statements = flatten_do(peephole(first, Stmts)),
                               return = peephole(first, Ret)});
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
@@ -167,6 +174,9 @@ peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
 peephole(first, #do_let{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
              #do_let{lvalue = Pat, rvalue = peephole(first, Expr)});
+peephole(first, #do_expr{expr = Expr}) ->
+    peephole(second,
+             #do_expr{expr = peephole(first, Expr)});
 peephole(first, #guard_expr{guard = Expr}) ->
     peephole(second,
              #guard_expr{guard = peephole(first, Expr)});
@@ -192,5 +202,7 @@ flatten_do([#do_bind{lvalue = LV,
                      rvalue = #expr_do{statements = Stmts, return = Ret}}|Rest],
            Acc) ->
     flatten_do(Stmts ++ [#do_bind{lvalue = LV, rvalue = Ret}] ++ Rest, Acc);
+flatten_do([#do_expr{expr = #expr_app{function = #expr_var{name = "pure"}}}|Rest], Acc) ->
+    flatten_do(Rest, Acc);
 flatten_do([Stmt|Rest], Acc) ->
     flatten_do(Rest, [Stmt|Acc]).

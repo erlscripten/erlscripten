@@ -687,10 +687,9 @@ transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
 transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
     {ValueExpr, Stmts1} = transpile_expr(Val, Stmts0, Env),
     {PSPats, PSGuards} = transpile_pattern_sequence([Pat], Env),
-    state_pop_var_stack(),
     case {PSPats, PSGuards}  of
         {[#pat_var{name = Var}], []} ->
-            {#expr_var{name = Var},
+            {pure(#expr_var{name = Var}),
              [#do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr} | Stmts1]};
         {[PSPat], _} ->
             Var = state_create_fresh_var(),
@@ -716,7 +715,7 @@ transpile_expr({'if', _, Clauses}, Stmts, Env) ->
        }, Stmts};
 
 transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
-    {ExprValue, Stmts1} = transpile_expr(Expr, Stmts0),
+    {ExprValue, Stmts1} = transpile_expr(Expr, Stmts0, Env),
     UserCases = [ begin
                  {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
                  R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
@@ -757,7 +756,10 @@ transpile_expr({op, _, Op, L, R}, Stmts0, Env) ->
     OpFun = transpile_fun_ref("erlang", Op, 2, Env),
     {LE, Stmts1} = transpile_expr(L, Stmts0, Env),
     {RE, Stmts2} = transpile_expr(R, Stmts1, Env),
-    {#expr_app{function = OpFun, args = [LE, RE]}, Stmts2};
+    {#expr_app{
+        function = OpFun,
+        args = [#expr_array{value = [LE, RE]}]},
+     Stmts2};
 
 transpile_expr({call, Ann, {atom, AtomAnn, Fun}, Args}, Stmts, Env = #env{current_module = Module}) ->
     transpile_expr({call, Ann, {remote, AtomAnn, {atom, AtomAnn, Module}, {atom, AtomAnn, Fun}}, Args},
@@ -766,14 +768,18 @@ transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args}, 
     {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
     VarArgs = [state_create_fresh_var("arg") || _ <- Args],
     PSFun = transpile_fun_ref(Module, Fun, length(Args), Env),
-    { #expr_app{function = PSFun, args = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}
+    { #expr_app{
+         function = PSFun,
+         args = [#expr_array{value = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}]}
     , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg} || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
       ++ Stmts1};
 transpile_expr({call, _, Fun, Args}, Stmts0, Env) ->
     {PSFun, Stmts1} = transpile_expr(Fun, Stmts0, Env),
     {PSArgs, Stmts2} = transpile_exprs(Args, Stmts1, Env),
     VarArgs = [state_create_fresh_var("arg") || _ <- Args],
-    { #expr_app{function = PSFun, args = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}
+    { #expr_app{
+         function = PSFun,
+         args = [#expr_array{value = [#expr_var{name = VarArg}|| VarArg <- VarArgs]}]}
     , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg} || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
       ++ Stmts2};
 
