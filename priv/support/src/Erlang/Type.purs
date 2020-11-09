@@ -8,6 +8,7 @@ import Data.BigInt as DBI
 import Data.Maybe as DM
 import Data.Map as Map
 import Data.Char as DC
+import Data.Tuple as DT
 import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (throw)
@@ -64,24 +65,34 @@ instance ordErlangTerm :: Ord ErlangTerm where
     compare (ErlangBinary a) (ErlangBinary b) =
       compare (unsafePerformEffect $ toArray a) (unsafePerformEffect $ toArray b)
     compare (ErlangTuple a) (ErlangTuple b) = compare a b
-    compare (ErlangMap m1) (ErlangMap m2) = compare m1 m2
+    compare (ErlangMap m1) (ErlangMap m2) =
+      let sizeCMP = compare (Map.size m1) (Map.size m2)
+      in case sizeCMP of
+        EQ ->
+          let l1 :: DL.List (DT.Tuple ErlangTerm ErlangTerm)
+              l1 = Map.toUnfoldable m1
+              l2 = Map.toUnfoldable m2 -- FIXME erlang float vs int ordering
+          in compare l1 l2
+        _ -> sizeCMP
 
-    compare   (ErlangNum _)     _ = GT
-    compare _ (ErlangNum _)       = LT
-    compare   (ErlangAtom _)    _ = GT
-    compare _ (ErlangAtom _)      = LT
-    compare   (ErlangCons _ _)  _ = GT
-    compare _ (ErlangCons _ _)    = LT
-    compare   (ErlangEmptyList) _ = GT
-    compare _ (ErlangEmptyList)   = LT
     compare   (ErlangBinary _)  _ = GT
-    compare _ (ErlangBinary _)    = LT
-    compare   (ErlangTuple _)   _ = GT
-    compare _ (ErlangTuple _)     = LT
+    compare   (ErlangCons _ _)  _ = GT
+    compare   (ErlangEmptyList) _ = GT
     compare   (ErlangMap _)     _ = GT
-    compare _ (ErlangMap _)       = LT
+    compare   (ErlangTuple _)   _ = GT
+    compare   (ErlangFun _ _)   _ = GT
+    compare   (ErlangAtom _)    _ = GT
+    compare   (ErlangNum _)     _ = GT
 
-    compare _ _ = unsafePerformEffect $ throw "illegal compare"
+    compare _ (ErlangNum _)       = LT
+    compare _ (ErlangAtom _)      = LT
+    compare _ (ErlangFun _ _)     = LT
+    compare _ (ErlangTuple _)     = LT
+    compare _ (ErlangMap _)       = LT
+    compare _ (ErlangEmptyList)   = LT
+    compare _ (ErlangCons _ _)    = LT
+    compare _ (ErlangBinary _)    = LT
+
 
 concatArrays :: Buffer -> Buffer -> Effect (Buffer)
 concatArrays a b = do

@@ -137,12 +137,16 @@ pp_expr(#expr_case{expr = Ex, cases = Cases}) ->
                 ])
          );
 pp_expr(#expr_lambda{args = Args, body = Body}) ->
-    block(beside([text("\\"), hsep([pp_pat(Arg) || Arg <- Args]), text(" -> ")]),
+    block(hsep(lists:flatten([text("\\"), [pp_pat(Arg) || Arg <- Args], text("->")])),
           pp_expr(Body));
-pp_expr(#expr_do{statements = Stm}) ->
-    paren(block(text("do"), above([pp_expr(E) || E <- Stm])));
-pp_expr(#expr_do_ass{lvalue = LV, rvalue = RV}) ->
-    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV)).
+pp_expr(#expr_do{statements = Stm, return = Ret}) ->
+    paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)]))).
+
+-spec pp_do_statement(purs_do_statement()) -> doc().
+pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
+    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV));
+pp_do_statement(#do_expr{expr = Expr}) ->
+    pp_expr(Expr).
 
 -spec pp_pat(purs_pat()) -> doc().
 pp_pat(pat_wildcard) ->

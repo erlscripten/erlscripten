@@ -15,18 +15,21 @@
 -include("erlps_purescript.hrl").
 -include("erlps_utils.hrl").
 
--type(peepholable()) :: purs_expr() | purs_guard() | [peepholable()].
+-type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
 optimize_expr(Expr) ->
     peephole(first, Expr).
 
--spec peephole(first | second, peepholable()) -> purs_expr().
+-spec peephole(first | second, peepholable()) -> peepholable().
 peephole(Phase, L) when is_list(L) ->
     peephole_list(Phase, L, []);
 
-%% do only one thing
-peephole(_, #expr_do{statements = [Expr]}) ->
+%% do X --> X
+peephole(_, #expr_do{statements = [], return = Expr}) ->
   peephole(first, Expr);
+%% _ <- S --> S
+peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
+    peephole(first, #do_expr{expr = Expr});
 %% sequence [pure X, pure Y, pure Z, ...] --> pure [X, Y, Z, ...]
 peephole(Phase,
          #expr_app{
@@ -105,7 +108,7 @@ peephole(_,
              #expr_app{function = #expr_var{name = "pure"},
                        args = [#expr_app{function = Fun, args = [Ex]}]
                       });
-%% case X of true -> T; false -> F end --> erlIf X T F
+%% case X of true -> T; false -> F end --> erlCaseIf X T F
 peephole(_,
   #expr_case{
      expr = Expr,
@@ -144,11 +147,11 @@ peephole(first, #expr_case{expr = Expr, cases = Cases}) ->
 peephole(first, #expr_lambda{args = Args, body = Body}) ->
     peephole(second,
              #expr_lambda{args = Args, body = peephole(first, Body)});
-peephole(first, #expr_do{statements = Stms}) ->
-    peephole(second, #expr_do{statements = peephole(first, Stms)});
-peephole(first, #expr_do_ass{lvalue = Pat, rvalue = Expr}) ->
+peephole(first, #expr_do{statements = Stms, return = Ret}) ->
+    peephole(second, #expr_do{statements = peephole(first, Stms), return = peephole(first, Ret)});
+peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
-             #expr_do_ass{lvalue = Pat, rvalue = peephole(first, Expr)});
+             #do_bind{lvalue = Pat, rvalue = peephole(first, Expr)});
 
 peephole(first, #guard_expr{guard = Expr}) ->
     peephole(second,

@@ -9,102 +9,143 @@ import Control.Monad
 import Effect.Exception (throw)
 import Effect
 
--- erlang__op_plus :: ErlangFun
--- erlang__op_plus [ErlangNum x, ErlangNum y] = pure $ ErlangNum (x + y)
-
--- erlang__op_minus :: ErlangFun
--- erlang__op_minus [ErlangNum x, ErlangNum y] = pure $ ErlangNum (x - y)
-
--- erlang__op_mult :: ErlangFun
--- erlang__op_mult [ErlangNum x, ErlangNum y] = pure $ ErlangNum (x * y)
-
--- erlang__op_div :: ErlangFun
--- erlang__op_div [ErlangNum x, ErlangNum y] = pure $ ErlangNum (x / y)
-
--- erlang__apply__2 :: ErlangFun
--- erlang__apply__2 [ErlangFun arity@(ErlangNum arityVal) fun, args]
---   | DM.Just argsL <- erlangListToList args
---   , DL.length argsL == arityVal =
---     fun args
-
--- erlang__length__1 :: ErlangFun
--- erlang__length__1 [l] = pure $ ErlangNum (go 0 l) where
---   go acc ErlangEmptyList = acc
---   go acc (ErlangCons _ t) = go (acc + 1) t
-
 
 lists__keysearch__3 :: ErlangFun
-lists__keysearch__3 args = throw "unimplemented"
+lists__keysearch__3 [_, _, ErlangEmptyList] = pure (boolToTerm false)
+lists__keysearch__3 [key, idx@(ErlangNum idxNum), ErlangCons el rest] = case el of
+  ErlangTuple tup | DM.Just x <- DA.index tup idxNum  -> do
+    found <- erlang__op_exactEq [x, key]
+    if found == boolToTerm true
+      then pure (ErlangTuple [ErlangAtom "value", el])
+      else lists__keysearch__3 [key, idx, rest]
+  _ -> lists__keysearch__3 [key, idx, rest]
 
 lists__keymember__3 :: ErlangFun
-lists__keymember__3 args = throw "unimplemented"
+lists__keymember__3 [_, _, ErlangEmptyList] = pure (boolToTerm false)
+lists__keymember__3 [key, idx@(ErlangNum idxNum), ErlangCons el rest] = case el of
+  ErlangTuple tup | DM.Just x <- DA.index tup idxNum  -> do
+    found <- erlang__op_exactEq [x, key]
+    if found == boolToTerm true
+      then pure found
+      else lists__keymember__3 [key, idx, rest]
+  _ -> lists__keymember__3 [key, idx, rest]
 
 lists__reverse__2 :: ErlangFun
 lists__reverse__2 [ErlangEmptyList, acc] = pure acc
-lists__reverse__2 [ErlangCons h t, acc] =
-  lists__reverse__2 [t, ErlangCons h acc]
+lists__reverse__2 [ErlangCons h t, acc] = lists__reverse__2 [t, ErlangCons h acc]
 
 lists__member__2 :: ErlangFun
-lists__member__2 args = throw "unimplemented"
+lists__member__2 [_, ErlangEmptyList] = pure (boolToTerm false)
+lists__member__2 [x, ErlangCons el rest] = do
+  found <- erlang__op_exactEq [x, el]
+  if found == boolToTerm true
+    then pure found
+    else lists__member__2 [x, rest]
 
 lists__keyfind__3 :: ErlangFun
-lists__keyfind__3 args = throw "unimplemented"
+lists__keyfind__3 [_, _, ErlangEmptyList] = pure (boolToTerm false)
+lists__keyfind__3 [key, idx@(ErlangNum idxNum), ErlangCons el rest] = case el of
+  ErlangTuple tup | DM.Just x <- DA.index tup idxNum  -> do
+    found <- erlang__op_exactEq [x, key]
+    if found == boolToTerm true
+      then pure el
+      else lists__keyfind__3 [key, idx, rest]
+  _ -> lists__keyfind__3 [key, idx, rest]
+
 
 --------------------------------------------------------------------------------
 
 
-
-
-
-erlang__op_and :: ErlangFun
-erlang__op_and args = throw "unimplemented"
-
-erlang__op_or :: ErlangFun
-erlang__op_or args = throw "unimplemented"
-
-erlang__op_div :: ErlangFun
-erlang__op_div args = throw "unimplemented"
-
-erlang__op_mult :: ErlangFun
-erlang__op_mult args = throw "unimplemented"
-
-erlang__op_minus :: ErlangFun
-erlang__op_minus args = throw "unimplemented"
-
-erlang__op_plus :: ErlangFun
-erlang__op_plus args = throw "unimplemented"
-
-
+-- =/=
 erlang__op_exactNeq :: ErlangFun
-erlang__op_exactNeq [a, b] = pure $ boolToTerm $ a /= b
+erlang__op_exactNeq [a, b] = pure (boolToTerm (a /= b))  -- FIXME (funs)
 
+-- =:=
 erlang__op_exactEq :: ErlangFun
-erlang__op_exactEq [a, b] = pure $ boolToTerm $ a == b
+erlang__op_exactEq [a, b] = pure (boolToTerm (a == b)) -- FIXME (funs)
 
+-- /=
 erlang__op_neq :: ErlangFun
-erlang__op_neq [a, b] = pure $ boolToTerm $ a /= b -- Fixme
+erlang__op_neq [a, b] = pure (boolToTerm (a /= b)) -- FIXME (funs, floats)
 
+-- ==
 erlang__op_eq :: ErlangFun
-erlang__op_eq [a, b] = pure $ boolToTerm $ a == b -- Fixme
+erlang__op_eq [a, b] = pure (boolToTerm (a == b)) -- FIXME (funs, floats)
 
+-- and
+erlang__op_and :: ErlangFun
+erlang__op_and [ErlangAtom "true",  ErlangAtom "true"]  = pure (boolToTerm true)
+erlang__op_and [ErlangAtom "false", ErlangAtom "true"]  = pure (boolToTerm false)
+erlang__op_and [ErlangAtom "true",  ErlangAtom "false"] = pure (boolToTerm false)
+erlang__op_and [ErlangAtom "false", ErlangAtom "false"] = pure (boolToTerm false)
+
+-- or
+erlang__op_or :: ErlangFun
+erlang__op_or [ErlangAtom "true",  ErlangAtom "true"]  = pure (boolToTerm true)
+erlang__op_or [ErlangAtom "false", ErlangAtom "true"]  = pure (boolToTerm true)
+erlang__op_or [ErlangAtom "true",  ErlangAtom "false"] = pure (boolToTerm true)
+erlang__op_or [ErlangAtom "false", ErlangAtom "false"] = pure (boolToTerm false)
+
+-- andalso
+erlang__op_andalso :: ErlangFun
+erlang__op_andalso [ErlangAtom "true", other] = pure other
+erlang__op_andalso [ErlangAtom "false", _] = pure (boolToTerm false)
+
+-- orelse
+erlang__op_orelse :: ErlangFun
+erlang__op_orelse [ErlangAtom "true", _] = pure (boolToTerm true)
+erlang__op_orelse [ErlangAtom "false", other] = pure other
+
+-- /
+erlang__op_div :: ErlangFun
+erlang__op_div [ErlangNum a, ErlangNum b] = pure (ErlangNum (a `div` b))
+
+-- *
+erlang__op_mult :: ErlangFun
+erlang__op_mult [ErlangNum a, ErlangNum b] = pure (ErlangNum (a * b))
+
+-- -
+erlang__op_minus :: ErlangFun
+erlang__op_minus [ErlangNum a, ErlangNum b] = pure (ErlangNum (a - b))
+
+-- +
+erlang__op_plus :: ErlangFun
+erlang__op_plus [ErlangNum a, ErlangNum b] = pure (ErlangNum (a + b))
+
+-- >=
 erlang__op_greaterEq :: ErlangFun
-erlang__op_greaterEq [a, b] = pure $ boolToTerm $ a >= b
+erlang__op_greaterEq [a, b] = pure (boolToTerm (a >= b))
 
+-- >
 erlang__op_greater :: ErlangFun
-erlang__op_greater [a, b] = pure $ boolToTerm $ a > b
+erlang__op_greater [a, b] = pure (boolToTerm (a > b))
 
+-- =<
 erlang__op_lesserEq :: ErlangFun
-erlang__op_lesserEq [a, b] = pure $ boolToTerm $ a <= b
+erlang__op_lesserEq [a, b] = pure (boolToTerm (a <= b))
 
+-- <
 erlang__op_lesser :: ErlangFun
-erlang__op_lesser [a, b] = pure $ boolToTerm $ a < b
+erlang__op_lesser [a, b] = pure (boolToTerm (a < b))
 
-
+-- --
 erlang__op_unAppend :: ErlangFun
-erlang__op_unAppend args = throw "unimplemented"
+erlang__op_unAppend [ErlangEmptyList, ErlangEmptyList] = pure ErlangEmptyList
+erlang__op_unAppend [l@(ErlangCons _ _), ErlangEmptyList] = pure l
+erlang__op_unAppend [ErlangEmptyList, ErlangCons _ _] = pure ErlangEmptyList
+erlang__op_unAppend [ErlangCons hl tl, r@(ErlangCons hr tr)] = do
+  remove <- erlang__op_exactEq [hl, hr]
+  case remove of
+    ErlangAtom "true"  -> erlang__op_unAppend [tl, tr]
+    ErlangAtom "false" -> map (ErlangCons hl) (erlang__op_unAppend [tl, r])
 
+-- ++
 erlang__op_append :: ErlangFun
-erlang__op_append args = throw "unimplemented"
+erlang__op_append [ErlangEmptyList, ErlangEmptyList] = pure ErlangEmptyList
+erlang__op_append [ErlangEmptyList, l@(ErlangCons _ _)] = pure l
+erlang__op_append [l@(ErlangCons _ _), ErlangEmptyList] = pure l
+erlang__op_append [ErlangCons h t, l@(ErlangCons _ _)] =
+  map (ErlangCons h) (erlang__op_append [t, l])
 
 
 

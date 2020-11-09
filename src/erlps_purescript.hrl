@@ -66,8 +66,7 @@
 -record(expr_array, {value :: [purs_expr()]}).
 -record(expr_case, {expr :: purs_expr(), cases :: [{purs_pat(), [purs_guard()], purs_expr()}]}).
 -record(expr_lambda, {args :: [purs_pat()], body :: purs_expr()}).
--record(expr_do, {statements :: [purs_expr()]}).
--record(expr_do_ass, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
+-record(expr_do, {statements :: [purs_do_statement()], return :: purs_expr()}).
 -type purs_expr()
 :: #expr_binop{}
 | #expr_num{}
@@ -78,10 +77,15 @@
 | #expr_case{}
 | #expr_lambda{}
 | #expr_do{}
-| #expr_do_ass{}
 .
 -export_type([purs_expr/0]).
 
+-record(do_bind, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
+-record(do_expr, {expr :: purs_expr()}).
+-type purs_do_statement()
+:: #do_bind{}
+| #do_expr{}
+.
 
 -record(pat_num, {value :: number()}).
 -record(pat_string, {value :: string()}).

@@ -51,6 +51,8 @@ make_expr_list([H|T]) ->
                   args = [#expr_string{value = Msg}]}).
 
 
+-define(function_clause, ?ps_error("function_clause")).
 -define(case_clause, ?ps_error("case_clause")).
 -define(if_clause, ?ps_error("if_clause")).
+-define(bad_match, ?ps_error("bad_match")).
 

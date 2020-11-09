@@ -13,4 +13,6 @@
 -compile(nowarn).
 -compile(export_all).
 
-app(F, X) ->  F(X, X, X).
+f() ->
+    f(),
+    f().
