@@ -692,16 +692,17 @@ transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
             {pure(#expr_var{name = Var}),
              [#do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr} | Stmts1]};
         {[PSPat], _} ->
-            Var = state_create_fresh_var(),
-            Case = #expr_case{
-               expr = #expr_var{name = Var},
-               cases =
-                   [ {PSPat, PSGuards, pure(#expr_var{name = Var})}
-                   , {pat_wildcard, [], ?bad_match}
-                   ]
-              },
+            Var = state_create_fresh_var("match"),
             { pure(#expr_var{name = Var}),
-             [ #do_expr{expr = Case}
+              [ #do_expr{
+                   expr =
+                       #expr_case{
+                          expr = #expr_var{name = Var},
+                          cases =
+                              [ {PSPat, PSGuards, pure(#expr_var{name = Var})}
+                              , {pat_wildcard, [], ?bad_match}
+                              ]
+                         }}
              , #do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}
              | Stmts1]}
     end;
@@ -806,10 +807,13 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, Stmts, Env) when is_atom(Fun)
 
 transpile_expr({tuple, _, Exprs}, Stmts0, Env) ->
     {PSExprs, Stmts1} = transpile_exprs(Exprs, Stmts0, Env),
-    {#expr_app{
+    VarExprs = [state_create_fresh_var("tup") || _ <- Exprs],
+    {pure(#expr_app{
         function = #expr_var{name = "ErlangTuple"},
-        args = [ #expr_array{value = PSExprs}]}
-    , Stmts1};
+        args = [#expr_array{value = [#expr_var{name = VarExpr} || VarExpr <- VarExprs]}]})
+    , [#do_bind{lvalue = #pat_var{name = VarExpr}, rvalue = Expr}
+       || {VarExpr, Expr} <- lists:zip(VarExprs, PSExprs)]
+     ++ Stmts1};
 
 transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
     {PSRet, Stmts1} = transpile_expr(Ret, Stmts0, Env),
