@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 26. Okt 2020 16:31
 %%%-------------------------------------------------------------------
--module(erlps_purescript).
+-module(erlps_purescript_pretty).
 -author("radrow").
 
 -include("erlps_purescript.hrl").
@@ -140,7 +140,11 @@ pp_expr(#expr_lambda{args = Args, body = Body}) ->
     block(hsep(lists:flatten([text("\\"), [pp_pat(Arg) || Arg <- Args], text("->")])),
           pp_expr(Body));
 pp_expr(#expr_do{statements = Stm, return = Ret}) ->
-    paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)]))).
+    paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)])));
+pp_expr(#expr_record{fields = Fields}) ->
+    comma_brackets(
+      "{", "}",
+      [hsep(beside(text(Name), text(":")), pp_expr(Value))|| {Name, Value} <- Fields]).
 
 -spec pp_do_statement(purs_do_statement()) -> doc().
 pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
@@ -164,7 +168,11 @@ pp_pat(#pat_array{value = Arr}) ->
 pp_pat(#pat_as{name = Name, pattern = Pat}) ->
     beside([text(Name), text("@"), pp_pat(Pat)]);
 pp_pat(#pat_constr{constr = Constr, args = Args}) ->
-    paren(hsep([pp_pat(P) || P <- [#pat_var{name = Constr} | Args]])).
+    paren(hsep([pp_pat(P) || P <- [#pat_var{name = Constr} | Args]]));
+pp_pat(#pat_record{fields = Fields}) ->
+    comma_brackets(
+      "{", "}",
+      [hsep(beside(text(Name), text(":")), pp_pat(Value))|| {Name, Value} <- Fields]).
 
 
 -spec pp_guard(purs_guard()) -> doc().

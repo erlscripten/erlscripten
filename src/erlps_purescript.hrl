@@ -67,6 +67,7 @@
 -record(expr_case, {expr :: purs_expr(), cases :: [{purs_pat(), [purs_guard()], purs_expr()}]}).
 -record(expr_lambda, {args :: [purs_pat()], body :: purs_expr()}).
 -record(expr_do, {statements :: [purs_do_statement()], return :: purs_expr()}).
+-record(expr_record, {fields :: [{string(), purs_expr()}]}).
 -type purs_expr()
 :: #expr_binop{}
 | #expr_num{}
@@ -77,11 +78,12 @@
 | #expr_case{}
 | #expr_lambda{}
 | #expr_do{}
+| #expr_record{}
 .
 -export_type([purs_expr/0]).
 
 -record(do_bind, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
--record(do_let, {lvalue :: purs_pat(), rvalue :: purs_expr()}).
+-record(do_let, {lvalue :: purs_pat(), rvalue :: purs_expr(), guards = [] :: [purs_guard()]}).
 -record(do_expr, {expr :: purs_expr()}).
 -type purs_do_statement()
 :: #do_bind{}
@@ -95,6 +97,7 @@
 -record(pat_array, {value :: [purs_pat()]}).
 -record(pat_as, {name :: string(), pattern :: purs_pat()}).
 -record(pat_constr, {constr :: string(), args = [] :: [purs_pat()]}).
+-record(pat_record, {fields :: [{string(), purs_pat()}]}).
 -type purs_pat()
 :: pat_wildcard
 | #pat_num{}
@@ -103,6 +106,7 @@
 | #pat_array{}
 | #pat_as{}
 | #pat_constr{}
+| #pat_record{}
 .
 -export_type([purs_pat/0]).
 

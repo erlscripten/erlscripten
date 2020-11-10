@@ -83,7 +83,7 @@ parse_transform(Forms, Options) ->
                     imports = DefaultImports ++ Imports,
                     decls = Decls %++ Dispatchers
                 },
-                file:write(Handle, erlps_purescript:format_module(Module))
+                file:write(Handle, erlps_purescript_pretty:format_module(Module))
         end,
         Forms
     catch Error:Reason:StackTrace ->
@@ -154,7 +154,7 @@ filter_function_forms(_) ->
 
 transpile_function({{FunName, Arity}, Clauses}, Env) ->
     Type = #type_var{name = "ErlangFun"},
-    PSClauses = [transpile_function_clause(FunName, Clause, Env) ||
+    PSClauses = [transpile_function_clause(Clause, Env) ||
                     Clause <- Clauses],
     #valdecl{
        name = transpile_fun_name(FunName, Arity),
@@ -242,72 +242,7 @@ transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
             end
     end.
 
--spec make_dispatcher_name(string()) -> string().
-make_dispatcher_name(Name) ->
-    Name ++ "__dispatch".
-
-%% Dispatcher for a given function by available arities
-make_dispatcher_for(Name, Arities) ->
-    #valdecl{
-       name = make_dispatcher_name(Name),
-       clauses =
-           [#clause{
-               args = [#pat_var{name = "arity"}, #pat_var{name = "args"}],
-               value =
-                   #expr_case{
-                      expr = #expr_var{name = "arity"},
-                      cases =
-                          [{?make_pat_int(Arity),
-                            [], % guards
-                            #expr_app{
-                               function = #expr_var{name = transpile_fun_name(Name, Arity)},
-                               args = [#expr_var{name = io_lib:format("arg_~p", [I])}
-                                       || I <- lists:seq(1, Arity)]}}
-                           || Arity <- Arities
-                          ]
-                     }
-              }
-           ]}.
-
-%% Dispatcher for all defined functions by arity
-make_dispatchers(Functions) ->
-    ArityMap = lists:foldr(
-        fun({K, V}, D) -> dict:append(K, V, D) end,
-        dict:new(),
-        [{Name, Arity} || {{Name, Arity}, _} <- Functions]),
-    ArityMapList = dict:to_list(ArityMap),
-    Global = make_global_dispatcher([Name || {Name, _} <- ArityMapList]),
-    [make_dispatcher_for(Fun, Arities)
-        || {Fun, Arities} <- ArityMapList
-    ] ++ [Global].
-
-global_dispatcher_name() ->
-    "main_dispatcher__".
-
-%% Dispatcher of all functions in an actual module by name and arity
-make_global_dispatcher(FunNames) ->
-    #valdecl{
-       name = global_dispatcher_name(),
-       clauses =
-           [#clause{
-               args = [#pat_var{name = "function"}, #pat_var{name = "arity"}, #pat_var{name = "args"}],
-               value =
-                   #expr_case{
-                      expr = #expr_var{name = "function"},
-                      cases =
-                          [{#pat_string{value = Fun},
-                            [], % guards
-                            #expr_app{
-                               function = #expr_var{name = make_dispatcher_name(Fun)},
-                               args = [#expr_var{name = "arity"}, #expr_var{name = "args"}]
-                              }}
-                           || Fun <- FunNames
-                          ]
-                     }
-              }
-           ]}.
-
-transpile_function_clause(FunName, {clause, _, Args, Guards, Body}, Env) ->
+transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
     %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
     %% cannot be expressed as matches in Purescipt BUT we may emulate them in guards!
     %% Guards in purescript are really powerful - using patten guards we will emulate what we want
@@ -432,7 +367,7 @@ guard_trivial_expr({atom, _, Atom}, _Env) ->
     ?make_expr_atom(Atom);
 guard_trivial_expr({integer, _, Num}, _Env) ->
     ?make_expr_int(Num);
-guard_trivial_expr(Expr, Env) ->
+guard_trivial_expr(_Expr, _Env) ->
     error.
 
 transpile_boolean_guards_fallback(Guards, Env) ->
@@ -467,10 +402,10 @@ transpile_pattern_sequence(PatternSequence, Env) ->
 %% Atomic Literals
 transpile_pattern({atom, _, Atom}, _) ->
     {?make_pat_atom(Atom), [], []};
-transpile_pattern({char, _, Char}, _) ->
-    error(todo);
-transpile_pattern({float, _, Float}, _) ->
-    error(todo);
+%% transpile_pattern({char, _, Char}, _) ->
+%%     error(todo);
+%% transpile_pattern({float, _, Float}, _) ->
+%%     error(todo);
 %% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
 %%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
@@ -482,7 +417,7 @@ transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
 transpile_pattern({bin, _, []}, _) ->
     %% The easy case – <<>>
     %% Empty binary - guard for size eq 0
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("bin_e"),
     {{#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}}, [
         #guard_expr{guard =
         #expr_binop{
@@ -493,7 +428,7 @@ transpile_pattern({bin, _, []}, _) ->
 transpile_pattern({bin, _, [{bin_element, _, {string, _, Str}, default, default}]}, _) ->
     %% Binary string literal – <<"erlang">>
     %% Assert buffer length and then compare with str
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("bin_s"),
     {{#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}}, [
         #guard_expr{guard = #expr_binop{
             name = "==",
@@ -515,11 +450,11 @@ transpile_pattern({bin, _, Segments}, _) ->
     %% present on the variable stack OR variables created during this binding
     %% Fortunately patterns can only be literals or variables
     %% Size specs are guard expressions
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("bin_c"),
     {G, V, _} = transpile_binary_pattern_segments(Var, Segments, #{}),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
 %% Compound pattern
-transpile_pattern({match, _, {var, _, Var} = V, P}, Env) ->
+transpile_pattern({match, _, {var, _, _Var} = V, P}, Env) ->
     {H, G, V1} = transpile_pattern(P, Env),
     case transpile_pattern(V, Env) of
       pat_wildcard ->
@@ -532,7 +467,7 @@ transpile_pattern({match, Ann, P, {var, _, _} = V}, Env) ->
 transpile_pattern({match, _, P1, P2}, Env) ->
     {H1, G1, V1} = transpile_pattern(P1, Env),
     {H2, G2, V2} = transpile_pattern(P2, Env),
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("match"),
     {#pat_as{name = Var, pattern = H2},
         [#guard_assg{lvalue = H1, rvalue = #expr_var{name = Var}} | G1 ++ G2], V1 ++ V2};
 
@@ -544,7 +479,7 @@ transpile_pattern({cons, _, Head, Tail}, Env) ->
 
 %% Map pattern
 transpile_pattern({map, _, Associations}, Env) ->
-    MapVar = state_create_fresh_var(),
+    MapVar = state_create_fresh_var("map"),
     {G, V} =
         lists:foldl(fun({map_field_exact, _, Key, Value}, {Gs, Vs}) ->
             begin
@@ -571,17 +506,14 @@ transpile_pattern({op, _, '++', {nil, _}, P2}, Env) ->
     transpile_pattern(P2, Env);
 transpile_pattern({op, Ann, '++', {cons, AnnC, H, T}, P2}, Env) ->
     transpile_pattern({cons, AnnC, H, {op, Ann, '++', T, P2}}, Env);
-transpile_pattern(P = {op, Ann, Op, P1, P2}, Env) ->
+transpile_pattern(P, _Env) when element(1, P) =:= op ->
     case compute_constexpr(P) of
         {ok, Res} -> Res;
         error -> error({illegal_operator_pattern, P})
     end;
-transpile_pattern({op, _, Op, P1}, Env) ->
-    %% this is an occurrence of an expression that can be evaluated to a number at compile time
-    error(todo);
 
 %% Record index pattern
-transpile_pattern({record_index, _, RecordName, Field}, Env) ->
+transpile_pattern({record_index, _, _RecordName, _Field}, _Env) ->
     error(todo);
 
 %% Record pattern
@@ -627,6 +559,32 @@ transpile_pattern({var, _, ErlangVar}, _) ->
 transpile_pattern(Arg, _Env) ->
     error({unimplemented_pattern, Arg}).
 
+
+pattern_vars(Pat) ->
+    pattern_vars(Pat, []).
+pattern_vars([], Acc) ->
+    Acc;
+pattern_vars([Pat|Rest], Acc) ->
+    Acc1 = pattern_vars(Pat, Acc),
+    pattern_vars(Rest, Acc1);
+pattern_vars(#pat_string{}, Acc) ->
+    Acc;
+pattern_vars(pat_wildcard, Acc) ->
+    Acc;
+pattern_vars(#pat_num{}, Acc) ->
+    Acc;
+pattern_vars(#pat_var{name = Var}, Acc) ->
+    [Var|Acc];
+pattern_vars(#pat_constr{args = Pats}, Acc) ->
+    pattern_vars(Pats, Acc);
+pattern_vars(#pat_array{value = Pats}, Acc) ->
+    pattern_vars(Pats, Acc);
+pattern_vars(#pat_as{name = Name, pattern = Pat}, Acc) ->
+    pattern_vars(Pat, [Name|Acc]);
+pattern_vars(#pat_record{fields = Fields}, Acc) ->
+    pattern_vars([Pat || {_Field, Pat} <- Fields], Acc).
+
+
 %% When resolving variables in the size spec look to:
 %% 1) The outer scope on the stack
 %% 2) The newBindings scope
@@ -645,29 +603,17 @@ escape_effect_guard(Expr) ->
        args = [Expr]
       }.
 
-effect_apply(Mode, F, Args) when is_list(Args) ->
-    effect_apply(Mode, F, #expr_app{function = #expr_var{name = "sequence"},
-                                    args = [#expr_array{value = Args}]
-                                   });
-effect_apply(Mode, F, Arg) ->
-    Fun = case Mode of
-              pure_fun         -> "map";
-              eff_fun          -> "apply";
-              pure_kleisli_fun -> "rbind";
-              eff_kleisli_fun  -> "rbindOver"
-         end,
-    #expr_app{function = #expr_var{name = Fun}, args = [F, Arg]}.
-
 pure(Expr) ->
     #expr_app{function = #expr_var{name = "pure"}, args = [Expr]}.
 
 transpile_body(Body, Env) ->
-    transpile_body(Body, [], Env).
+    PSBody = transpile_body(Body, [], Env),
+    catch_partial_binds(PSBody).
 transpile_body([], _, _) ->
     error(empty_body);
 transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
     %% We can't just return a bind
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("match"),
     transpile_body([{match, Ann, Pat, {match, Ann, {var, Ann, Var}, Expr}},
                     {var, Ann, Var}],
                    Acc,
@@ -675,7 +621,96 @@ transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
 transpile_body([Expr], Acc, Env) ->
     #expr_do{statements = lists:reverse(Acc), return = transpile_expr(Expr, Env)};
 transpile_body([Expr|Rest], Acc, Env) ->
-    transpile_body(Rest, [#do_expr{expr = transpile_expr(Expr, Env)}|Acc], Env).
+    PSExpr = transpile_expr(Expr, Env),
+    transpile_body(Rest, [#do_expr{expr = PSExpr}|Acc], Env).
+
+catch_partial_binds(Expr = #expr_binop{lop = L, rop = R}) ->
+    Expr#expr_binop{lop = catch_partial_binds(L), rop = catch_partial_binds(R)};
+catch_partial_binds(#expr_app{function = F, args = Args}) ->
+    #expr_app{function = catch_partial_binds(F), args = lists:map(fun catch_partial_binds/1, Args)};
+catch_partial_binds(#expr_array{value = Arr}) ->
+    #expr_array{value = lists:map(fun catch_partial_binds/1, Arr)};
+catch_partial_binds(#expr_case{expr = Ex, cases = Cases}) ->
+    #expr_case{
+       expr = catch_partial_binds(Ex),
+       cases =
+           [ {Pat, Guards, catch_partial_binds(Cont)}
+            || {Pat, Guards, Cont} <- Cases
+           ]
+      };
+catch_partial_binds(Expr = #expr_lambda{body = Body}) ->
+    Expr#expr_lambda{body = catch_partial_binds(Body)};
+catch_partial_binds(#expr_do{statements = Stm, return = Ret}) ->
+    catch_partial_binds_in_statements(Stm, catch_partial_binds(Ret));
+catch_partial_binds(#expr_record{fields = Fields}) ->
+    #expr_record{fields = [{Name, catch_partial_binds(Value)}|| {Name, Value} <- Fields]};
+catch_partial_binds(Leaf) ->
+    Leaf.
+
+catch_partial_binds_in_statements(Stmts, Ret) ->
+    catch_partial_binds_in_statements(Stmts, [], Ret).
+catch_partial_binds_in_statements([], Acc, Ret) ->
+    #expr_do{statements = lists:reverse(Acc), return = Ret};
+catch_partial_binds_in_statements([#do_let{lvalue = LV, rvalue = RV, guards = Guards}|Rest], Acc, Ret)
+                                  when element(1, LV) =/= pat_var andalso LV =/= pat_wildcard ->
+    #expr_do{
+       statements =
+           lists:reverse(Acc),
+       return =
+           #expr_case{
+              expr = RV,
+              cases =
+                  [ {LV, Guards, catch_partial_binds_in_statements(Rest, Ret)}
+                  , {pat_wildcard, [], ?bad_match}
+                  ]
+             }
+      };
+catch_partial_binds_in_statements([Stmt = #do_bind{rvalue = RV}|Rest], Acc, Ret) ->
+        catch_partial_binds_in_statements(Rest, [Stmt#do_bind{rvalue = catch_partial_binds(RV)}|Acc], Ret);
+catch_partial_binds_in_statements([Stmt = #do_let{rvalue = RV}|Rest], Acc, Ret) ->
+    catch_partial_binds_in_statements(Rest, [Stmt#do_let{rvalue = catch_partial_binds(RV)}|Acc], Ret);
+catch_partial_binds_in_statements([#do_expr{expr = Expr}|Rest], Acc, Ret) ->
+    catch_partial_binds_in_statements(Rest, [#do_expr{expr = catch_partial_binds(Expr)}|Acc], Ret).
+
+
+%% WIP SCOPE LEAKER
+
+%% leak_scope(Expr = #expr_case{cases = Cases}) ->
+%%     CasesResults = [ begin
+%%                    {ContLeaked, ContVars} = leak_scope(Cont),
+%%                    PatVars = pattern_vars(Pat),
+%%                    {{Pat, Guards, ContLeaked}, PatVars ++ ContVars}
+%%                      end
+%%                      || {Pat, Guards, Cont} = Case <- Cases
+%%                    ],
+%%     Cases1 = [Case || {Case, _} <- CasesResults],
+%%     Vars = [Var || {_, Vars} <- CasesResults, Var <- Vars],
+%%     {Expr#expr_case{cases = Cases1}, Vars};
+%% leak_scope(#expr_do{statements = Stmts, return = Ret}) ->
+%%     {Stmts1, Ret1, Vars} = leak_scope_in_statements(Stmts, Ret),
+%%     {#expr_do{statements = Stmts1, return = Ret1}, Vars};
+%% leak_scope(NotScoped) ->
+%%     {NotScoped, []}.
+
+%% leak_scope_in_statements(Stmts, Ret) ->
+%%     leak_scope_in_statements(Stmts, Ret, [], []).  %% TODO HERE RETURN THE SCOPE
+%% leak_scope_in_statements([], AccStmts, Vars) ->
+%%     {AccStmts, Vars};
+%% leak_scope_in_statements([Stmt|Rest], AccStmts, Vars) ->
+%%     case Stmt of
+%%         #do_bind{lvalue = LV, rvalue = RV} ->
+%%             {RV1, RVVars} = leak_scope(RV),
+%%             LVVars = pattern_vars(LV),
+%%             leak_scope_in_statements(
+%%               Rest, [#do_bind{lvalue = LV, rvalue = RV1}|AccStmts], LVVars ++ RVVars ++ Vars);
+%%         #do_let{lvalue = LV, rvalue = RV} ->
+%%             {RV1, RVVars} = leak_scope(RV),
+%%             LVVars = pattern_vars(LV),
+%%             leak_scope_in_statements(
+%%               Rest, [#do_let{lvalue = LV, rvalue = RV1}|AccStmts], LVVars ++ RVVars ++ Vars);
+%%         #do_expr{expr = Expr} ->
+%%             {Expr1, ExprVars} = leak_scope(Expr),
+%%             leak_scope_in_statements(Rest, [#do_expr{expr = Expr1}])
 
 
 transpile_expr(Expr, Env) ->
@@ -688,25 +723,18 @@ transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
     {ValueExpr, Stmts1} = transpile_expr(Val, Stmts0, Env),
     {PSPats, PSGuards} = transpile_pattern_sequence([Pat], Env),
     state_pop_discard_var_stack(), %% This permanently commits the bindings to the local scope
-    case {PSPats, PSGuards}  of
+    case {PSPats, PSGuards} of
         {[#pat_var{name = Var}], []} ->
             {pure(#expr_var{name = Var}),
              [#do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr} | Stmts1]};
         {[PSPat], _} ->
             Var = state_create_fresh_var("match"),
             { pure(#expr_var{name = Var}),
-              [ #do_expr{
-                   expr =
-                       #expr_case{
-                          expr = #expr_var{name = Var},
-                          cases =
-                              [ {PSPat, PSGuards, #expr_var{name = "<<SCOPE_FIXUP>>"}}
-                              , {pat_wildcard, [], ?bad_match}
-                              ]
-                         }}
-             , #do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}
-             | Stmts1]}
+              [ #do_let{lvalue = PSPat, rvalue = #expr_var{name = Var}, guards = PSGuards}
+              , #do_bind{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}
+              | Stmts1]}
     end;
+%% TODO Scope leaking!
 transpile_expr({'if', _, Clauses}, Stmts, Env) ->
     {#expr_case{
         expr = ?make_expr_atom(true),
@@ -715,7 +743,7 @@ transpile_expr({'if', _, Clauses}, Stmts, Env) ->
                   transpile_body(Body, Env)} ||
                     {clause, _, [], GuardSequence, Body} <- Clauses]
        }, Stmts};
-
+%% TODO Scope leaking!
 transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
     {ExprValue, Stmts1} = transpile_expr(Expr, Stmts0, Env),
     UserCases = [ begin
@@ -739,7 +767,7 @@ transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
                         UserCases ++ WildcardCase
                 end
             end,
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("case"),
     Case = #expr_case{
        expr = #expr_var{name = Var},
        cases = Cases
@@ -822,7 +850,7 @@ transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Stmts0, Env) ->
     {PSSource, Stmts1} = transpile_expr(Source, Stmts0, Env),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
-    Var = state_create_fresh_var(),
+    Var = state_create_fresh_var("lc"),
     Gen =
         #expr_app{
            function = transpile_fun_ref(lists, "flatmap", 2, Env),
@@ -903,5 +931,3 @@ state_pop_var_stack() ->
     O = hd(get(?BINDINGS_STACK)),
     put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
     put(?BINDINGS, O).
-state_peek_var_stack() ->
-    hd(get(?BINDINGS_STACK)).

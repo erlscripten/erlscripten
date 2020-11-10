@@ -14,6 +14,6 @@
 -compile(export_all).
 
 test() ->
-    X = 3,
-    X.
+    X = ({Y, _} = {Y, Y} = 1),
+    Y.
 
