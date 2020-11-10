@@ -687,6 +687,7 @@ transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
 transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
     {ValueExpr, Stmts1} = transpile_expr(Val, Stmts0, Env),
     {PSPats, PSGuards} = transpile_pattern_sequence([Pat], Env),
+    state_pop_discard_var_stack(), %% This permanently commits the bindings to the local scope
     case {PSPats, PSGuards}  of
         {[#pat_var{name = Var}], []} ->
             {pure(#expr_var{name = Var}),
@@ -699,7 +700,7 @@ transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
                        #expr_case{
                           expr = #expr_var{name = Var},
                           cases =
-                              [ {PSPat, PSGuards, pure(#expr_var{name = Var})}
+                              [ {PSPat, PSGuards, #expr_var{name = "<<SCOPE_FIXUP>>"}}
                               , {pat_wildcard, [], ?bad_match}
                               ]
                          }}
@@ -896,6 +897,8 @@ state_clear_var_stack() ->
     put(?BINDINGS_STACK, []).
 state_push_var_stack() ->
     put(?BINDINGS_STACK, [state_get_vars() | get(?BINDINGS_STACK)]).
+state_pop_discard_var_stack() ->
+    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))).
 state_pop_var_stack() ->
     O = hd(get(?BINDINGS_STACK)),
     put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),

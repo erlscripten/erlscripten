@@ -41,6 +41,7 @@ peephole(_, #do_bind{lvalue = LV,
 peephole(_, #expr_do{statements = Stmts0, return = #expr_do{statements = Stmts1, return = Ret}}
         ) ->
     peephole(first, #expr_do{statements = Stmts0 ++ Stmts1, return = Ret});
+
 %% sequence [pure X, pure Y, pure Z, ...] --> pure [X, Y, Z, ...]
 peephole(Phase,
          #expr_app{
@@ -165,9 +166,32 @@ peephole(first, #expr_case{expr = Expr, cases = Cases}) ->
 peephole(first, #expr_lambda{args = Args, body = Body}) ->
     peephole(second,
              #expr_lambda{args = Args, body = peephole(first, Body)});
-peephole(first, #expr_do{statements = Stmts, return = Ret}) ->
-    peephole(second, #expr_do{statements = flatten_do(peephole(first, Stmts)),
-                              return = peephole(first, Ret)});
+peephole(first, #expr_do{statements = Stmts, return = Ret0}) ->
+    E = #expr_do{statements = flatten_do(peephole(first, Stmts)),
+                              return = peephole(first, Ret0)},
+    #expr_do{statements = Statements, return = Ret} = E,
+    %% Fixup scope - WARNING DIRTY HACK OwO
+    %% Find #expr_case{
+    %%                expr = #expr_var{name = Var},
+    %%                cases =
+    %%                    [ {PSPat, PSGuards, #expr_var{name = "<<NEEDLE>>"}}
+    %%                    , {pat_wildcard, [], ?bad_match}
+    %%                    ]
+    %%               }
+  {OldScope, T} = lists:splitwith(fun(#do_expr{expr = #expr_case{ expr = #expr_var{}, cases = [{_, _, #expr_var{name = "<<SCOPE_FIXUP>>"}}, _] }}) -> false; (_) -> true end, Statements),
+  E1 = case T of
+      [] ->
+          E;
+      [#do_expr{expr = #expr_case{cases = [{Pat, Guard, _}, Case2] } = C} | NewScope] ->
+        Body = #expr_do{statements = NewScope, return = Ret},
+        io:format(user, "AAAA ~p\n", [T]),
+        #expr_do{
+          statements = OldScope,
+          return = C#expr_case{cases = [{Pat, Guard, Body}, Case2]}
+        }
+    end,
+  peephole(second, E1);
+
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
              #do_bind{lvalue = Pat, rvalue = peephole(first, Expr)});
@@ -206,3 +230,4 @@ flatten_do([#do_expr{expr = #expr_app{function = #expr_var{name = "pure"}}}|Rest
     flatten_do(Rest, Acc);
 flatten_do([Stmt|Rest], Acc) ->
     flatten_do(Rest, [Stmt|Acc]).
+
