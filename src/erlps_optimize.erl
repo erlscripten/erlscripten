@@ -18,6 +18,7 @@
 -type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
 optimize_expr(Expr) ->
+    %% Expr.
     peephole(first, Expr).
 
 -spec peephole(first | second, peepholable()) -> peepholable().
@@ -27,9 +28,11 @@ peephole(Phase, L) when is_list(L) ->
 %% do X --> X
 peephole(_, #expr_do{statements = [], return = Expr}) ->
     peephole(first, Expr);
-%% _ <- S --> S
-peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
-    peephole(first, #do_expr{expr = Expr});
+%% %% _ <- S --> S
+%% peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
+%%     peephole(first, #do_expr{expr = Expr});
+peephole(_, #do_expr{expr = Expr}) ->
+    peephole(first, #do_bind{lvalue = pat_wildcard, rvalue = Expr});
 %% V <- pure X --> let V = X
 peephole(_, #do_bind{lvalue = LV,
                      rvalue = #expr_app{function = #expr_var{name = "pure"},
@@ -168,32 +171,8 @@ peephole(first, #expr_lambda{args = Args, body = Body}) ->
              #expr_lambda{args = Args, body = peephole(first, Body)});
 peephole(first, #expr_do{statements = Stmts, return = Ret0}) ->
     peephole(second,
-            #expr_do{statements = flatten_do(peephole(first, Stmts)), return = peephole(first, Ret0)});
-%% peephole(first, #expr_do{statements = Stmts, return = Ret0}) ->
-%%     E = #expr_do{statements = flatten_do(peephole(first, Stmts)),
-%%                               return = peephole(first, Ret0)},
-%%     #expr_do{statements = Statements, return = Ret} = E,
-%%     %% Fixup scope - WARNING DIRTY HACK OwO
-%%     %% Find #expr_case{
-%%     %%                expr = #expr_var{name = Var},
-%%     %%                cases =
-%%     %%                    [ {PSPat, PSGuards, #expr_var{name = "<<NEEDLE>>"}}
-%%     %%                    , {pat_wildcard, [], ?bad_match}
-%%     %%                    ]
-%%     %%               }
-%%   {OldScope, T} = lists:splitwith(fun(#do_expr{expr = #expr_case{ expr = #expr_var{}, cases = [{_, _, #expr_var{name = "<<SCOPE_FIXUP>>"}}, _] }}) -> false; (_) -> true end, Statements),
-%%   E1 = case T of
-%%       [] ->
-%%           E;
-%%       [#do_expr{expr = #expr_case{cases = [{Pat, Guard, _}, Case2] } = C} | NewScope] ->
-%%         Body = #expr_do{statements = NewScope, return = Ret},
-%%         io:format(user, "AAAA ~p\n", [T]),
-%%         #expr_do{
-%%           statements = OldScope,
-%%           return = C#expr_case{cases = [{Pat, Guard, Body}, Case2]}
-%%         }
-%%     end,
-%%   peephole(second, E1);
+            #expr_do{statements = peephole_stmts(peephole(first, Stmts))
+            , return = peephole(first, Ret0)});
 
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
@@ -219,18 +198,18 @@ peephole_list(_, [], Acc) ->
 peephole_list(Phase, [H|T], Acc) ->
     peephole_list(Phase, T, [peephole(Phase, H)|Acc]).
 
-flatten_do(Do) ->
-    flatten_do(Do, []).
-flatten_do([], Acc) ->
+peephole_stmts(Do) ->
+    peephole_stmts(Do, []).
+peephole_stmts([], Acc) ->
     lists:reverse(Acc);
-flatten_do([#do_expr{expr = #expr_do{statements = Stmts, return = Ret}}|Rest], Acc) ->
-    flatten_do(Stmts ++ [#do_expr{expr = Ret}] ++ Rest, Acc);
-flatten_do([#do_bind{lvalue = LV,
+peephole_stmts([#do_expr{expr = #expr_do{statements = Stmts, return = Ret}}|Rest], Acc) ->
+    peephole_stmts(Stmts ++ [#do_expr{expr = Ret}] ++ Rest, Acc);
+peephole_stmts([#do_bind{lvalue = LV,
                      rvalue = #expr_do{statements = Stmts, return = Ret}}|Rest],
            Acc) ->
-    flatten_do(Stmts ++ [#do_bind{lvalue = LV, rvalue = Ret}] ++ Rest, Acc);
-flatten_do([#do_expr{expr = #expr_app{function = #expr_var{name = "pure"}}}|Rest], Acc) ->
-    flatten_do(Rest, Acc);
-flatten_do([Stmt|Rest], Acc) ->
-    flatten_do(Rest, [Stmt|Acc]).
+    peephole_stmts(Stmts ++ [#do_bind{lvalue = LV, rvalue = Ret}] ++ Rest, Acc);
+peephole_stmts([#do_expr{expr = #expr_app{function = #expr_var{name = "pure"}}}|Rest], Acc) ->
+    peephole_stmts(Rest, Acc);
+peephole_stmts([Stmt|Rest], Acc) ->
+    peephole_stmts(Rest, [Stmt|Acc]).
 

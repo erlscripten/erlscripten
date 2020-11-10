@@ -13,7 +13,9 @@
 -compile(nowarn).
 -compile(export_all).
 
-test() ->
-    X = ({Y, _} = {Y, Y} = 1),
-    Y.
+test_3(X) ->
+    case X of
+	3 -> 123;
+	X -> X
+    end.
 
