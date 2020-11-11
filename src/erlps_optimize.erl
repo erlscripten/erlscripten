@@ -35,9 +35,10 @@ peephole(Phase, L) when is_list(L) ->
 %% do X --> X
 peephole(_, #expr_do{statements = [], return = Expr}) ->
     peephole(first, Expr);
-%% %% _ <- S --> S
+%% %% _ <- S --> S ---- THIS ACTUALLY DOESNT WORK IN PS. LEAVING IT COMMENTED FOR SHAME PURPOSES
 %% peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
 %%     peephole(first, #do_expr{expr = Expr});
+%% S --> _ <- S
 peephole(_, #do_expr{expr = Expr}) ->
     peephole(first, #do_bind{lvalue = pat_wildcard, rvalue = Expr});
 %% V <- pure X --> let V = X
@@ -250,7 +251,7 @@ constant_propagation(#expr_lambda{args = Args, body = Body}, State) ->
 constant_propagation(#expr_do{statements = Stmts0, return = Ret}, State0) ->
     {Stmts1, State1} = constant_propagation_stmts(Stmts0, State0),
     case Stmts1 of
-        [] -> Ret;
+        [] -> constant_propagation(Ret, State1);
         _ -> #expr_do{ statements = Stmts1
                      , return = constant_propagation(Ret, State1)}
     end;
