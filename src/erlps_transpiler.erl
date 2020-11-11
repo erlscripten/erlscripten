@@ -828,6 +828,14 @@ transpile_expr({tuple, _, Exprs}, Stmts0, Env) ->
     , Stmts1
     };
 
+transpile_expr({record, Ann, RecordName, RecordFields}, Stmts, Env) ->
+    %% Convert this to a tuple
+    Values = [record_fields(X) || X <- RecordFields],
+    Fields = [{atom, Ann, RecordName}] ++
+        [proplists:get_value(FieldName, Values, Default) ||
+            {FieldName, Default} <- maps:get(RecordName, Env#env.records)],
+    transpile_expr({tuple, Ann, Fields}, Stmts, Env);
+
 transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
     {RetVar, Stmts1} = bind_expr("lc_ret", Ret, Stmts0, Env),
     {pure(make_expr_list([#expr_var{name = RetVar}])),
