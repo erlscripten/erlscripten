@@ -26,68 +26,73 @@
 version() -> "v0.0.1".
 
 transpile_erlang_module(Forms) ->
-        Attributes = [X || X <- lists:map(fun filter_module_attributes/1, Forms), is_tuple(X)],
-        ModuleName = proplists:get_value(module, Attributes),
-        erlps_logger:info("Transpiling ~s", [ModuleName]),
+    Attributes = filter_module_attributes(Forms),
+    ModuleName = proplists:get_value(module, Attributes),
+    erlps_logger:info("Transpiling ~s", [ModuleName]),
 
-        %% Ok now let's do some preliminary work before starting the conversion
-        %% Gather record types
-        Records = maps:from_list(proplists:get_all_values(record, Attributes)),
+    %% Ok now let's do some preliminary work before starting the conversion
+    %% Gather record types
+    Records = maps:from_list(
+                [ {Record, lists:map(fun record_fields/1, Fields)}
+                 || {Record, Fields} <- proplists:get_all_values(record, Attributes)]
+               ),
 
-        %% Ok It's time for some canonical imports which will be used a lot :)
-        DefaultImports =
-            [ #import{path = ["Prelude"]}
-            , #import{path = ["Data", "List"], alias = "DL"}
-            , #import{path = ["Data", "Maybe"], alias = "DM"}
-            , #import{path = ["Data", "Map"], alias = "Map"}
-            , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
-            , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
-            , #import{path = ["Erlang", "Helpers"]}
-            , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
-            , #import{path = ["Effect"], explicit = ["Effect"]}
-            , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
-            , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
-            , #import{path = ["Control", "Applicative"]}
-            , #import{path = ["Control", "Monad"]}
-            ],
-        %% Now it's time to determine what modules to import
-        %% First filter out functions to transpile
-        FunctionForms = [X || X <- lists:map(fun filter_function_forms/1, Forms), is_tuple(X)],
-        %% TODO Now walk the entire AST and search for calls/remote_calls
-        Imports = [],
-
-        Env = #env{
-                 current_module = ModuleName,
-                 records = Records
-                },
-        %% Now do the dirty work - transpile every function OwO
-        Decls = [transpile_function(Function, Env) ||
-            Function = {{FunName, Arity}, _} <- FunctionForms,
-            case check_builtin(ModuleName, FunName, Arity) of
-                local -> true;
-                _     -> false
-                end
+    %% Ok It's time for some canonical imports which will be used a lot :)
+    DefaultImports =
+        [ #import{path = ["Prelude"]}
+        , #import{path = ["Data", "List"], alias = "DL"}
+        , #import{path = ["Data", "Maybe"], alias = "DM"}
+        , #import{path = ["Data", "Map"], alias = "Map"}
+        , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
+        , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
+        , #import{path = ["Erlang", "Helpers"]}
+        , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
+        , #import{path = ["Effect"], explicit = ["Effect"]}
+        , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
+        , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
+        , #import{path = ["Control", "Applicative"]}
+        , #import{path = ["Control", "Monad"]}
         ],
-        %% Dispatchers = [#top_clause{clause = Disp}
-            %% || Disp <- make_dispatchers(FunctionForms)],
-        #module{
-            name = erlang_module_to_purs_module(ModuleName),
-            imports = DefaultImports ++ Imports,
-            decls = Decls %++ Dispatchers
-        }.
+    state_clear_import_requests(),
+    Env = #env{
+             current_module = atom_to_list(ModuleName),
+             records = Records
+            },
+    %% Now do the dirty work - transpile every function OwO
+    Decls = [transpile_function(Function, Env) ||
+                Function = {function, _, FunName, Arity, _} <- Forms,
+                case check_builtin(ModuleName, FunName, Arity) of
+                    local -> true;
+                    _     -> false
+                end
+            ],
+    Imports = lists:map(fun erlang_module_to_qualified_import/1, state_get_import_request()),
 
-filter_module_attributes({attribute, _, file, {Filename, _}}) -> {file, Filename};
-filter_module_attributes({attribute, _, module, Module}) when is_atom(Module) -> {module, atom_to_list(Module)};
-filter_module_attributes({attribute, _, export, Exports}) -> {export, Exports};
-filter_module_attributes({attribute, _, record, {RecordName, RecordFields}}) ->
-    {record, {RecordName, lists:map(fun record_fields/1, RecordFields)}};
-filter_module_attributes({attribute, _, erlscripten_output, Directory}) when is_atom(Directory) ->
-    {erlscripten_output, atom_to_list(Directory)};
-filter_module_attributes({attribute, _, erlscripten_output, Directory}) when is_binary(Directory) ->
-    {erlscripten_output, binary_to_list(Directory)};
-filter_module_attributes({attribute, _, erlscripten_output, Directory}) when is_list(Directory) ->
-    {erlscripten_output, Directory};
-filter_module_attributes(_) -> undefined.
+    Exports = case lists:member({compile, export_all}, Attributes) of
+                  true -> all;
+                  false ->
+                      [ transpile_fun_name(Export, Arity)
+                       || {export, ExportList} <- Attributes,
+                          {Export, Arity} <- ExportList
+                      ]
+              end,
+
+    %% Dispatchers = [#top_clause{clause = Disp}
+    %% || Disp <- make_dispatchers(FunctionForms)],
+    #module{
+       name = erlang_module_to_purs_module(ModuleName),
+       exports = Exports,
+       imports = DefaultImports ++ Imports,
+       decls = Decls %++ Dispatchers
+      }.
+
+filter_module_attributes(Forms) ->
+    [ begin
+          [attribute, _Ann, What | Rest] = tuple_to_list(Attr),
+          list_to_tuple([What | Rest])
+      end
+      || Attr <- Forms, element(1, Attr) =:= attribute
+    ].
 
 record_fields({record_field, _, {atom, N, FieldName}}) -> {FieldName, {atom, N, undefined}};
 record_fields({record_field, _, {atom, _, FieldName}, Default}) -> {FieldName, Default};
@@ -99,11 +104,13 @@ erlang_module_to_purs_module(Name) when is_atom(Name) ->
 erlang_module_to_purs_module(Name) ->
     string:join(lists:map(fun string:titlecase/1, string:split(Name, "_", all)), ".").
 
--spec erlang_module_to_qualified_import(string() | atom()) -> string().
+-spec erlang_module_to_qualified_import(string() | atom()) -> purs_import().
 erlang_module_to_qualified_import(Name) when is_atom(Name) ->
     erlang_module_to_qualified_import(atom_to_list(Name));
 erlang_module_to_qualified_import(Name) ->
-    string:join(lists:map(fun string:titlecase/1, string:split(Name, "_", all)), "").
+    Path = lists:map(fun string:titlecase/1, string:split(Name, "_", all)),
+    Qualify = string:join(Path, "."),
+    #import{path = Path, alias = Qualify}.
 
 -spec erlang_module_to_purs_file(string() | atom()) -> string().
 erlang_module_to_purs_file(Name) when is_atom(Name) ->
@@ -111,12 +118,7 @@ erlang_module_to_purs_file(Name) when is_atom(Name) ->
 erlang_module_to_purs_file(Name) ->
     string:join(lists:map(fun string:titlecase/1, string:split(Name, "_", all)), "") ++ ".purs".
 
-filter_function_forms({function, _, FunName, Arity, Clauses}) ->
-    {{atom_to_list(FunName), Arity}, Clauses};
-filter_function_forms(_) ->
-    undefined.
-
-transpile_function({{FunName, Arity}, Clauses}, Env) ->
+transpile_function({function, _, FunName, Arity, Clauses}, Env) ->
     Type = #type_var{name = "ErlangFun"},
     PSClauses = [transpile_function_clause(Clause, Env) ||
                     Clause <- Clauses],
@@ -770,13 +772,21 @@ transpile_expr({op, _, Op, L, R}, Stmts0, Env) ->
      , #do_bind{lvalue = #pat_var{name = LVar}, rvalue = LE}
      | Stmts2]};
 
-transpile_expr({call, Ann, {atom, AtomAnn, Fun}, Args},
-               Stmts, Env = #env{current_module = Module}) ->
-    transpile_expr(
-      {call, Ann, {remote, AtomAnn, {atom, AtomAnn, Module}, {atom, AtomAnn, Fun}}, Args},
-      Stmts, Env);
+transpile_expr({call, _, {atom, _, Fun}, Args}, Stmts0, Env) ->
+    {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
+    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
+    PSFun = transpile_fun_ref(Fun, length(Args), Env),
+    { #expr_app{
+         function = PSFun,
+         args = [#expr_array{
+                    value = [#expr_var{name = VarArg}
+                             || VarArg <- VarArgs]}]}
+    , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg}
+       || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
+      ++ Stmts1};
 transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args},
                Stmts0, Env) ->
+    state_add_import_request(Module, Env),
     {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
     VarArgs = [state_create_fresh_var("arg") || _ <- Args],
     PSFun = transpile_fun_ref(Module, Fun, length(Args), Env),
@@ -941,3 +951,16 @@ state_pop_var_stack() ->
     O = hd(get(?BINDINGS_STACK)),
     put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
     put(?BINDINGS, O).
+
+-define(IMPORT_REQUESTS, import_requests).
+state_clear_import_requests() ->
+    put(?IMPORT_REQUESTS, sets:new()).
+state_add_import_request(Module, Env) when is_atom(Module) ->
+    state_add_import_request(atom_to_list(Module), Env);
+state_add_import_request("erlang", _) -> ok;
+state_add_import_request(Module, #env{current_module = Module}) -> ok;
+state_add_import_request(Module, _Env) ->
+    put(?IMPORT_REQUESTS, sets:add_element(Module, get(?IMPORT_REQUESTS))).
+state_get_import_request() ->
+    sets:to_list(get(?IMPORT_REQUESTS)).
+

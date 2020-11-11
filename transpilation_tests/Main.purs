@@ -69,7 +69,3 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "zip/2" do
             test_zip [1,2,3,4] [4,3,2,1]
             test_zip [1,2,7,4] [1,3,2,1]
-
-
-
-

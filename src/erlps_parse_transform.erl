@@ -10,8 +10,8 @@ parse_transform(Forms, Options) ->
     code:ensure_loaded(erlps_purescript_pretty),
     code:ensure_loaded(erlps_transpiler),
     application:ensure_started(erlscripten),
-    Attributes = [X || X <- lists:map(fun erlps_transpiler:filter_module_attributes/1, Forms), is_tuple(X)],
-    FileName = proplists:get_value(file, Attributes),
+    Attributes = erlps_transpiler:filter_module_attributes(Forms),
+    {FileName, _} = proplists:get_value(file, Attributes),
     try
         case proplists:get_value(erlscripten_output, Attributes) of
             undefined ->

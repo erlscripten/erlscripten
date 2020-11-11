@@ -10,6 +10,7 @@
 
 -record(module, {
     name :: string(),
+    exports = all :: [string()] | all,
     imports :: [purs_import()],
     decls :: [purs_top_decl()]}).
 -type purs_module() :: #module{}.

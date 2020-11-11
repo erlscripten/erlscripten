@@ -247,7 +247,7 @@ pp_top_decl(TD = #valdecl{}) ->
     pp_valdecl(TD).
 
 -spec pp_module(purs_module()) -> doc().
-pp_module(#module{name = Name, imports = Imports, decls = Decls}) ->
+pp_module(#module{name = Name, exports = Exports, imports = Imports, decls = Decls}) ->
     Comment =
         above(lists:map(
                 fun prettypr:text/1,
@@ -257,9 +257,17 @@ pp_module(#module{name = Name, imports = Imports, decls = Decls}) ->
                 , "Use this code at your own risk - the authors are just a mischievous raccoon and a haskell devote"
                 , io_lib:format("Erlscripten ~s", [erlps_transpiler:version()])
                 , "-}\n"])),
-    above([ hsep([text("module"), text(Name), text("where")])
-          , Comment
-          , above(lists:map(fun pp_import/1, Imports))
-          , text("\n")
-          , above(punctuate(text("\n"), lists:map(fun pp_top_decl/1, Decls)))
-          ]).
+    above(
+      [ hsep(
+          [text("module"),
+           beside(text(Name),
+                  case Exports of
+                      all -> empty();
+                      _ -> comma_brackets("(", ")", lists:map(fun prettypr:text/1, Exports))
+                  end),
+           text("where")])
+      , Comment
+      , above(lists:map(fun pp_import/1, Imports))
+      , text("\n")
+      , above(punctuate(text("\n"), lists:map(fun pp_top_decl/1, Decls)))
+      ]).
