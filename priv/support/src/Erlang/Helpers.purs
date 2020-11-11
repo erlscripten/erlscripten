@@ -6,8 +6,10 @@ import Data.Maybe as DM
 import Data.List as DL
 import Data.Array as DA
 import Data.String as Str
+import Data.String.CodePoints as StrCP
 import Data.Foldable
 
+import Unsafe.Coerce
 import Effect
 import Effect.Unsafe(unsafePerformEffect)
 import Effect.Exception(throw, catchException)
@@ -41,5 +43,5 @@ isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true
 isEL _ = false
 
--- make_string :: String -> ErlangTerm -- ja pierdolę...
--- make_string str = arrayToErlangList (map _ (Str.toCodePointArray str))
+make_string :: String -> ErlangTerm
+make_string str = arrayToErlangList (map unsafeCoerce (Str.toCodePointArray str))
