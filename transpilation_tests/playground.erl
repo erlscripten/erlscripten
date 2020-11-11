@@ -15,8 +15,6 @@
 -export([test_3/1]).
 
 test_3(X) ->
-    case X of
-	3 -> 123;
-	X -> test_3(X)
-    end.
+    #{1 => 2},
+    #{}.
 

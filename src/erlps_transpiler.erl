@@ -43,6 +43,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Data", "List"], alias = "DL"}
         , #import{path = ["Data", "Maybe"], alias = "DM"}
         , #import{path = ["Data", "Map"], alias = "Map"}
+        , #import{path = ["Data", "Tuple"], alias = "Tup"}
         , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Helpers"]}
@@ -720,7 +721,7 @@ transpile_expr({'if', _, Clauses}, Stmts, Env) ->
        }, Stmts};
 %% TODO Scope leaking!
 transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
-    {ExprValue, Stmts1} = transpile_expr(Expr, Stmts0, Env),
+    {ExprVar, Stmts1} = bind_expr("case", Expr, Stmts0, Env),
     UserCases = [ begin
                  {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
                  R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
@@ -730,24 +731,22 @@ transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
              end
             || {clause, _, Pat, Guards, Cont} <- Clauses
            ],
-    WildcardCase = [{pat_wildcard, [], ?case_clause}],
     Cases = case UserCases of
               [] ->
-                WildcardCase;
+                    [{pat_wildcard, [], ?case_clause}];
               _ ->
                 case lists:last(UserCases) of
                     {#pat_var{}, [], _} ->
                         UserCases;
                     _ ->
-                        UserCases ++ WildcardCase
+                        UserCases ++ [{pat_wildcard, [], ?case_clause}]
                 end
             end,
-    Var = state_create_fresh_var("case"),
     Case = #expr_case{
-       expr = #expr_var{name = Var},
+       expr = #expr_var{name = ExprVar},
        cases = Cases
       },
-    {Case, [#do_bind{lvalue = #pat_var{name = Var}, rvalue = ExprValue} | Stmts1]};
+    {Case, Stmts1};
 
 transpile_expr({atom, _, Atom}, Stmts, _Env) ->
     {pure(?make_expr_atom(Atom)), Stmts};
@@ -759,73 +758,51 @@ transpile_expr({integer, _, Int}, Stmts, _Env) ->
 
 transpile_expr({op, _, Op, L, R}, Stmts0, Env) ->
     OpFun = transpile_fun_ref("erlang", Op, 2, Env),
-    {LE, Stmts1} = transpile_expr(L, Stmts0, Env),
-    {RE, Stmts2} = transpile_expr(R, Stmts1, Env),
-    LVar = state_create_fresh_var("lop"),
-    RVar = state_create_fresh_var("rop"),
+    {LVar, Stmts1} = bind_expr("lop", L, Stmts0, Env),
+    {RVar, Stmts2} = bind_expr("rop", R, Stmts1, Env),
     {#expr_app{
         function = OpFun,
         args = [#expr_array{value = [#expr_var{name = LVar},
                                      #expr_var{name = RVar}
                                     ]}]},
-     [ #do_bind{lvalue = #pat_var{name = RVar}, rvalue = RE}
-     , #do_bind{lvalue = #pat_var{name = LVar}, rvalue = LE}
-     | Stmts2]};
+     Stmts2
+    };
 
 transpile_expr({call, _, {atom, _, Fun}, Args}, Stmts0, Env) ->
-    {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
-    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
+    {ArgsVars, Stmts1} = bind_exprs("arg", Args, Stmts0, Env),
     PSFun = transpile_fun_ref(Fun, length(Args), Env),
     { #expr_app{
          function = PSFun,
-         args = [#expr_array{
-                    value = [#expr_var{name = VarArg}
-                             || VarArg <- VarArgs]}]}
-    , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg}
-       || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
-      ++ Stmts1};
+         args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+    , Stmts1
+    };
 transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args},
                Stmts0, Env) ->
     state_add_import_request(Module, Env),
-    {PSArgs, Stmts1} = transpile_exprs(Args, Stmts0, Env),
-    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
+    {ArgsVars, Stmts1} = bind_exprs("arg", Args, Stmts0, Env),
     PSFun = transpile_fun_ref(Module, Fun, length(Args), Env),
     { #expr_app{
          function = PSFun,
-         args = [#expr_array{
-                    value = [#expr_var{name = VarArg}
-                             || VarArg <- VarArgs]}]}
-    , [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg}
-       || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
-      ++ Stmts1};
+         args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+    , Stmts1
+    };
 transpile_expr({call, _, Fun, Args}, Stmts0, Env) ->
-    {PSFun, Stmts1} = transpile_expr(Fun, Stmts0, Env),
-    {PSArgs, Stmts2} = transpile_exprs(Args, Stmts1, Env),
-    VarFun = state_create_fresh_var("fun"),
-    VarArgs = [state_create_fresh_var("arg") || _ <- Args],
+    {FunVar, Stmts1} = bind_expr("fun", Fun, Stmts0, Env),
+    {ArgsVars, Stmts2} = bind_exprs("arg", Args, Stmts1, Env),
     { #expr_app{
          function = #expr_var{name = "applyTerm"},
-         args = [#expr_var{name = VarFun},
-                 #expr_array{
-                    value = [#expr_var{name = VarArg}
-                             || VarArg <- VarArgs]}]}
-    , [#do_bind{lvalue = #pat_var{name = VarFun}, rvalue = PSFun}]
-      ++ [#do_bind{lvalue = #pat_var{name = VarArg}, rvalue = Arg}
-          || {VarArg, Arg} <- lists:zip(VarArgs, PSArgs)]
-      ++ Stmts2};
+         args = [#expr_var{name = FunVar},
+                 #expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+    , Stmts2
+    };
 
 transpile_expr({nil, _}, Stmts, _) ->
     {pure(?make_expr_empty_list), Stmts};
 transpile_expr({cons, _, H, T}, Stmts0, Env) ->
-    VarH = state_create_fresh_var("h"),
-    VarT = state_create_fresh_var("t"),
-    {ExprH, Stmts1} = transpile_expr(H, Stmts0, Env),
-    {ExprT, Stmts2} = transpile_expr(T, Stmts1, Env),
+    {VarH, Stmts1} = bind_expr("tail", H, Stmts0, Env),
+    {VarT, Stmts2} = bind_expr("head", T, Stmts1, Env),
     { pure(?make_expr_cons(#expr_var{name = VarH}, #expr_var{name = VarT}))
-    , [ #do_bind{lvalue = #pat_var{name = VarH}, rvalue = ExprH}
-      , #do_bind{lvalue = #pat_var{name = VarT}, rvalue = ExprT}
-      | Stmts2
-      ]
+    , Stmts2
     };
 
 transpile_expr({'fun', _, {function, Fun, Arity}}, Stmts, Env) when is_atom(Fun) ->
@@ -836,24 +813,20 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, Stmts, Env) when is_atom(Fun)
     };
 
 transpile_expr({tuple, _, Exprs}, Stmts0, Env) ->
-    {PSExprs, Stmts1} = transpile_exprs(Exprs, Stmts0, Env),
-    VarExprs = [state_create_fresh_var("tup") || _ <- Exprs],
+    {ExprsVars, Stmts1} = bind_exprs("tup", Exprs, Stmts0, Env),
     {pure(#expr_app{
         function = #expr_var{name = "ErlangTuple"},
-        args = [#expr_array{value = [#expr_var{name = VarExpr} || VarExpr <- VarExprs]}]})
-    , [#do_bind{lvalue = #pat_var{name = VarExpr}, rvalue = Expr}
-       || {VarExpr, Expr} <- lists:zip(VarExprs, PSExprs)]
-     ++ Stmts1};
+        args = [#expr_array{value = [#expr_var{name = ExprVar} || ExprVar <- ExprsVars]}]})
+    , Stmts1
+    };
 
 transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
-    {PSRet, Stmts1} = transpile_expr(Ret, Stmts0, Env),
-    Var = state_create_fresh_var("lc_ret"),
-    { pure(make_expr_list([#expr_var{name = Var}])),
-     [ #do_bind{lvalue = #pat_var{name = Var}, rvalue = PSRet}
-     | Stmts1]};
+    {RetVar, Stmts1} = bind_expr("lc_ret", Ret, Stmts0, Env),
+    {pure(make_expr_list([#expr_var{name = RetVar}])),
+     Stmts1
+    };
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Stmts0, Env) ->
-    SourceVar = state_create_fresh_var("lc_src"),
-    {PSSource, Stmts1} = transpile_expr(Source, Stmts0, Env),
+    {SourceVar, Stmts1} = bind_expr("lc_src", Source, Stmts0, Env),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
     Var = state_create_fresh_var("lc"),
     Gen =
@@ -877,21 +850,36 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Stmts0, Env) -
                   }]
           },
     state_pop_var_stack(),
-    {Gen,
-     [ #do_bind{lvalue = #pat_var{name = SourceVar}, rvalue = PSSource}
-     | Stmts1]};
+    {Gen, Stmts1};
 transpile_expr({lc, Ann, Ret, [Expr|Rest]}, Stmts0, Env) ->
-    {PSExpr, Stmts1} = transpile_expr(Expr, Stmts0, Env),
-    Var = state_create_fresh_var("cond"),
-    { #expr_case{
-         expr = #expr_var{name = Var},
-         cases = [ {?make_pat_atom(true), [], transpile_expr({lc, Ann, Ret, Rest}, Env)}
-                 , {pat_wildcard, [], pure(?make_expr_empty_list)}
-                 ]
-        }
-    , [ #do_bind{lvalue = #pat_var{name = Var}, rvalue = PSExpr}
-      | Stmts1
-      ]
+    {Var, Stmts1} = bind_expr("cond", Expr, Stmts0, Env),
+    {#expr_case{
+        expr = #expr_var{name = Var},
+        cases = [ {?make_pat_atom(true), [], transpile_expr({lc, Ann, Ret, Rest}, Env)}
+                , {pat_wildcard, [], pure(?make_expr_empty_list)}
+                ]
+       },
+     Stmts1
+    };
+
+transpile_expr({map, _, Associations}, Stmts0, Env) ->
+    {Keys, Vals} = lists:unzip([{Key, Val} || {map_field_assoc, _, Key, Val} <- Associations]),
+    {KeysVars, Stmts1} = bind_exprs("key", Keys, Stmts0, Env),
+    {ValsVars, Stmts2} = bind_exprs("val", Vals, Stmts1, Env),
+    Map = #expr_app{
+             function = #expr_var{name = "Map.fromFoldable"},
+             args =
+                 [#expr_array{
+                     value =
+                         [ #expr_app{function = #expr_var{name = "Tup.Tuple"},
+                                     args = [#expr_var{name = KeyVar}, #expr_var{name = ValVar}]
+                                    }
+                           || {KeyVar, ValVar} <- lists:zip(KeysVars, ValsVars)
+                         ]
+                    }
+                 ]},
+    {pure(?make_expr_map(Map)),
+     Stmts2
     };
 
 transpile_expr(X, _Stmts, _Env) ->
@@ -903,6 +891,22 @@ transpile_exprs([Expr|Rest], Stmts0, Env) ->
     {FromExpr, Stmts1} = transpile_expr(Expr, Stmts0, Env),
     {FromRest, Stmts2} = transpile_exprs(Rest, Stmts1, Env),
     {[FromExpr|FromRest], Stmts2}.
+
+bind_expr(Name, Expr, Stmts0, Env) ->
+    Var = state_create_fresh_var(Name),
+    {PSExpr, Stmts1} = transpile_expr(Expr, Stmts0, Env),
+    {Var,
+     [ #do_bind{lvalue = #pat_var{name = Var}, rvalue = PSExpr}
+     | Stmts1
+     ]}.
+bind_exprs(Name, Exprs, Stmts, Env) ->
+    bind_exprs(Name, Exprs, [], Stmts, Env).
+bind_exprs(_, [], Acc, Stmts, _) ->
+    {lists:reverse(Acc), Stmts};
+bind_exprs(Name, [Expr|Rest], Acc, Stmts0, Env) ->
+    {Var, Stmts1} = bind_expr(Name, Expr, Stmts0, Env),
+    bind_exprs(Name, Rest, [Var|Acc], Stmts1, Env).
+
 
 
 compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed

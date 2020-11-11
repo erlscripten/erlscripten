@@ -66,10 +66,6 @@ peephole(Phase,
                            args = [X]
                           } | Rest], Acc) ->
                 Rec(Rest, [X | Acc]);
-            Rec([#expr_app{function = #expr_var{name = "pure"},
-                           args = X
-                          } | Rest], Acc) when not is_list(X) ->
-                Rec(Rest, [X | Acc]);
             Rec(_, _) ->
                 nope
         end,
@@ -157,6 +153,24 @@ peephole(_,
      cases = [{#pat_var{name = Var}, [], #expr_var{name = Var}}|_]
     }) ->
     peephole(first, Expr);
+%% Map.fromFoldable [Tuple k v] --> Map.singleton k v
+peephole(_,
+  #expr_app{
+     function = #expr_var{name = "Map.fromFoldable"},
+     args = [#expr_array{value = [#expr_app{args = [K, V]}]}] % assuming tuple
+    }) ->
+    peephole(first,
+             #expr_app{
+                function = #expr_var{name = "Map.singleton"},
+                args = [K, V]
+               });
+%% Map.fromFoldable [] -> Map.empty
+peephole(_,
+         #expr_app{
+            function = #expr_var{name = "Map.fromFoldable"},
+            args = [#expr_array{value = []}]
+           }) ->
+    #expr_var{name = "Map.empty"};
 
 peephole(first, #expr_binop{name = Op, lop = Lop, rop = Rop}) ->
     peephole(second,

@@ -62,7 +62,7 @@
 -record(expr_binop, {name :: string(), lop :: purs_expr(), rop :: purs_expr()}).
 -record(expr_num, {value :: number()}).
 -record(expr_string, {value :: string()}).
--record(expr_app, {function :: purs_expr(), args :: purs_expr() | [purs_expr()]}).
+-record(expr_app, {function :: purs_expr(), args :: [purs_expr()]}).
 -record(expr_var, {name :: string()}).
 -record(expr_array, {value :: [purs_expr()]}).
 -record(expr_case, {expr :: purs_expr(), cases :: [{purs_pat(), [purs_guard()], purs_expr()}]}).
