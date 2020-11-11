@@ -209,6 +209,8 @@ peephole_stmts(Do) ->
     peephole_stmts(Do, []).
 peephole_stmts([], Acc) ->
     lists:reverse(Acc);
+peephole_stmts([#do_let{lvalue = pat_wildcard}|Rest], Acc) ->
+    peephole_stmts(Rest, Acc);
 peephole_stmts([#do_expr{expr = #expr_do{statements = Stmts, return = Ret}}|Rest], Acc) ->
     peephole_stmts(Stmts ++ [#do_expr{expr = Ret}] ++ Rest, Acc);
 peephole_stmts([#do_bind{lvalue = LV,
