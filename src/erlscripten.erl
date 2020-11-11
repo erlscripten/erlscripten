@@ -156,9 +156,10 @@ transpile_function({{FunName, Arity}, Clauses}, Env) ->
     Type = #type_var{name = "ErlangFun"},
     PSClauses = [transpile_function_clause(Clause, Env) ||
                     Clause <- Clauses],
+    CatchClause = #clause{args = [pat_wildcard], value = ?function_clause},
     #valdecl{
        name = transpile_fun_name(FunName, Arity),
-       clauses = PSClauses,
+       clauses = PSClauses ++ [CatchClause],
        type = Type
       }.
 
