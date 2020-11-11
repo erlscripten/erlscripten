@@ -1,4 +1,4 @@
--module(erlscripten_logger).
+-module(erlps_logger).
 -author("gorbak25").
 
 %% API
