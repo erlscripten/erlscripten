@@ -43,5 +43,9 @@ isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true
 isEL _ = false
 
+codePointToInt :: StrCP.CodePoint -> Int
+codePointToInt = unsafeCoerce
+
 make_string :: String -> ErlangTerm
-make_string str = arrayToErlangList (map unsafeCoerce (Str.toCodePointArray str))
+make_string str = arrayToErlangList (map ErlangNum (map codePointToInt (Str.toCodePointArray str)))
+
