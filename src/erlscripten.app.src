@@ -3,6 +3,6 @@
   {description, "Erlang to purescript compiler"},
   {vsn, "0.0.1"},
   {registered, []},
-  {applications, [kernel, stdlib]},
+  {applications, [kernel, stdlib, getopt]},
   {env, []}
  ]}.

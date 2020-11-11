@@ -41,4 +41,3 @@ parse_transform(Forms, Options) ->
             io_lib:format("Error: ~s\nReason: ~p\nStacktrace: ~p\n", [atom_to_list(Error), Reason, StackTrace])
         )
     end.
-
