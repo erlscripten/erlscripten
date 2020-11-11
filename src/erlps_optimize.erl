@@ -20,7 +20,7 @@
 optimize_expr(Expr0) ->
     %% Expr.
     Expr1 = peephole(Expr0),
-    constant_propagation(Expr1).
+    _Expr2 = constant_propagation(Expr1).
 
 
 %% --- PEEPHOLE ----------------------------------------------------------------
@@ -247,8 +247,11 @@ constant_propagation(#expr_lambda{args = Args, body = Body}, State) ->
     #expr_lambda{args = Args, body = constant_propagation(Body, State)};
 constant_propagation(#expr_do{statements = Stmts0, return = Ret}, State0) ->
     {Stmts1, State1} = constant_propagation_stmts(Stmts0, State0),
-    #expr_do{statements = Stmts1
-            , return = constant_propagation(Ret, State1)};
+    case Stmts1 of
+        [] -> Ret;
+        _ -> #expr_do{ statements = Stmts1
+                     , return = constant_propagation(Ret, State1)}
+    end;
 
 constant_propagation(#do_bind{lvalue = Pat, rvalue = Expr}, State) ->
     #do_bind{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
