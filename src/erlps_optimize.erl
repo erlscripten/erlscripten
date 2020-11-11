@@ -17,8 +17,15 @@
 
 -type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
-optimize_expr(Expr) ->
+optimize_expr(Expr0) ->
     %% Expr.
+    Expr1 = peephole(Expr0),
+    constant_propagation(Expr1).
+
+
+%% --- PEEPHOLE ----------------------------------------------------------------
+
+peephole(Expr) ->
     peephole(first, Expr).
 
 -spec peephole(first | second, peepholable()) -> peepholable().
@@ -212,4 +219,97 @@ peephole_stmts([#do_expr{expr = #expr_app{function = #expr_var{name = "pure"}}}|
     peephole_stmts(Rest, Acc);
 peephole_stmts([Stmt|Rest], Acc) ->
     peephole_stmts(Rest, [Stmt|Acc]).
+
+
+%% --- CONSTANT PROPAGATION ----------------------------------------------------
+
+constant_propagation(Expr) ->
+    constant_propagation(Expr, #{}).
+
+constant_propagation(List, State) when is_list(List) ->
+    constant_propagation_list(List, [], State);
+
+constant_propagation(#expr_var{name = Var} = Expr, State) ->
+    maps:get(Var, State, Expr);
+constant_propagation(#expr_binop{name = Op, lop = Lop, rop = Rop}, State) ->
+    #expr_binop{name = Op, lop = constant_propagation(Lop, State), rop = constant_propagation(Rop, State)};
+constant_propagation(#expr_app{function = Fun, args = Args}, State) ->
+    #expr_app{function = constant_propagation(Fun, State), args = constant_propagation(Args, State)};
+constant_propagation(#expr_array{value = Arr}, State) ->
+    #expr_array{value = constant_propagation(Arr, State)};
+constant_propagation(#expr_case{expr = Expr, cases = Cases}, State) ->
+    #expr_case{expr = constant_propagation(Expr, State),
+               cases = [ {Pat, constant_propagation(Guards, State), constant_propagation(Cont, State)}
+                         || {Pat, Guards, Cont} <- Cases
+                       ]
+              };
+constant_propagation(#expr_lambda{args = Args, body = Body}, State) ->
+    #expr_lambda{args = Args, body = constant_propagation(Body, State)};
+constant_propagation(#expr_do{statements = Stmts0, return = Ret}, State0) ->
+    {Stmts1, State1} = constant_propagation_stmts(Stmts0, State0),
+    #expr_do{statements = Stmts1
+            , return = constant_propagation(Ret, State1)};
+
+constant_propagation(#do_bind{lvalue = Pat, rvalue = Expr}, State) ->
+    #do_bind{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
+constant_propagation(#do_let{lvalue = Pat, rvalue = Expr}, State) ->
+    #do_let{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
+constant_propagation(#do_expr{expr = Expr}, State) ->
+    #do_expr{expr = constant_propagation(Expr, State)};
+constant_propagation(#guard_expr{guard = Expr}, State) ->
+    #guard_expr{guard = constant_propagation(Expr, State)};
+constant_propagation(#guard_assg{lvalue = Pat, rvalue = Expr}, State) ->
+    #guard_assg{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
+constant_propagation(NothingToDo, _State) ->
+    NothingToDo.
+
+constant_propagation_list([], Acc, _State) ->
+    lists:reverse(Acc);
+constant_propagation_list([H|T], Acc, State) ->
+    H1 = constant_propagation(H, State),
+    constant_propagation_list(T, [H1|Acc], State).
+
+constant_propagation_stmts(Stmts, State) ->
+    constant_propagation_stmts(Stmts, [], State).
+constant_propagation_stmts([], Acc, State) ->
+    {lists:reverse(Acc), State};
+constant_propagation_stmts(
+  [#do_expr{expr = Expr}|Rest], Acc, State) ->
+    constant_propagation_stmts(Rest, [#do_expr{expr = constant_propagation(Expr, State)}|Acc], State);
+constant_propagation_stmts(
+  [#do_let{lvalue = #pat_var{name = Var}, rvalue = RV} = Stmt|Rest], Acc, State) ->
+    RV1 = constant_propagation(RV, State),
+    Inline =
+        case RV1 of
+            #expr_var{} -> true;
+            #expr_num{} -> true;
+            #expr_string{} -> true;
+            #expr_app{function = Fun} ->
+                case Fun of
+                    #expr_var{name = "ErlangNum"} -> true;
+                    #expr_var{name = "ErlangAtom"} -> true;
+                    #expr_var{name = "ErlangCons"} -> true;
+                    #expr_var{name = "ErlangBinary"} -> true;
+                    #expr_var{name = "ErlangTuple"} -> true;
+                    #expr_var{name = "ErlangFun"} -> true;
+                    #expr_var{name = "applyTerm"} -> true;
+                    #expr_var{name = "isEL"} -> true;
+                    #expr_var{name = "unsafePerformEffect"} -> true;
+                    #expr_var{name = "unsafePerformEffectGuard"} -> true;
+                    _ -> false
+                end;
+            _ -> false
+            end,
+    case Inline of
+        true ->
+            constant_propagation_stmts(Rest, Acc, State#{Var => RV1});
+        false ->
+            constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = RV1}|Acc], State)
+    end;
+constant_propagation_stmts([#do_let{rvalue = RV} = Stmt|Rest], Acc, State) ->
+    constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = constant_propagation(RV, State)}|Acc], State);
+constant_propagation_stmts([#do_bind{rvalue = RV} = Stmt|Rest], Acc, State) ->
+    constant_propagation_stmts(Rest, [Stmt#do_bind{rvalue = constant_propagation(RV, State)}|Acc], State).
+
+
 
