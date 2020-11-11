@@ -5,6 +5,9 @@ import Control.Monad
 import Data.Maybe as DM
 import Data.List as DL
 import Data.Array as DA
+import Data.String as Str
+import Data.Foldable
+
 import Effect
 import Effect.Unsafe(unsafePerformEffect)
 import Effect.Exception(throw, catchException)
@@ -37,3 +40,6 @@ isEL :: ErlangTerm -> Boolean
 isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true
 isEL _ = false
+
+-- make_string :: String -> ErlangTerm -- ja pierdolę...
+-- make_string str = arrayToErlangList (map _ (Str.toCodePointArray str))

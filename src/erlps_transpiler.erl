@@ -755,6 +755,16 @@ transpile_expr({var, _, Var}, Stmts, _Env) ->
 
 transpile_expr({integer, _, Int}, Stmts, _Env) ->
     {pure(?make_expr_int(Int)), Stmts};
+transpile_expr({string, Ann, String}, Stmts, Env) ->
+    transpile_expr(
+      lists:foldr(fun (H, T) -> {cons, Ann, {integer, Ann, H}, T} end, {nil, Ann}, String),
+      Stmts, Env
+     );
+    %% {pure(#expr_app{
+    %%          function = #expr_var{name = "make_string"},
+    %%          args = [#expr_string{value = String}]}),
+    %%  Stmts
+    %% };
 
 transpile_expr({op, _, Op, L, R}, Stmts0, Env) ->
     OpFun = transpile_fun_ref("erlang", Op, 2, Env),
@@ -885,12 +895,6 @@ transpile_expr({map, _, Associations}, Stmts0, Env) ->
 transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).
 
-transpile_exprs([], Stmts, _Env) ->
-    {[], Stmts};
-transpile_exprs([Expr|Rest], Stmts0, Env) ->
-    {FromExpr, Stmts1} = transpile_expr(Expr, Stmts0, Env),
-    {FromRest, Stmts2} = transpile_exprs(Rest, Stmts1, Env),
-    {[FromExpr|FromRest], Stmts2}.
 
 bind_expr(Name, Expr, Stmts0, Env) ->
     Var = state_create_fresh_var(Name),
