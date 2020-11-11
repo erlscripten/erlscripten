@@ -370,8 +370,8 @@ transpile_pattern_sequence(PatternSequence, Env) ->
 %% Atomic Literals
 transpile_pattern({atom, _, Atom}, _) ->
     {?make_pat_atom(Atom), [], []};
-%% transpile_pattern({char, _, Char}, _) ->
-%%     error(todo);
+transpile_pattern({char, Ann, Char}, Env) ->
+     transpile_pattern({integer, Ann, Char}, Env);
 %% transpile_pattern({float, _, Float}, _) ->
 %%     error(todo);
 %% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
@@ -755,6 +755,8 @@ transpile_expr({var, _, Var}, Stmts, _Env) ->
 
 transpile_expr({integer, _, Int}, Stmts, _Env) ->
     {pure(?make_expr_int(Int)), Stmts};
+transpile_expr({char, Ann, Int}, Stmts, Env) ->
+    transpile_expr({integer, Ann, Int}, Stmts, Env);
 transpile_expr({string, Ann, String}, Stmts, Env) ->
     {pure(#expr_app{
              function = #expr_var{name = "make_string"},
