@@ -18,9 +18,9 @@
 -type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
 optimize_expr(Expr0) ->
-    Expr0.
-    %% Expr1 = peephole(Expr0),
-    %% _Expr2 = constant_propagation(Expr1).
+    %% Expr0.
+    Expr1 = peephole(Expr0),
+    _Expr2 = constant_propagation(Expr1).
 
 
 %% --- PEEPHOLE ----------------------------------------------------------------
@@ -312,7 +312,6 @@ constant_propagation_stmts(
                     #expr_var{name = "ErlangCons"} -> true;
                     #expr_var{name = "ErlangBinary"} -> true;
                     #expr_var{name = "ErlangTuple"} -> true;
-                    #expr_var{name = "ErlangFun"} -> true;
                     #expr_var{name = "applyTerm"} -> true;
                     #expr_var{name = "isEL"} -> true;
                     #expr_var{name = "unsafePerformEffect"} -> true;

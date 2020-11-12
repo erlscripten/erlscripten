@@ -161,6 +161,9 @@ builtins() ->
                 , {"orelse",  "op_orelse"}
                 ],
     maps:from_list(lists:concat([
+        [ {{"erlang", "not", 1}, "erlang__not"}
+        , {{"erlang", "-", 1}, "erlang__neg"}
+        ],
         [ {{"erlang", Op, 2}, io_lib:format("erlang__~s", [Fun])}
           || {Op, Fun} <- Operators],
         [ {{Module, Fun, Arity},
@@ -357,7 +360,7 @@ guard_trivial_expr(_Expr, _Env) ->
     error.
 
 transpile_boolean_guards_fallback(Guards, Env) ->
-    erlps_logger:info("Erlscripten was unable to remove effects in guard sequence - Falling back to inefficient code in\n~p ", [Guards]),
+    %% erlps_logger:info("Erlscripten was unable to remove effects in guard sequence - Falling back to inefficient code in\n~p ", [Guards]),
     Alts = [
       lists:foldl(fun(G, AccConjs) -> {op, any, "andalso", AccConjs, G} end,
         hd(Alt), tl(Alt)) || Alt <- Guards ],
@@ -741,12 +744,12 @@ transpile_expr({'if', _, Clauses}, Stmts, Env) ->
 transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
     {ExprVar, Stmts1} = bind_expr("case", Expr, Stmts0, Env),
     UserCases = [ begin
-                 {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
-                 R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
-                      transpile_body(Cont, Env)},
-                 state_pop_var_stack(),
-                 R
-             end
+                      {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
+                      R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
+                           transpile_body(Cont, Env)},
+                      state_pop_var_stack(),
+                      R
+                  end
             || {clause, _, Pat, Guards, Cont} <- Clauses
            ],
     Cases = case UserCases of
@@ -836,6 +839,82 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, Stmts, Env) when is_atom(Fun)
                    args = [#expr_num{value = Arity},
                            transpile_fun_ref(Fun, Arity, Env)]}),
      Stmts
+    };
+transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer, _, Arity}}},
+               Stmts, Env) when is_atom(Fun) ->
+    {pure(#expr_app{function = #expr_var{name = "ErlangFun"},
+                    args = [#expr_num{value = Arity},
+                            transpile_fun_ref(Module, Fun, Arity, Env)]}),
+     Stmts
+    };
+transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, Stmts, Env) ->
+    Arity = length(SomeArgs),
+    ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
+    Case =
+        #expr_case{
+           expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
+           cases =
+               [ begin
+                     {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
+                     R = { #pat_array{value = PSArgs}
+                         , PSGuards ++ transpile_boolean_guards(Guards, Env)
+                         , transpile_body(Cont, Env)},
+                     state_pop_var_stack(),
+                     R
+                 end
+                || {clause, _, Args, Guards, Cont} <- Clauses
+               ]
+          },
+    Lambda =
+        #expr_app{
+           function = #expr_var{name = "ErlangFun"},
+           args =
+               [ #expr_num{value = Arity}
+               , #expr_lambda{
+                    args = [#pat_array{
+                              value = [#pat_var{name = ArgVar} || ArgVar <- ArgVars]
+                             }],
+                   body = Case}
+               ]},
+    {pure(Lambda),
+     Stmts
+    };
+transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]},
+               Stmts0, Env) ->
+    FunVar = state_create_fresh_var(string:to_lower(io_lib:format("~s", [Name]))),
+    state_put_var(Name, FunVar),
+    Arity = length(SomeArgs),
+    ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
+    Case =
+        #expr_case{
+           expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
+           cases =
+               [ begin
+                     {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
+                     R = { #pat_array{value = PSArgs}
+                         , PSGuards ++ transpile_boolean_guards(Guards, Env)
+                         , transpile_body(Cont, Env)},
+                     state_pop_var_stack(),
+                     R
+                 end
+                || {clause, _, Args, Guards, Cont} <- Clauses
+               ]
+          },
+    Lambda =
+        #expr_app{
+           function = #expr_var{name = "ErlangFun"},
+           args =
+               [ #expr_num{value = Arity}
+               , #expr_lambda{
+                    args = [#pat_array{
+                              value = [#pat_var{name = ArgVar} || ArgVar <- ArgVars]
+                             }],
+                   body = Case}
+               ]},
+    {pure(#expr_var{name = FunVar}),
+     [ #do_let{lvalue = #pat_var{name = FunVar}, rvalue = Lambda}
+     | Stmts0
+     ]
     };
 
 transpile_expr({tuple, _, Exprs}, Stmts0, Env) ->

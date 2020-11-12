@@ -15,5 +15,7 @@
 -export([test_3/1]).
 
 test_3(X) ->
-    #{}#{1 => 2}.
+    fun R(X, Y) when 2 == 2 -> ok;
+	R(A, B) -> R(1, 2) end,
+    R(1, 2).
 
