@@ -72,14 +72,19 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_zip [1,2,7,4] [1,3,2,1]
     describe "Lambdas" do
         it "can be called" do
-            ErlangAtom "ok" `shouldEqual` erlps__test_can_be_called__0 [] 
+            r <- exec erlps__test_can_be_called__0 [] 
+            ErlangAtom "ok" `shouldEqual` r 
         it "fun can be treated as lambda" do
-            ErlangAtom "ok" `shouldEqual` erlps__test_can_pass_fun__0 []
+            r <- exec erlps__test_can_pass_fun__0 [] 
+            ErlangAtom "ok" `shouldEqual` r
         it "Lambda clauses overwrite vars in scope" do
-            ErlangAtom "ok" `shouldEqual` erlps__test_match_semantics_1__0
+            r <- exec erlps__test_match_semantics__0 [] 
+            ErlangAtom "ok" `shouldEqual` r
         --it "Captures scope" do
         it "Does not leak scope 1" do
-            ErlangNum 1 `shouldEqual` erpls__test_scope_does_not_leak_1__0 []
+            r <- exec erpls__test_scope_does_not_leak_1__0 []
+            ErlangNum 1 `shouldEqual` r        
         it "Does not leak scope 2" do
-            ErlangNum 1 `shouldEqual` erlps__test_scope_does_not_leak_2__0 []
+            r <- exec erpls__test_scope_does_not_leak_2__0 []
+            ErlangNum 1 `shouldEqual` r
 
