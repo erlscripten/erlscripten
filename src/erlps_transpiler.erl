@@ -40,6 +40,7 @@ transpile_erlang_module(Forms) ->
     %% Ok It's time for some canonical imports which will be used a lot :)
     DefaultImports =
         [ #import{path = ["Prelude"]}
+        , #import{path = ["Data", "Array"], alias = "DA"}
         , #import{path = ["Data", "List"], alias = "DL"}
         , #import{path = ["Data", "Maybe"], alias = "DM"}
         , #import{path = ["Data", "Map"], alias = "Map"}
@@ -380,6 +381,11 @@ transpile_pattern({integer, _, Num}, _) ->
     {?make_pat_int(Num), [], []};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
     transpile_pattern({integer, Ann, -Num}, Env);
+transpile_pattern({string, _, String}, _Env) ->
+    {lists:foldr(fun (Char, Acc) -> ?make_pat_cons(?make_pat_int(Char), Acc)
+                 end, ?make_pat_empty_list, String),
+     [], []
+    };
 
 %% Bitstring pattern
 transpile_pattern({bin, _, []}, _) ->
@@ -907,7 +913,7 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
     };
 
 transpile_expr({tuple, _, Exprs}, Stmts0, Env) ->
-    {ExprsVars, Stmts1} = bind_exprs("tup", Exprs, Stmts0, Env),
+    {ExprsVars, Stmts1} = bind_exprs("tup_el", Exprs, Stmts0, Env),
     {pure(#expr_app{
         function = #expr_var{name = "ErlangTuple"},
         args = [#expr_array{value = [#expr_var{name = ExprVar} || ExprVar <- ExprsVars]}]})
@@ -921,6 +927,89 @@ transpile_expr({record, Ann, RecordName, RecordFields}, Stmts, Env) ->
         [proplists:get_value(FieldName, Values, Default) ||
             {FieldName, Default} <- maps:get(RecordName, Env#env.records)],
     transpile_expr({tuple, Ann, Fields}, Stmts, Env);
+transpile_expr({record, _, Expr, RecordName, RecordFields}, Stmts0, Env) ->
+    RecordFieldsProplist =
+        [ {atom_to_list(Field), Val}
+          || {record_field, _, {atom, _, Field}, Val} <- RecordFields
+        ],
+    {ExprVar, Stmts1} = bind_expr("record", Expr, Stmts0, Env),
+    {FieldValueVars, Stmts2} =
+        bind_exprs("record_updt", [Val || {_, Val} <- RecordFieldsProplist], Stmts1, Env),
+    UpdatesProplist =
+        lists:zip(
+          [Field || {Field, _} <- RecordFieldsProplist],
+          FieldValueVars
+         ),
+
+    AllRecordFields =
+        [atom_to_list(Field) || {Field, _} <- maps:get(RecordName, Env#env.records)],
+
+    FieldPats =
+        [ #pat_var{name = state_create_fresh_var(FieldName)}
+         || FieldName <- AllRecordFields],
+    {#expr_case{
+        expr = #expr_var{name = ExprVar},
+        cases =
+            [ { ?make_pat_tuple([?make_pat_atom(RecordName)|FieldPats])
+              , []
+              , pure(
+                  ?make_expr_tuple(
+                     [ ?make_expr_atom(RecordName)
+                     | [ case proplists:get_value(FieldName, UpdatesProplist) of
+                             undefined -> #expr_var{name = Var};
+                             NewVar -> #expr_var{name = NewVar}
+                         end
+                         || {#pat_var{name = Var}, FieldName}
+                                <- lists:zip(FieldPats, AllRecordFields)
+                       ]
+                     ]
+                    )
+                 )
+                 }
+            , {pat_wildcard, [], ?bad_match} %% FIXME Badmatch or what?
+            ]
+       },
+     Stmts2
+    };
+transpile_expr({record_field, _, Expr, Record, {atom, _, Field}}, Stmts0, Env) ->
+    {ExprVar, Stmts1} = bind_expr("record", Expr, Stmts0, Env),
+
+    AllRecordFields =
+        [FieldName || {FieldName, _} <- maps:get(Record, Env#env.records)],
+    FindIndex =
+        fun R([FieldName|_], N) when FieldName == Field ->
+                N;
+            R([_|Rest], N) ->
+                R(Rest, N + 1);
+            R([], _) ->
+                error({field_not_in_record, Record, Field})
+        end,
+    Index = FindIndex(AllRecordFields, 1),
+
+    FieldVar = state_create_fresh_var("field"),
+    ArrVar = state_create_fresh_var("arr"),
+    {#expr_case{
+        expr = #expr_var{name = ExprVar},
+        cases =
+            [ {#pat_constr{constr = "ErlangTuple", args = [#pat_var{name = ArrVar}]}
+              , [#guard_assg{
+                    lvalue = #pat_constr{
+                                constr = "DM.Just",
+                                args = [#pat_var{name = FieldVar}]
+                               },
+                    rvalue = #expr_binop{
+                                name = "DA.!!",
+                                lop = #expr_var{name = ArrVar},
+                                rop = #expr_num{value = Index}
+                               }
+                   }]
+              , pure(#expr_var{name = FieldVar})
+              }
+            , {pat_wildcard, [], ?bad_match} %% FIXME Badmatch or what?
+            ]
+       },
+     Stmts1
+    };
 
 transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
     {RetVar, Stmts1} = bind_expr("lc_ret", Ret, Stmts0, Env),
@@ -999,6 +1088,8 @@ transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).
 
 
+bind_expr(Name, Expr, Stmts0, Env) when is_atom(Name) ->
+    bind_expr(atom_to_list(Name), Expr, Stmts0, Env);
 bind_expr(Name, Expr, Stmts0, Env) ->
     Var = state_create_fresh_var(Name),
     {PSExpr, Stmts1} = transpile_expr(Expr, Stmts0, Env),
@@ -1043,6 +1134,8 @@ state_put_var(ErlangVar, PsVar) ->
     put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
 state_create_fresh_var() ->
     state_create_fresh_var("v").
+state_create_fresh_var(Name) when is_atom(Name) ->
+    state_create_fresh_var(atom_to_list(Name));
 state_create_fresh_var(Name) ->
     Var = Name ++ "_" ++ state_get_fresh_id(),
     state_put_var(Var, Var),

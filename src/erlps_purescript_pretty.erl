@@ -150,7 +150,7 @@ pp_expr(#expr_record{fields = Fields}) ->
 pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
     block(hsep(pp_pat(LV), text("<-")), pp_expr(RV));
 pp_do_statement(#do_let{lvalue = LV, rvalue = RV}) ->
-    block(hsep([text("let"), pp_pat(LV), text("=")]), pp_expr(RV));
+    hsep(text("let"), block(hsep(pp_pat(LV), text("=")), pp_expr(RV)));
 pp_do_statement(#do_expr{expr = Expr}) ->
     pp_expr(Expr).
 

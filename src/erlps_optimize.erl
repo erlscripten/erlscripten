@@ -311,7 +311,6 @@ constant_propagation_stmts(
                     #expr_var{name = "ErlangAtom"} -> true;
                     #expr_var{name = "ErlangCons"} -> true;
                     #expr_var{name = "ErlangBinary"} -> true;
-                    #expr_var{name = "ErlangTuple"} -> true;
                     #expr_var{name = "applyTerm"} -> true;
                     #expr_var{name = "isEL"} -> true;
                     #expr_var{name = "unsafePerformEffect"} -> true;
