@@ -4,9 +4,11 @@ import Prelude
 
 import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
+import Effect.Unsafe
 import Effect.Console (log)
 import Effect.Class (liftEffect)
-import Effect.Aff (launchAff_, Aff)
+import Effect.Aff
+import Effect.Exception(catchException)
 import Test.Spec (pending, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -16,11 +18,15 @@ import Data.Tuple as T
 import Data.Array as A
 import Partial.Unsafe
 import Erlang.Type
+import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
 
 exec :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
-exec fun args = liftEffect (unsafePartial (fun args))
+exec fun args = liftEffect (unsafePartial (fun args)) 
+
+exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
+exec_may_throw fun args = pure $ unsafePerformEffectGuard (unsafePartial $ fun args)
 
 test_reverse a = do
     let input = arrayToErlangList $ map ErlangNum a
@@ -72,19 +78,22 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_zip [1,2,7,4] [1,3,2,1]
     describe "Lambdas" do
         it "can be called" do
-            r <- exec erlps__test_can_be_called__0 [] 
+            r <- exec_may_throw erlps__test_can_be_called__0 [] 
             ErlangAtom "ok" `shouldEqual` r 
         it "fun can be treated as lambda" do
-            r <- exec erlps__test_can_pass_fun__0 [] 
+            r <- exec_may_throw erlps__test_can_pass_fun__0 [] 
             ErlangAtom "ok" `shouldEqual` r
         it "Lambda clauses overwrite vars in scope" do
-            r <- exec erlps__test_match_semantics__0 [] 
+            r <- exec_may_throw erlps__test_match_semantics_1__0 [] 
             ErlangAtom "ok" `shouldEqual` r
-        --it "Captures scope" do
+        -- @radrow - no matter how much I try It seems that I'm unable to catch exceptions...
+        --it "Lambdas have access to vars from the enclosing scope" do
+        --    r <- exec_may_throw erlps__test_match_semantics_2__0 []
+        --    ErlangAtom "false" `shouldEqual` r
         it "Does not leak scope 1" do
-            r <- exec erpls__test_scope_does_not_leak_1__0 []
+            r <- exec_may_throw erlps__test_scope_does_not_leak_1__0 []
             ErlangNum 1 `shouldEqual` r        
         it "Does not leak scope 2" do
-            r <- exec erpls__test_scope_does_not_leak_2__0 []
+            r <- exec_may_throw erlps__test_scope_does_not_leak_2__0 []
             ErlangNum 1 `shouldEqual` r
 
