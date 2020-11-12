@@ -161,8 +161,8 @@ builtins() ->
                 , {"orelse",  "op_orelse"}
                 ],
     maps:from_list(lists:concat([
-        [ {{"erlang", "not", 1}, "erlang__not"}
-        , {{"erlang", "-", 1}, "erlang__neg"}
+        [ {{"erlang", "not", 1}, "erlang__op_not"}
+        , {{"erlang", "-", 1}, "erlang__op_neg"}
         ],
         [ {{"erlang", Op, 2}, io_lib:format("erlang__~s", [Fun])}
           || {Op, Fun} <- Operators],
@@ -299,27 +299,6 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{in
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),
     RE = guard_trivial_expr(Rop, Env),
-    %%Operators = [ {"+",   "op_plus"}
-    %%          , {"-",   "op_minus"}
-    %%          , {"*",   "op_mult"}
-    %%          , {"/",   "op_div"}
-    %%          , {"div", "op_div"}
-    %%          , {"/=",  "op_neq"}
-    %%          , {"=/=", "op_exactNeq"}
-    %%          , {"==",  "op_eq"}
-    %%          , {"=:=", "op_exactEq"}
-    %%          , {">",   "op_greater"}
-    %%          , {"<",   "op_lesser"}
-    %%          , {">=",  "op_greaterEq"}
-    %%          , {"=<",  "op_lesserEq"}
-    %%          , {"++",  "op_append"}
-    %%          , {"--",  "op_unAppend"}
-    %%          , {"&&",  "op_and"}
-    %%          , {"||",  "op_or"}
-    %%          , {"!",   "send"}
-    %%          , {"andalso", "op_and"}
-    %%          , {"orelse",  "op_or"}
-    %%          ],
     Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
     F = fun(N) -> [#guard_expr{guard = #expr_binop{name = N, lop = LE, rop = RE}}] end,
     case {LE, RE} of
@@ -791,10 +770,20 @@ transpile_expr({op, _, Op, L, R}, Stmts0, Env) ->
     {RVar, Stmts2} = bind_expr("rop", R, Stmts1, Env),
     {#expr_app{
         function = OpFun,
-        args = [#expr_array{value = [#expr_var{name = LVar},
-                                     #expr_var{name = RVar}
-                                    ]}]},
+        args = [#expr_array{
+                   value =
+                       [#expr_var{name = LVar},
+                        #expr_var{name = RVar}
+                       ]}]},
      Stmts2
+    };
+transpile_expr({op, _, Op, Arg}, Stmts0, Env) ->
+    OpFun = transpile_fun_ref("erlang", Op, 1, Env),
+    {ArgVar, Stmts1} = bind_expr("op_arg", Arg, Stmts0, Env),
+    {#expr_app{
+        function = OpFun,
+        args = [#expr_array{value = [#expr_var{name = ArgVar}]}]},
+     Stmts1
     };
 
 transpile_expr({call, _, {atom, _, Fun}, Args}, Stmts0, Env) ->

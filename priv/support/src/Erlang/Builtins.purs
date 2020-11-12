@@ -186,6 +186,15 @@ erlang__op_append [ErlangCons h t, l@(ErlangCons _ _)] =
   map (ErlangCons h) (erlang__op_append [t, l])
 
 
+-- -
+erlang__op_neg :: ErlangFun
+erlang__op_neg [ErlangNum n] = pure (ErlangNum (-n))
+
+-- not
+erlang__op_not :: ErlangFun
+erlang__op_not [ErlangAtom "false"] = pure (ErlangAtom "true")
+erlang__op_not [ErlangAtom "true"] = pure (ErlangAtom "false")
+
 
 erlang__process_display__2 :: ErlangFun
 erlang__process_display__2 args = throw "unimplemented"
