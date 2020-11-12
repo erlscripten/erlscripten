@@ -52,6 +52,44 @@ lists__keyfind__3 [key, idx@(ErlangNum idxNum), ErlangCons el rest] = case el of
       else lists__keyfind__3 [key, idx, rest]
   _ -> lists__keyfind__3 [key, idx, rest]
 
+--------------------------------------------------------------------------------
+
+maps__get__2 :: ErlangFun
+maps__get__2 [] = throw "unimplemented"
+
+maps__find__2 :: ErlangFun
+maps__find__2 [] = throw "unimplemented"
+
+maps__from_list__1 :: ErlangFun
+maps__from_list__1 [] = throw "unimplemented"
+
+maps__is_key__2 :: ErlangFun
+maps__is_key__2 [] = throw "unimplemented"
+
+maps__keys__1 :: ErlangFun
+maps__keys__1 [] = throw "unimplemented"
+
+maps__merge__2 :: ErlangFun
+maps__merge__2 [] = throw "unimplemented"
+
+maps__put__3 :: ErlangFun
+maps__put__3 [] = throw "unimplemented"
+
+maps__remove__2 :: ErlangFun
+maps__remove__2 [] = throw "unimplemented"
+
+maps__take__2 :: ErlangFun
+maps__take__2 [] = throw "unimplemented"
+
+maps__to_list__1 :: ErlangFun
+maps__to_list__1 [] = throw "unimplemented"
+
+maps__update__3 :: ErlangFun
+maps__update__3 [] = throw "unimplemented"
+
+maps__values__1 :: ErlangFun
+maps__values__1 [] = throw "unimplemented"
+
 
 --------------------------------------------------------------------------------
 

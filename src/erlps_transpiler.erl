@@ -137,6 +137,7 @@ transpile_fun_name(Name, Arity) when is_binary(Name) ->
 transpile_fun_name(Name, Arity) ->
     io_lib:format("erlps__~s__~p", [Name, Arity]).
 
+-spec builtins() -> #{{string(), string(), non_neg_integer()} => string()}.
 builtins() ->
     Operators = [ {"+",   "op_plus"}
                 , {"-",   "op_minus"}
@@ -162,7 +163,8 @@ builtins() ->
     maps:from_list(lists:concat([
         [ {{"erlang", Op, 2}, io_lib:format("erlang__~s", [Fun])}
           || {Op, Fun} <- Operators],
-        [ {{Module, Fun, Arity}, io_lib:format("~s__~s__~p", [Module, Fun, Arity])}
+        [ {{Module, Fun, Arity},
+           io_lib:format("~s__~s__~p", [Module, Fun, Arity])}
           || {Module, Fun, Arity} <-
                  lists:concat(
                    [ [ {"lists", "keyfind", 3}
@@ -170,6 +172,19 @@ builtins() ->
                      , {"lists", "keysearch", 3}
                      , {"lists", "member", 2}
                      , {"lists", "reverse", 2}
+                     ]
+                   , [ {"maps", "get", 2}
+                     , {"maps", "find", 2}
+                     , {"maps", "from_list", 1}
+                     , {"maps", "is_key", 2}
+                     , {"maps", "keys", 1}
+                     , {"maps", "merge", 2}
+                     , {"maps", "put", 3}
+                     , {"maps", "remove", 2}
+                     , {"maps", "take", 2}
+                     , {"maps", "to_list", 1}
+                     , {"maps", "update", 3}
+                     , {"maps", "values", 1}
                      ]
                    , [ {"erlang", atom_to_list(BIF), Arity}
                        || {BIF, Arity} <- erlang:module_info(exports),
@@ -179,6 +194,7 @@ builtins() ->
                   )
         ]])).
 
+-spec check_builtin(string(), string(), non_neg_integer()) -> local | {builtin, string()}.
 check_builtin(Module, Name, Arity) ->
     Key = {Module, Name, Arity},
     case builtins() of
@@ -187,8 +203,10 @@ check_builtin(Module, Name, Arity) ->
     end.
 
 
+-spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
     transpile_fun_ref(Module, Name, Arity, Env).
+-spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
 transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Name) ->
     transpile_fun_ref(Module, atom_to_list(Name), Arity, Env);
 transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Module) ->
@@ -646,7 +664,7 @@ catch_partial_lets_in_statements(
 catch_partial_lets_in_statements(
   [#do_expr{expr = Expr}|Rest], Acc, Ret) ->
     catch_partial_lets_in_statements(
-      Rest, [#do_expr{expr = catch_partial_lets(Expr)}|Acc], Ret).
+      Rest, [#do_bind{lvalue = pat_wildcard, rvalue = catch_partial_lets(Expr)}|Acc], Ret).
 
 
 %% WIP SCOPE LEAKER
@@ -757,7 +775,7 @@ transpile_expr({integer, _, Int}, Stmts, _Env) ->
     {pure(?make_expr_int(Int)), Stmts};
 transpile_expr({char, Ann, Int}, Stmts, Env) ->
     transpile_expr({integer, Ann, Int}, Stmts, Env);
-transpile_expr({string, Ann, String}, Stmts, Env) ->
+transpile_expr({string, _, String}, Stmts, _Env) ->
     {pure(#expr_app{
              function = #expr_var{name = "make_string"},
              args = [#expr_string{value = String}]}),
@@ -888,7 +906,8 @@ transpile_expr({map, _, Associations}, Stmts0, Env) ->
                  [#expr_array{
                      value =
                          [ #expr_app{function = #expr_var{name = "Tup.Tuple"},
-                                     args = [#expr_var{name = KeyVar}, #expr_var{name = ValVar}]
+                                     args = [#expr_var{name = KeyVar},
+                                             #expr_var{name = ValVar}]
                                     }
                            || {KeyVar, ValVar} <- lists:zip(KeysVars, ValsVars)
                          ]
@@ -896,6 +915,16 @@ transpile_expr({map, _, Associations}, Stmts0, Env) ->
                  ]},
     {pure(?make_expr_map(Map)),
      Stmts2
+    };
+transpile_expr({map, Ann, Map, Associations}, Stmts0, Env) ->
+    {MapVar, Stmts1} = bind_expr("map", Map, Stmts0, Env),
+    {Ext, Stmts2} = transpile_expr({map, Ann, Associations}, Stmts1, Env),
+    ExtVar = state_create_fresh_var("map_ext"),
+    {#expr_app{
+        function = transpile_fun_ref(maps, merge, 2, Env),
+        args = [#expr_array{value = [#expr_var{name = MapVar}, #expr_var{name = ExtVar}]}]},
+     [ #do_bind{lvalue = #pat_var{name = ExtVar}, rvalue = Ext}
+     | Stmts2]
     };
 
 transpile_expr(X, _Stmts, _Env) ->

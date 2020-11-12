@@ -54,13 +54,6 @@ options() ->
 option(Key, Default) ->
     proplists:get_value(Key, options(), Default).
 
--spec with_options(options(), fun(() -> A)) -> A.
-with_options(Options, Fun) ->
-    put(?erlps_pretty_opts, Options),
-    Res = Fun(),
-    erase(?erlps_pretty_opts),
-    Res.
-
 -spec indent() -> non_neg_integer().
 indent() -> option(indent, 2).
 
@@ -116,15 +109,15 @@ comma_brackets(Open, Close, Ds) ->
 %% PURESCRIPT
 
 -spec pp_expr(purs_expr()) -> doc().
-pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
+pp_expr(#expr_binop{name = O, lop = L, rop = R}) when is_list(O) ->
     paren(block(hsep(pp_expr(L), text(O)), pp_expr(R)));
-pp_expr(#expr_num{value = Val}) ->
+pp_expr(#expr_num{value = Val}) when is_integer(Val) ->
     text(integer_to_list(Val));
-pp_expr(#expr_string{value = Val}) ->
+pp_expr(#expr_string{value = Val}) when is_list(Val) ->
     text(io_lib:format("~p", [lists:flatten(Val)]));
 pp_expr(#expr_app{function = F, args = Args}) ->
     paren(par([pp_expr(F) | lists:map(fun pp_expr/1, Args)]));
-pp_expr(#expr_var{name = Var}) ->
+pp_expr(#expr_var{name = Var}) when is_list(Var) ->
     text(Var);
 pp_expr(#expr_array{value = Arr}) ->
     comma_brackets("[", "]", lists:map(fun pp_expr/1, Arr));

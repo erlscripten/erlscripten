@@ -18,9 +18,9 @@
 -type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
 optimize_expr(Expr0) ->
-    %% Expr.
-    Expr1 = peephole(Expr0),
-    _Expr2 = constant_propagation(Expr1).
+    Expr0.
+    %% Expr1 = peephole(Expr0),
+    %% _Expr2 = constant_propagation(Expr1).
 
 
 %% --- PEEPHOLE ----------------------------------------------------------------
@@ -165,11 +165,12 @@ peephole(_,
                 args = [K, V]
                });
 %% Map.fromFoldable [] -> Map.empty
-peephole(_,
-         #expr_app{
-            function = #expr_var{name = "Map.fromFoldable"},
-            args = [#expr_array{value = []}]
-           }) ->
+peephole(
+  _,
+  #expr_app{
+     function = #expr_var{name = "Map.fromFoldable"},
+     args = [#expr_array{value = []}]
+    }) ->
     #expr_var{name = "Map.empty"};
 
 peephole(first, #expr_binop{name = Op, lop = Lop, rop = Rop}) ->
