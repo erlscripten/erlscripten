@@ -630,7 +630,7 @@ catch_partial_lets_in_statements([], Acc, Ret) ->
     #expr_do{statements = lists:reverse(Acc), return = Ret};
 catch_partial_lets_in_statements(
   [#do_let{lvalue = LV, rvalue = RV, guards = Guards}|Rest], Acc, Ret)
-  when element(1, LV) =/= pat_var andalso LV =/= pat_wildcard ->
+  when (element(1, LV) =/= pat_var andalso LV =/= pat_wildcard) orelse (Guards =/= []) ->
     #expr_do{
        statements =
            lists:reverse(Acc),
@@ -889,7 +889,6 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
 transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]},
                Stmts0, Env) ->
     FunVar = state_create_fresh_var(string:to_lower(lists:flatten(io_lib:format("~s", [Name])))),
-    state_put_var(Name, FunVar),
     Arity = length(SomeArgs),
     ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
     Case =
@@ -905,6 +904,7 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
                      {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
                      state_pop_discard_var_stack(), % remove unnecessary backup
                      state_merge_down_var_stack(), % merge with the previous state
+                     state_put_var(Name, FunVar),
                      R = { #pat_array{value = PSArgs}
                          , PSGuards ++ transpile_boolean_guards(Guards, Env)
                          , transpile_body(Cont, Env)},
