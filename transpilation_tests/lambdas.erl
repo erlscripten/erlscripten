@@ -26,7 +26,7 @@ test_match_semantics_1() ->
 test_match_semantics_2() ->
     A = 2,
     B = fun (X) -> A = X end,
-    B(1). %% should throw exception
+    B(ok). %% should throw exception
 
 test_scope_does_not_leak_1() ->
     (fun() -> X=2 end)(),
