@@ -30,9 +30,9 @@ test_match_semantics_2() ->
 
 test_scope_does_not_leak_1() ->
     (fun() -> X=2 end)(),
-    X = 1.
+    X = ok.
 
 test_scope_does_not_leak_2() ->
     (fun X() -> ok end)(),
-    X = 1.
+    X = ok.
 

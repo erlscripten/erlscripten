@@ -14,63 +14,65 @@ import Test.Spec.Assertions (shouldEqual, expectError)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 
+import Data.Lazy
 import Data.Either
 import Data.Tuple as T
 import Data.Array as A
 import Partial.Unsafe
 import Erlang.Type
-import Erlang.Helpers (unsafePerformEffectGuard2)
+import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
 
-exec :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
-exec fun args = liftEffect (unsafePartial (fun args)) 
+exec_may_throw_int :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
+exec_may_throw_int fun args =
+    let
+        t = defer $ (\_ -> unsafePerformEffect $ unsafePartial $ fun args)
+        f = defer $ (\_ -> ErlangAtom "error")
+    in do
+        v <- liftEffect (catchException (\_ -> pure f) (pure t))
+        pure $ force v
 
---expectError
---  :: forall m t
---   . MonadError Error m
---  => m t
---  -> m Unit
---expectError a = do
---  e <- try a
---  case e of
---    Left _ -> pure unit
---    Right _ -> throwError $ error "Expected error"
+exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
+exec_may_throw fun args = do
+    r <- attempt $ exec_may_throw_int fun args
+    case r of
+        Left _ -> pure make_err
+        Right r -> pure $ make_ok r
 
-exec_may_throw :: ErlangFun -> Array ErlangTerm -> ErlangTerm
-exec_may_throw fun args =
-     unsafePartial $ ((unsafePerformEffectGuard2 fun) args)
-
-isRight (Right a) e | a==e = true
-isRight _ _ = false
-
-isLeft (Left _) = true
-isLeft _ = false
+make_ok term = ErlangTuple [ErlangAtom "ok", term]
+make_err = ErlangAtom "error"
 
 test_reverse a = do
     let input = arrayToErlangList $ map ErlangNum a
-    let output = arrayToErlangList $ map ErlangNum (A.reverse a)
-    res <- exec erlps__reverse__1 [input]
+    let output = make_ok $ arrayToErlangList $ map ErlangNum (A.reverse a)
+    res <- exec_may_throw erlps__reverse__1 [input]
     output `shouldEqual` res
 
 test_sort a = do
     let input = arrayToErlangList $ map ErlangNum a
-    let output = arrayToErlangList $ map ErlangNum (A.sort a)
-    res <- exec erlps__sort__1 [input]
+    let output = make_ok $ arrayToErlangList $ map ErlangNum (A.sort a)
+    res <- exec_may_throw erlps__sort__1 [input]
     output `shouldEqual` res
 
 test_map a ef pf = do
     let input = arrayToErlangList $ map ErlangNum a
-    let output = arrayToErlangList $ map ErlangNum (map pf a)
-    res <- exec erlps__map__2 [ef, input]
+    let output = make_ok $ arrayToErlangList $ map ErlangNum (map pf a)
+    res <- exec_may_throw erlps__map__2 [ef, input]
     output `shouldEqual` res
 
-test_zip a b = do
+test_zip_ok a b = do
     let input_a = arrayToErlangList $ map ErlangNum a
     let input_b = arrayToErlangList $ map ErlangNum b
-    let output = arrayToErlangList $ map (\(T.Tuple x y) -> ErlangTuple [x,y]) (A.zip (map ErlangNum a) (map ErlangNum b))
-    res <- exec erlps__zip__2 [input_a, input_b]
+    let output = make_ok $ arrayToErlangList $ map (\(T.Tuple x y) -> ErlangTuple [x,y]) (A.zip (map ErlangNum a) (map ErlangNum b))
+    res <- exec_may_throw erlps__zip__2 [input_a, input_b]
     output `shouldEqual` res
+
+test_zip_fail a b = do
+    let input_a = arrayToErlangList $ map ErlangNum a
+    let input_b = arrayToErlangList $ map ErlangNum b
+    res <- exec_may_throw erlps__zip__2 [input_a, input_b]
+    make_err `shouldEqual` res
 
 main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
@@ -94,26 +96,28 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_map [1,2,3,4,5] (ErlangFun 1 (\[ErlangNum a] -> pure $ ErlangNum (a*20))) (\x -> x*20)
             test_map [1,2,3,4,5] (ErlangFun 1 (\[ErlangNum a] -> pure $ ErlangNum (-a))) (\x -> -x)
         it "zip/2" do
-            test_zip [1,2,3,4] [4,3,2,1]
-            test_zip [1,2,7,4] [1,3,2,1]
+            test_zip_ok [1,2,3,4] [4,3,2,1]
+            test_zip_ok [1,2,7,4] [1,3,2,1]
+            test_zip_fail [1] [1,2]
+            test_zip_fail [1,2] [1]
 
     describe "Lambdas" do
-        --it "can be called" do
-        --    r <- exec_may_throw erlps__test_can_be_called__0 []
-        --    true `shouldEqual` (isRight r (ErlangAtom "ok"))
-        --it "fun can be treated as lambda" do
-        --    r <- exec_may_throw erlps__test_can_pass_fun__0 []
-        --    true `shouldEqual` (isRight r (ErlangAtom "ok"))
+        it "can be called" do
+            r <- exec_may_throw erlps__test_can_be_called__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "fun can be treated as lambda" do
+            r <- exec_may_throw erlps__test_can_pass_fun__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
         it "Lambda clauses overwrite vars in scope" do
-            let r = exec_may_throw erlps__test_match_semantics_1__0 []
-            ErlangAtom "ok" `shouldEqual` r
-        --it "Lambdas have access to vars from the enclosing scope" do
-        --    r <- exec_may_throw erlps__test_match_semantics_2__0 []
-        --    true `shouldEqual` (isRight r (ErlangAtom "ok"))
-        --it "Does not leak scope 1" do
-        --    r <- exec_may_throw erlps__test_scope_does_not_leak_1__0 []
-        --    true `shouldEqual` (isRight r (ErlangAtom "ok"))
-        --it "Does not leak scope 2" do
-        --    r <- exec_may_throw erlps__test_scope_does_not_leak_2__0 []
-        --    true `shouldEqual` (isRight r (ErlangAtom "ok"))
+            r <- exec_may_throw erlps__test_match_semantics_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Lambdas have access to vars from the enclosing scope" do
+            r <- exec_may_throw erlps__test_match_semantics_2__0 []
+            make_err `shouldEqual` r
+        it "Does not leak scope 1" do
+            r <- exec_may_throw erlps__test_scope_does_not_leak_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Does not leak scope 2" do
+            r <- exec_may_throw erlps__test_scope_does_not_leak_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
 
