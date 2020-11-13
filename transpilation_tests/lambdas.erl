@@ -36,3 +36,7 @@ test_scope_does_not_leak_2() ->
     (fun X() -> ok end)(),
     X = ok.
 
+test_can_use_stdlib() ->
+    R = lists:map(fun(X) -> X*2 end, lists:seq(1,10)),
+    [2,4,6,8,10,12,14,16,18,20] = R,
+    ok.

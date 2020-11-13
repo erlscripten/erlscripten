@@ -275,7 +275,8 @@ erlang__now__0 :: ErlangFun
 erlang__now__0 args = throw "unimplemented"
 
 erlang__is_integer__1 :: ErlangFun
-erlang__is_integer__1 args = throw "unimplemented"
+erlang__is_integer__1 [ErlangNum _] = pure (ErlangAtom "true")
+erlang__is_integer__1 [_] = pure (ErlangAtom "false")
 
 erlang__erase__0 :: ErlangFun
 erlang__erase__0 args = throw "unimplemented"

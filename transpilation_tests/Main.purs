@@ -24,8 +24,11 @@ import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
 
-exec_may_throw_int :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
-exec_may_throw_int fun args =
+-- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
+-- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
+-- If you can replace this helper with something better then please feel free to do so :)
+exec_may_throw_aff :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
+exec_may_throw_aff fun args =
     let
         t = defer $ (\_ -> unsafePerformEffect $ unsafePartial $ fun args)
         f = defer $ (\_ -> ErlangAtom "error")
@@ -35,8 +38,9 @@ exec_may_throw_int fun args =
 
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
-    r <- attempt $ exec_may_throw_int fun args
-    case r of
+    res <- attempt $ exec_may_throw_aff fun args
+    -- liftEffect $ log $ show res -- Uncomment for logs :)
+    case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
 
@@ -74,6 +78,11 @@ test_zip_fail a b = do
     res <- exec_may_throw erlps__zip__2 [input_a, input_b]
     make_err `shouldEqual` res
 
+test_seq from to expected = do
+    calc <- exec_may_throw erlps__seq__2 [ErlangNum from, ErlangNum to]
+    let out = make_ok $ arrayToErlangList $ map ErlangNum expected
+    out `shouldEqual` calc
+
 main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
     describe "Sanity check" do
@@ -100,6 +109,10 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_zip_ok [1,2,7,4] [1,3,2,1]
             test_zip_fail [1] [1,2]
             test_zip_fail [1,2] [1]
+        it "seq/2" do
+            test_seq 0 0 [0]
+            test_seq 1 0 []
+            test_seq 1 10 [1,2,3,4,5,6,7,8,9,10]
 
     describe "Lambdas" do
         it "can be called" do
@@ -119,5 +132,8 @@ main = launchAff_ $ runSpec [consoleReporter] do
             make_ok (ErlangAtom "ok") `shouldEqual` r
         it "Does not leak scope 2" do
             r <- exec_may_throw erlps__test_scope_does_not_leak_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Can pass lambda do lists stdlib ;)" do
+            r <- exec_may_throw erlps__test_can_use_stdlib__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
 
