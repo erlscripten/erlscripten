@@ -200,9 +200,9 @@ peephole(first, #expr_do{statements = Stmts, return = Ret0}) ->
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
              #do_bind{lvalue = Pat, rvalue = peephole(first, Expr)});
-peephole(first, #do_let{lvalue = Pat, rvalue = Expr}) ->
+peephole(first, #do_let{lvalue = Pat, rvalue = Expr, guards = Guards}) ->
     peephole(second,
-             #do_let{lvalue = Pat, rvalue = peephole(first, Expr)});
+             #do_let{lvalue = Pat, rvalue = peephole(first, Expr), guards = Guards});
 peephole(first, #do_expr{expr = Expr}) ->
     peephole(second,
              #do_expr{expr = peephole(first, Expr)});
@@ -273,8 +273,8 @@ constant_propagation(#expr_do{statements = Stmts0, return = Ret}, State0) ->
 
 constant_propagation(#do_bind{lvalue = Pat, rvalue = Expr}, State) ->
     #do_bind{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
-constant_propagation(#do_let{lvalue = Pat, rvalue = Expr}, State) ->
-    #do_let{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
+constant_propagation(#do_let{lvalue = Pat, rvalue = Expr, guards = Guards}, State) ->
+    #do_let{lvalue = Pat, rvalue = constant_propagation(Expr, State), guards = Guards};
 constant_propagation(#do_expr{expr = Expr}, State) ->
     #do_expr{expr = constant_propagation(Expr, State)};
 constant_propagation(#guard_expr{guard = Expr}, State) ->
@@ -298,7 +298,7 @@ constant_propagation_stmts(
   [#do_expr{expr = Expr}|Rest], Acc, State) ->
     constant_propagation_stmts(Rest, [#do_expr{expr = constant_propagation(Expr, State)}|Acc], State);
 constant_propagation_stmts(
-  [#do_let{lvalue = #pat_var{name = Var}, rvalue = RV} = Stmt|Rest], Acc, State) ->
+  [#do_let{lvalue = #pat_var{name = Var}, rvalue = RV, guards = []} = Stmt|Rest], Acc, State) ->
     RV1 = constant_propagation(RV, State),
     Inline =
         case RV1 of
@@ -325,8 +325,8 @@ constant_propagation_stmts(
         false ->
             constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = RV1}|Acc], State)
     end;
-constant_propagation_stmts([#do_let{rvalue = RV} = Stmt|Rest], Acc, State) ->
-    constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = constant_propagation(RV, State)}|Acc], State);
+constant_propagation_stmts([#do_let{rvalue = RV, guards = Guards} = Stmt|Rest], Acc, State) ->
+    constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = constant_propagation(RV, State), guards = Guards}|Acc], State);
 constant_propagation_stmts([#do_bind{rvalue = RV} = Stmt|Rest], Acc, State) ->
     constant_propagation_stmts(Rest, [Stmt#do_bind{rvalue = constant_propagation(RV, State)}|Acc], State).
 

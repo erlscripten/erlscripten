@@ -149,8 +149,13 @@ pp_expr(#expr_record{fields = Fields}) ->
 -spec pp_do_statement(purs_do_statement()) -> doc().
 pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
     block(hsep(pp_pat(LV), text("<-")), pp_expr(RV));
-pp_do_statement(#do_let{lvalue = LV, rvalue = RV}) ->
+pp_do_statement(#do_let{lvalue = LV, rvalue = RV, guards = []}) ->
     hsep(text("let"), block(hsep(pp_pat(LV), text("=")), pp_expr(RV)));
+pp_do_statement(#do_let{lvalue = LV, rvalue = RV, guards = Guard}) ->
+    erlps_logger:die(
+      "-.-",
+      io_lib:format("~s", [io_lib:format("Guards in let statement made in to the pretty printer ~p ~p ~p", [LV, RV, Guard])])
+    );
 pp_do_statement(#do_expr{expr = Expr}) ->
     pp_expr(Expr).
 

@@ -586,9 +586,10 @@ transpile_body(Body, Env) ->
     catch_partial_lets(PSBody).
 transpile_body([], _, _) ->
     error(empty_body);
-transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
+transpile_body([{match, Ann, Pat, Expr}] =Racc, Acc, Env) ->
     %% We can't just return a bind
     Var = "match_final_", % do NOT register it at this point
+    %%io:format(user, "AAAAa ~p ~p\n", [state_get_vars(), Racc]),
     transpile_body([{match, Ann, {var, Ann, Var}, Expr},
                     {match, Ann, Pat, {var, Ann, Var}},
                     {var, Ann, Var}],
@@ -647,9 +648,9 @@ catch_partial_lets_in_statements(
     catch_partial_lets_in_statements(
       Rest, [Stmt#do_bind{rvalue = catch_partial_lets(RV)}|Acc], Ret);
 catch_partial_lets_in_statements(
-  [Stmt = #do_let{rvalue = RV}|Rest], Acc, Ret) ->
+  [Stmt = #do_let{rvalue = RV, guards = Guards}|Rest], Acc, Ret) ->
     catch_partial_lets_in_statements(
-      Rest, [Stmt#do_let{rvalue = catch_partial_lets(RV)}|Acc], Ret);
+      Rest, [Stmt#do_let{rvalue = catch_partial_lets(RV), guards = Guards}|Acc], Ret);
 catch_partial_lets_in_statements(
   [#do_expr{expr = Expr}|Rest], Acc, Ret) ->
     catch_partial_lets_in_statements(
@@ -704,7 +705,9 @@ transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
     transpile_expr(Expr, Stmts, Env);
 transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
     {ValueExpr, Stmts1} = transpile_expr(Val, Stmts0, Env),
+    %%io:format(user, "AAA ~p\n", [Pat]),
     {PSPats, PSGuards} = transpile_pattern_sequence([Pat], Env),
+    %%io:format(user, "RACC ~p ~p ~p\n", [PSPats, PSGuards, state_get_vars()]),
     state_pop_discard_var_stack(), %% This permanently commits the bindings to the local scope
     case {PSPats, PSGuards} of
         {[#pat_var{name = Var}], []} ->
@@ -851,11 +854,15 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
            expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
            cases =
                [ begin
+                     %%io:format(user, "BEFORE: ~p\n", [state_get_vars()]),
+                     state_push_var_stack(),
                      state_push_var_stack(), % backup current state
                      state_clear_vars(), % clear state to free the pattern vars of the scope
                      {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
                      state_pop_discard_var_stack(), % remove unnecessary backup
+                     %%io:format(user, "MATCH: ~p\n", [state_get_vars()]),
                      state_merge_down_var_stack(), % merge with the previous state
+                     %%io:format(user, "MERGED: ~p\n", [state_get_vars()]),
                      R = { #pat_array{value = PSArgs}
                          , PSGuards ++ transpile_boolean_guards(Guards, Env)
                          , transpile_body(Cont, Env)},
@@ -890,6 +897,7 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
            expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
            cases =
                [ begin
+                     state_push_var_stack(),
                      state_push_var_stack(), % backup current state
                      state_clear_vars(), % clear state to free the pattern vars of the scope
                      % FIXME fun R(R) -> ... end
