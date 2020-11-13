@@ -28,6 +28,13 @@ test_match_semantics_2() ->
     B = fun (X) -> A = X end,
     B(ok). %% should throw exception
 
+test_match_semantics_3() ->
+    A = 2,
+    F = fun (X) when X==A -> ok; (_) -> match_failed end,
+    ok = F(2),
+    match_failed = F(3),
+    ok.
+
 test_scope_does_not_leak_1() ->
     (fun() -> X=2 end)(),
     X = ok.
@@ -83,5 +90,3 @@ test_factorial_abuse_3() ->
     5040 = Fac(7),
     40320 = Fac(8),
     ok.
-
-

@@ -127,6 +127,9 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "Lambdas have access to vars from the enclosing scope" do
             r <- exec_may_throw erlps__test_match_semantics_2__0 []
             make_err `shouldEqual` r
+        it "Guards in lambdas have access to vars from the enclosing scope" do
+            r <- exec_may_throw erlps__test_match_semantics_3__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
         it "Does not leak scope 1" do
             r <- exec_may_throw erlps__test_scope_does_not_leak_1__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
