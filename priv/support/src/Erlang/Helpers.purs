@@ -32,6 +32,10 @@ unsafePerformEffectGuard :: Effect ErlangTerm -> ErlangTerm
 unsafePerformEffectGuard action =
   unsafePerformEffect (catchException (\_ -> pure (ErlangAtom "false")) action)
 
+unsafePerformEffectGuard2 :: (Array ErlangTerm -> Effect ErlangTerm) -> (Array ErlangTerm -> ErlangTerm)
+unsafePerformEffectGuard2 fun =
+    unsafePerformEffect (catchException (\_ -> pure (\x -> (ErlangAtom "false"))) (pure (\x -> unsafePerformEffectGuard (fun x))))
+
 rbind :: forall a b. (a -> Effect b) -> Effect a -> Effect b
 rbind = flip bind
 
