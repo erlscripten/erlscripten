@@ -142,3 +142,6 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "Y combinator factorial xD" do
             r <- exec_may_throw erlps__test_factorial_abuse_2__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "The factorial of death" do
+            r <- exec_may_throw erlps__test_factorial_abuse_3__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r

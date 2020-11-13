@@ -68,3 +68,20 @@ test_factorial_abuse_2() ->
     720 = F(6),
     ok.
 
+test_factorial_abuse_3() ->
+    %% Abuse combinators xD
+    %% If this monstrosity properly evaluates then lambdas are handled properly
+    Y = fun(X) -> F = fun (P) -> X(fun (Arg) -> (P(P))(Arg) end) end, F(F) end,
+    S = fun(F, G, X) -> F(X, G(X)) end,
+    K = fun(X, Y) -> X end,
+    B = fun(F, G, X) -> F(G(X)) end,
+    Cond = fun(P, F, G, X) -> case P(X) of true -> F(X); false -> G(X) end end,
+    Fac = Y(fun(FA) -> fun(N) -> Cond(fun(X) -> X==0 end, fun(X) -> K(1, X) end, fun(X) -> S(fun(X,Y) -> X*Y end, fun(X) -> B(FA, fun(Y) -> Y-1 end, X) end, X) end, N) end end),
+    1 = Fac(1),
+    2 = Fac(2),
+    720 = Fac(6),
+    5040 = Fac(7),
+    40320 = Fac(8),
+    ok.
+
+
