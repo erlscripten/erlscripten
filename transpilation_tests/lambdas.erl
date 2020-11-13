@@ -40,3 +40,31 @@ test_can_use_stdlib() ->
     R = lists:map(fun(X) -> X*2 end, lists:seq(1,10)),
     [2,4,6,8,10,12,14,16,18,20] = R,
     ok.
+
+test_factorial_abuse_1() ->
+    %% http://www.willamette.edu/~fruehr/haskell/evolution.html OwO
+    A = fun FacCps(K, 0) -> K(1);
+            FacCps(K, N) -> FacCps(fun(R) -> K(R*N) end, N-1) end,
+    720 = A(fun(X) -> X end, 6),
+    ok.
+
+y(X) ->
+   F = fun (P) -> X(fun (Arg) -> (P(P))(Arg) end) end,
+   F(F).
+
+mk_fact() ->
+   F =
+     fun (FA) ->
+          fun (N) ->
+              if (N == 0) -> 1;
+                 true -> N * FA(N-1)
+              end
+          end
+     end,
+   y(F).
+
+test_factorial_abuse_2() ->
+    F = mk_fact(),
+    720 = F(6),
+    ok.
+

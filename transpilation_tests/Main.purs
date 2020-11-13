@@ -136,4 +136,9 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "Can pass lambda do lists stdlib ;)" do
             r <- exec_may_throw erlps__test_can_use_stdlib__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
-
+        it "Can calculate not trivial factorial" do
+            r <- exec_may_throw erlps__test_factorial_abuse_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Y combinator factorial xD" do
+            r <- exec_may_throw erlps__test_factorial_abuse_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
