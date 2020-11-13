@@ -9,7 +9,7 @@
 -export([]).
 
 test_can_be_called() ->
-    A = fun(X) -> X end,
+    A = fun(Q) -> Q end,
     A(ok).
 
 id(X) -> X.
@@ -25,8 +25,8 @@ test_match_semantics_1() ->
 
 test_match_semantics_2() ->
     A = 2,
-    B = fun (X) -> A = X end,
-    B(ok). %% should throw exception
+    B = fun (W) -> A = W end,
+    B(1). %% should throw exception
 
 test_match_semantics_3() ->
     A = 2,

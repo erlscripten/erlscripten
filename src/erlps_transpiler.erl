@@ -23,7 +23,7 @@
         , records :: map()
         }).
 
-version() -> "v0.0.1".
+version() -> "v0.0.2".
 
 transpile_erlang_module(Forms) ->
     Attributes = filter_module_attributes(Forms),
@@ -136,7 +136,7 @@ transpile_fun_name(Name, Arity) when is_atom(Name) ->
 transpile_fun_name(Name, Arity) when is_binary(Name) ->
     transpile_fun_name(binary_to_list(Name), Arity);
 transpile_fun_name(Name, Arity) ->
-    io_lib:format("erlps__~s__~p", [Name, Arity]).
+    lists:flatten(io_lib:format("erlps__~s__~p", [Name, Arity])).
 
 -spec builtins() -> #{{string(), string(), non_neg_integer()} => string()}.
 builtins() ->
@@ -165,10 +165,10 @@ builtins() ->
         [ {{"erlang", "not", 1}, "erlang__op_not"}
         , {{"erlang", "-", 1}, "erlang__op_neg"}
         ],
-        [ {{"erlang", Op, 2}, io_lib:format("erlang__~s", [Fun])}
+        [ {{"erlang", Op, 2}, lists:flatten(io_lib:format("erlang__~s", [Fun]))}
           || {Op, Fun} <- Operators],
         [ {{Module, Fun, Arity},
-           io_lib:format("~s__~s__~p", [Module, Fun, Arity])}
+           lists:flatten(io_lib:format("~s__~s__~p", [Module, Fun, Arity]))}
           || {Module, Fun, Arity} <-
                  lists:concat(
                    [ [ {"lists", "keyfind", 3}
@@ -257,6 +257,7 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
     %% The effectful computation won't throw an exception
     %% For instance: when dealing with <<X>> first emit a check for the length and
     %% only then unsafely access the specified byte in the binary
+    state_reset_supply_id(),
     state_clear_vars(),
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
@@ -513,7 +514,7 @@ transpile_pattern({var, _, [$_ | _]}, _) ->
 
 %% Variable pattern
 transpile_pattern({var, _, ErlangVar}, _) ->
-    Var = string:to_lower(io_lib:format("~s", [ErlangVar])) ++ state_get_fresh_id(),
+    Var = string:to_lower(lists:flatten(io_lib:format("~s_~p", [ErlangVar, state_new_id()]))),
     case state_is_used(ErlangVar) of
         false ->
             state_put_var(ErlangVar, Var),
@@ -850,7 +851,11 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
            expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
            cases =
                [ begin
+                     state_push_var_stack(), % backup current state
+                     state_clear_vars(), % clear state to free the pattern vars of the scope
                      {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
+                     state_pop_discard_var_stack(), % remove unnecessary backup
+                     state_merge_down_var_stack(), % merge with the previous state
                      R = { #pat_array{value = PSArgs}
                          , PSGuards ++ transpile_boolean_guards(Guards, Env)
                          , transpile_body(Cont, Env)},
@@ -876,7 +881,7 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
     };
 transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]},
                Stmts0, Env) ->
-    FunVar = state_create_fresh_var(string:to_lower(io_lib:format("~s", [Name]))),
+    FunVar = state_create_fresh_var(string:to_lower(lists:flatten(io_lib:format("~s", [Name])))),
     state_put_var(Name, FunVar),
     Arity = length(SomeArgs),
     ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
@@ -885,7 +890,13 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
            expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
            cases =
                [ begin
+                     state_push_var_stack(), % backup current state
+                     state_clear_vars(), % clear state to free the pattern vars of the scope
+                     % FIXME fun R(R) -> ... end
+                     state_put_var(Name, FunVar), % register recursion
                      {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
+                     state_pop_discard_var_stack(), % remove unnecessary backup
+                     state_merge_down_var_stack(), % merge with the previous state
                      R = { #pat_array{value = PSArgs}
                          , PSGuards ++ transpile_boolean_guards(Guards, Env)
                          , transpile_body(Cont, Env)},
@@ -1121,23 +1132,25 @@ compute_constexpr({float, _, Num}) ->
     {ok, Num}.
 
 %% Hacky emulation of a state monad using the process dictionary :P
+-define(ID_SUPPLY, id_supply).
 -define(BINDINGS, var_bindings).
 -define(BINDINGS_STACK, var_bindings_stack).
+%% Id supply (basically a counter, todo: implement as a petri net)
+state_reset_supply_id() ->
+    put(?ID_SUPPLY, 0).
+state_new_id() ->
+    Id = get(?ID_SUPPLY),
+    put(?ID_SUPPLY, Id + 1),
+    Id.
 %% Variable bindings
 state_clear_vars() ->
     put(?BINDINGS, #{}).
 state_get_vars() ->
     get(?BINDINGS).
-state_get_fresh_id() ->
-    integer_to_list(map_size(state_get_vars())).
 state_put_var(ErlangVar, PsVar) ->
     put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
-state_create_fresh_var() ->
-    state_create_fresh_var("v").
-state_create_fresh_var(Name) when is_atom(Name) ->
-    state_create_fresh_var(atom_to_list(Name));
 state_create_fresh_var(Name) ->
-    Var = Name ++ "_" ++ state_get_fresh_id(),
+    Var = lists:flatten(io_lib:format("~s_~p", [Name, state_new_id()])),
     state_put_var(Var, Var),
     Var.
 state_is_used(ErlangVar) ->
@@ -1150,11 +1163,21 @@ state_clear_var_stack() ->
 state_push_var_stack() ->
     put(?BINDINGS_STACK, [state_get_vars() | get(?BINDINGS_STACK)]).
 state_pop_discard_var_stack() ->
-    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))).
+    O = hd(get(?BINDINGS_STACK)),
+    put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
+    O.
 state_pop_var_stack() ->
     O = hd(get(?BINDINGS_STACK)),
     put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
-    put(?BINDINGS, O).
+    put(?BINDINGS, O),
+    O.
+state_peek_var_stack() ->
+    hd(get(?BINDINGS_STACK)).
+state_merge_down_var_stack() ->
+    Vars1 = get(?BINDINGS),
+    Vars2 = state_pop_discard_var_stack(),
+    Merged = maps:merge(Vars1, Vars2),
+    put(?BINDINGS, Merged).
 
 -define(IMPORT_REQUESTS, import_requests).
 state_clear_import_requests() ->

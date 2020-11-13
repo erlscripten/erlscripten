@@ -16,11 +16,6 @@
 -record(dupa, {jaja, kek :: integer(), kok = 123, lol = 1999 :: integer()}).
 
 test_3(X) ->
-    A = fun R(X, Y) when 2 == 2 -> ok;
-	    R(A, B) -> R(1, 2) end,
-    A(1, 2);
-
-test_3("XD") ->
-    X = #dupa{jaja = 11},
-    X#dupa.kek.
-
+    F = fun (X, Q) ->
+	    {Q, X}
+    end.

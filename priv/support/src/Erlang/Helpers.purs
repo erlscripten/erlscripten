@@ -32,12 +32,6 @@ unsafePerformEffectGuard :: Effect ErlangTerm -> ErlangTerm
 unsafePerformEffectGuard action =
   unsafePerformEffect (catchException (\_ -> pure (ErlangAtom "false")) action)
 
-rbind :: forall a b. (a -> Effect b) -> Effect a -> Effect b
-rbind = flip bind
-
-rbindOver :: forall a b. Effect (a -> Effect b) -> Effect a -> Effect b
-rbindOver = (<<<)((>>>)(>>=))(>>=)  -- don't ask, just beta-reduce
-
 isEL :: ErlangTerm -> Boolean
 isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true
