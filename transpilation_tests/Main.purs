@@ -39,7 +39,7 @@ exec_may_throw_aff fun args =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    -- liftEffect $ log $ show res -- Uncomment for logs :)
+    liftEffect $ log $ show res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
@@ -147,4 +147,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
             make_ok (ErlangAtom "ok") `shouldEqual` r
         it "The factorial of death" do
             r <- exec_may_throw erlps__test_factorial_abuse_3__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Compare two implementations using list comprehensions" do
+            r <- exec_may_throw erlps__test_factorial_comp__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r

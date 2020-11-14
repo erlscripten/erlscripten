@@ -75,7 +75,7 @@ test_factorial_abuse_2() ->
     720 = F(6),
     ok.
 
-test_factorial_abuse_3() ->
+get_cancer_factorial() ->
     %% Abuse combinators xD
     %% If this monstrosity properly evaluates then lambdas are handled properly
     Y = fun(X) -> F = fun (P) -> X(fun (Arg) -> (P(P))(Arg) end) end, F(F) end,
@@ -83,7 +83,7 @@ test_factorial_abuse_3() ->
     K = fun(X, Y) -> X end,
     B = fun(F, G, X) -> F(G(X)) end,
     Cond = fun(P, F, G, X) -> case P(X) of true -> F(X); false -> G(X) end end,
-    Fac = Y(
+    Y(
         fun(FA) ->
             fun(X) ->
                 Cond(
@@ -109,10 +109,17 @@ test_factorial_abuse_3() ->
                             end, X)
                     end, X)
             end
-        end),
+        end).
+
+test_factorial_abuse_3() ->
+    Fac = get_cancer_factorial(),
     1 = Fac(1),
     2 = Fac(2),
     720 = Fac(6),
     5040 = Fac(7),
     40320 = Fac(8),
+    ok.
+
+test_factorial_comp() ->
+    [true = ((get_cancer_factorial())(X) =:= (mk_fact())(X)) || X <- lists:seq(1,5)],
     ok.
