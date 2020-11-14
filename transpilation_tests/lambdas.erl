@@ -121,5 +121,5 @@ test_factorial_abuse_3() ->
     ok.
 
 test_factorial_comp() ->
-    [true = ((get_cancer_factorial())(X) =:= (mk_fact())(X)) || X <- lists:seq(1,5)],
+    [true = ((get_cancer_factorial())(X) =:= (mk_fact())(X)) || X <- lists:seq(1,20)],
     ok.
