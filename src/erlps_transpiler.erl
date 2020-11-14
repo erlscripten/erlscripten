@@ -1045,8 +1045,7 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Stmts0, Env) -
            args =
                [#expr_array{
                    value =
-                       [ #expr_var{name = SourceVar},
-                         ?make_expr_lambda(
+                       [ ?make_expr_lambda(
                             [#pat_var{name = Var}],
                             #expr_case{
                                expr = #expr_var{name = Var},
@@ -1056,6 +1055,7 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, Stmts0, Env) -
                                    ]
                               }
                            )
+                       ,  #expr_var{name = SourceVar}
                        ]
                   }]
           },
