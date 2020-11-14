@@ -148,6 +148,6 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "The factorial of death" do
             r <- exec_may_throw erlps__test_factorial_abuse_3__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
-        it "Compare two implementations using list comprehensions" do
+        it "Compare two factorial implementations using list comprehensions" do
             r <- exec_may_throw erlps__test_factorial_comp__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
