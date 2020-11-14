@@ -83,7 +83,33 @@ test_factorial_abuse_3() ->
     K = fun(X, Y) -> X end,
     B = fun(F, G, X) -> F(G(X)) end,
     Cond = fun(P, F, G, X) -> case P(X) of true -> F(X); false -> G(X) end end,
-    Fac = Y(fun(FA) -> fun(N) -> Cond(fun(X) -> X==0 end, fun(X) -> K(1, X) end, fun(X) -> S(fun(X,Y) -> X*Y end, fun(X) -> B(FA, fun(Y) -> Y-1 end, X) end, X) end, N) end end),
+    Fac = Y(
+        fun(FA) ->
+            fun(X) ->
+                Cond(
+                    fun(X) -> X==0 end,
+                    fun(X) -> K(1, X) end,
+                    fun(X) ->
+                        S(
+                            fun(X,Y) ->
+                                (fun(X,Y) ->
+                                    (K(fun() ->
+                                        X*Y end, FA)
+                                    )() end)(Y,X)
+                            end,
+                            fun(X) ->
+                                B(FA,
+                                    fun(X) ->
+                                        (fun (X) ->
+                                            B(fun(X) ->
+                                                X-1
+                                              end, fun (X) -> X end, X)
+                                         end)(X)
+                                    end, X)
+                            end, X)
+                    end, X)
+            end
+        end),
     1 = Fac(1),
     2 = Fac(2),
     720 = Fac(6),
