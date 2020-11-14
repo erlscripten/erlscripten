@@ -1184,7 +1184,7 @@ state_peek_var_stack() ->
 state_merge_down_var_stack() ->
     Vars1 = get(?BINDINGS),
     Vars2 = state_pop_discard_var_stack(),
-    Merged = maps:merge(Vars1, Vars2),
+    Merged = maps:merge(Vars2, Vars1),
     put(?BINDINGS, Merged).
 
 -define(IMPORT_REQUESTS, import_requests).
