@@ -5,9 +5,10 @@ import Prelude
 import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
 import Effect.Unsafe
+import Effect.Ref as Ref
 import Effect.Console (log)
 import Effect.Class (liftEffect)
-import Effect.Aff
+import Effect.Aff hiding (error)
 import Effect.Exception(catchException)
 import Test.Spec (pending, describe, it)
 import Test.Spec.Assertions (shouldEqual, expectError)
@@ -20,6 +21,7 @@ import Data.Tuple as T
 import Data.Array as A
 import Partial.Unsafe
 import Erlang.Type
+import Erlang.Exception
 import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
@@ -105,8 +107,8 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_sort [10,9,8,7,6,5,4,3,2,1]
             test_sort [5,3,34,6,2,5,7565,4,3,7,8,5,3]
         it "map/1" do
-            test_map [1,2,3,4,5] (ErlangFun 1 (\[ErlangNum a] -> pure $ ErlangNum (a*20))) (\x -> x*20)
-            test_map [1,2,3,4,5] (ErlangFun 1 (\[ErlangNum a] -> pure $ ErlangNum (-a))) (\x -> -x)
+            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> pure $ ErlangNum (a*20))) (\x -> x*20)
+            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> pure $ ErlangNum (-a))) (\x -> -x)
         it "zip/2" do
             test_zip_ok [1,2,3,4] [4,3,2,1]
             test_zip_ok [1,2,7,4] [1,3,2,1]
@@ -223,3 +225,57 @@ main = launchAff_ $ runSpec [consoleReporter] do
       it "Match 5" do
         r <- exec_may_throw erlps__test_match_5__0 []
         atomTup ["y", "undefined"] `shouldEqualOk` r
+
+    describe "Exception library" do
+      it "throw" do
+        r <- liftEffect $ tryCatchFinally
+          (\_ -> throw (ErlangAtom "boom"))
+          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          (\_ -> pure (ErlangAtom "ok"))
+        atomTup ["throw", "boom"] `shouldEqual` r
+      it "exit" do
+        r <- liftEffect $ tryCatchFinally
+          (\_ -> exit (ErlangAtom "boom"))
+          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          (\_ -> pure (ErlangAtom "ok"))
+        atomTup ["exit", "boom"] `shouldEqual` r
+      it "error" do
+        r <- liftEffect $ tryOfCatchFinally
+          (\_ -> error (ErlangAtom "boom"))
+          (\x -> pure x)
+          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          (\_ -> pure (ErlangAtom "ok"))
+        atomTup ["error", "boom"] `shouldEqual` r
+      it "finally from catch" do
+        ref <- liftEffect $ Ref.new false
+        r <- liftEffect $ tryCatchFinally
+          (\_ -> error (ErlangAtom "boom"))
+          (\err -> pure (ErlangAtom "ok"))
+          (\_ -> Ref.write true ref)
+        executed <- liftEffect $ Ref.read ref
+        executed `shouldEqual` true
+        ErlangAtom "ok" `shouldEqual` r
+      it "finally from rethrow" do
+        ref <- liftEffect $ Ref.new false
+        r <- liftEffect $ tryCatch
+             (\_ -> tryCatchFinally
+                    (\_ -> error (ErlangAtom "boom"))
+                    (\err -> error (ErlangAtom "boom"))
+                    (\_ -> Ref.write true ref)
+             )
+             (\_ -> pure (ErlangAtom "ok_e"))
+        executed <- liftEffect $ Ref.read ref
+        executed `shouldEqual` true
+        ErlangAtom "ok_e" `shouldEqual` r
+      it "finally from `of`" do
+        ref <- liftEffect $ Ref.new false
+        r <- liftEffect $ tryCatch
+             (\_ -> tryOfCatchFinally
+                    (\_ -> pure (ErlangAtom "ok"))
+                    (\_ -> error (ErlangAtom "boom"))
+                    (\err -> pure (ErlangAtom "bad"))
+                    (\_ -> Ref.write true ref))
+             (\_ -> pure (ErlangAtom "ok_e"))
+        executed <- liftEffect $ Ref.read ref
+        executed `shouldEqual` true
+        ErlangAtom "ok_e" `shouldEqual` r

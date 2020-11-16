@@ -1105,6 +1105,25 @@ transpile_expr({map, Ann, Map, Associations}, Stmts0, Env) ->
     };
 
 
+%% transpile_expr({'try', _, ExprBlock, [_|_], Catches, After}, Stmts0, Env) ->
+
+%% transpile_expr({'try', _, ExprBlock, [], Catches, After}, Stmts0, Env) ->
+%%     {ExprVar, Stmts1} <- bind_expr("tried", Expr, Stmts0, Env),
+
+%%     AfterWrap =
+%%         fun(E) ->
+%%                 ErVar = state_create_fresh_var("er"),
+%%                 #expr_app{
+%%                    function = #expr_var{name = "catchException"},
+%%                    args =
+%%                        [ #expr_lambda{
+%%                             args = [#pat_var{name = ErVar}],
+%%                             body =
+%%                            }
+%%                        , transpile_expr(After, Env)
+%%                        ]
+%%                   },
+
 transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).
 
@@ -1136,10 +1155,6 @@ compute_constexpr({op, _, Op, L, R} = E) -> %% FIXME: float handling needs to be
         {{ok, LV}, {ok, RV}}
           when is_number(LV) andalso is_number(RV) andalso
                (Op =:= '+' orelse Op =:= '-' orelse Op =:= '*' orelse Op =:= '/')
-               -> {ok, (fun erlang:Op/2)(LV, RV)};
-        {{ok, LV}, {ok, RV}}
-          when is_list(LV) andalso is_list(RV) andalso
-               (Op =:= '++' orelse Op =:= '--')
                -> {ok, (fun erlang:Op/2)(LV, RV)};
         _ -> error
     end;
