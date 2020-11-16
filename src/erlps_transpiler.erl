@@ -488,8 +488,8 @@ transpile_pattern(P, _Env) when element(1, P) =:= op ->
     end;
 
 %% Record index pattern
-transpile_pattern({record_index, _, _RecordName, _Field}, _Env) ->
-    error(todo);
+transpile_pattern(Expr = {record_index, _, _RecordName, _Field}, _Env) ->
+    error({unimplemented_expr, Expr});
 
 %% Record pattern
 transpile_pattern({record, Ann, RecordName, RecordFields}, Env) ->
@@ -510,7 +510,7 @@ transpile_pattern({tuple, _, Args}, Env) ->
 
 %% Universal pattern
 transpile_pattern({var, _, [$_ | _]}, _) ->
-    pat_wildcard;
+    {pat_wildcard, [], []};
 
 %% Variable pattern
 transpile_pattern({var, _, ErlangVar}, _) ->
@@ -854,15 +854,12 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
            expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
            cases =
                [ begin
-                     %%io:format(user, "BEFORE: ~p\n", [state_get_vars()]),
                      state_push_var_stack(),
                      state_push_var_stack(), % backup current state
                      state_clear_vars(), % clear state to free the pattern vars of the scope
                      {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
                      state_pop_discard_var_stack(), % remove unnecessary backup
-                     %%io:format(user, "MATCH: ~p\n", [state_get_vars()]),
                      state_merge_down_var_stack(), % merge with the previous state
-                     %%io:format(user, "MERGED: ~p\n", [state_get_vars()]),
                      R = { #pat_array{value = PSArgs}
                          , PSGuards ++ transpile_boolean_guards(Guards, Env)
                          , transpile_body(Cont, Env)},

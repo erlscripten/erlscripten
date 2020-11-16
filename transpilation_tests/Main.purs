@@ -23,6 +23,7 @@ import Erlang.Type
 import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
+import Records
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -82,6 +83,8 @@ test_seq from to expected = do
     calc <- exec_may_throw erlps__seq__2 [ErlangNum from, ErlangNum to]
     let out = make_ok $ arrayToErlangList $ map ErlangNum expected
     out `shouldEqual` calc
+
+shouldEqualOk a b = make_ok a `shouldEqual` b
 
 main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
@@ -151,3 +154,72 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "Compare two factorial implementations using list comprehensions" do
             r <- exec_may_throw erlps__test_factorial_comp__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
+
+    let atomTup ats = ErlangTuple (map ErlangAtom ats)
+    describe "Records" do
+      it "Build empty" do
+        r <- exec_may_throw erlps__test_build_1__0 []
+        atomTup ["empty"] `shouldEqualOk` r
+      it "Build product" do
+        r <- exec_may_throw erlps__test_build_2__0 []
+        atomTup ["product", "l", "r"] `shouldEqualOk` r
+      it "Build typed" do
+        r <- exec_may_throw erlps__test_build_3__0 []
+        atomTup ["typed", "undefined", "undefined"] `shouldEqualOk` r
+      it "Build defaulted" do
+        r <- exec_may_throw erlps__test_build_4__0 []
+        atomTup ["defaulted", "n", "yyy", "nn", ";)"] `shouldEqualOk` r
+
+      it "Query product `left`" do
+        r <- exec_may_throw erlps__test_query_1__0 []
+        ErlangAtom "l" `shouldEqualOk` r
+      it "Query product `right`" do
+        r <- exec_may_throw erlps__test_query_2__0 []
+        ErlangAtom "r" `shouldEqualOk` r
+      it "Query typed" do
+        r <- exec_may_throw erlps__test_query_3__0 []
+        ErlangAtom "undefined" `shouldEqualOk` r
+      it "Query defaulted `no`" do
+        r <- exec_may_throw erlps__test_query_4__0 []
+        ErlangAtom "n" `shouldEqualOk` r
+      it "Query defaulted `yep`" do
+        r <- exec_may_throw erlps__test_query_5__0 []
+        ErlangAtom "yyy" `shouldEqualOk` r
+      it "Query defaulted `noooo`" do
+        r <- exec_may_throw erlps__test_query_6__0 []
+        ErlangAtom "nn" `shouldEqualOk` r
+      it "Query defaulted `yeeeep`" do
+        r <- exec_may_throw erlps__test_query_7__0 []
+        ErlangAtom ";)" `shouldEqualOk` r
+
+      it "Update 1" do
+        r <- exec_may_throw erlps__test_update_1__0 []
+        atomTup ["product", "l", "updated"] `shouldEqualOk` r
+      it "Update 2" do
+        r <- exec_may_throw erlps__test_update_2__0 []
+        atomTup ["product", "updated_as_well", "reupdated"] `shouldEqualOk` r
+      it "Update 3" do
+        r <- exec_may_throw erlps__test_update_3__0 []
+        atomTup ["defaulted", "n", "yepyep", "nn", ";)"] `shouldEqualOk` r
+      it "Update 4" do
+        r <- exec_may_throw erlps__test_update_4__0 []
+        atomTup ["defaulted", "n", "yyy", "nn", ";)"] `shouldEqualOk` r
+      it "Update 5" do
+        r <- exec_may_throw erlps__test_update_5__0 []
+        atomTup ["defaulted", "n", "lol", "nn", ";)"] `shouldEqualOk` r
+
+      it "Match 1" do
+        r <- exec_may_throw erlps__test_match_1__0 []
+        ErlangAtom "empty" `shouldEqualOk` r
+      it "Match 2" do
+        r <- exec_may_throw erlps__test_match_2__0 []
+        ErlangAtom "l" `shouldEqualOk` r
+      it "Match 3" do
+        r <- exec_may_throw erlps__test_match_3__0 []
+        atomTup ["undefined", "undefined"] `shouldEqualOk` r
+      it "Match 4" do
+        r <- exec_may_throw erlps__test_match_4__0 []
+        atomTup ["yyy", ";)"] `shouldEqualOk` r
+      it "Match 5" do
+        r <- exec_may_throw erlps__test_match_5__0 []
+        atomTup ["y", "undefined"] `shouldEqualOk` r
