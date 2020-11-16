@@ -37,6 +37,7 @@ isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true
 isEL _ = false
 
+-- They removed support of it. CodePoint is just a newtype for Int.
 codePointToInt :: StrCP.CodePoint -> Int
 codePointToInt = unsafeCoerce
 

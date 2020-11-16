@@ -1100,6 +1100,7 @@ transpile_expr({map, Ann, Map, Associations}, Stmts0, Env) ->
      | Stmts2]
     };
 
+
 transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).
 
@@ -1123,12 +1124,18 @@ bind_exprs(Name, [Expr|Rest], Acc, Stmts0, Env) ->
 
 
 
+compute_constexpr({string, _, Str}) ->
+    {ok, Str};
 compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed
     case {compute_constexpr(L), compute_constexpr(R)} of
         {{ok, LV}, {ok, RV}}
-            when is_number(LV) andalso is_number(RV) andalso
-            (Op =:= '+' orelse Op =:= '-' orelse Op =:= '*' orelse Op =:= '/')
-            -> {ok, (fun erlang:Op/2)(LV, RV)};
+          when is_number(LV) andalso is_number(RV) andalso
+               (Op =:= '+' orelse Op =:= '-' orelse Op =:= '*' orelse Op =:= '/')
+               -> {ok, (fun erlang:Op/2)(LV, RV)};
+        {{ok, LV}, {ok, RV}}
+          when is_list(LV) andalso is_list(RV) andalso
+               (Op =:= '++' orelse Op =:= '--')
+               -> {ok, (fun erlang:Op/2)(LV, RV)};
         _ -> error
     end;
 compute_constexpr({integer, _, Num}) ->
