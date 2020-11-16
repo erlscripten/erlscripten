@@ -481,6 +481,10 @@ transpile_pattern({op, _, '++', {nil, _}, P2}, Env) ->
     transpile_pattern(P2, Env);
 transpile_pattern({op, Ann, '++', {cons, AnnC, H, T}, P2}, Env) ->
     transpile_pattern({cons, AnnC, H, {op, Ann, '++', T, P2}}, Env);
+transpile_pattern({op, Ann, '++', {string, AnnS, String}, Right}, Env) ->
+    P = lists:foldr(fun (Char, Acc) -> {cons, AnnS, {integer, AnnS, Char}, Acc}
+                 end, {nil, AnnS}, String),
+    transpile_pattern({op, Ann, '++', P, Right}, Env);
 transpile_pattern(P, _Env) when element(1, P) =:= op ->
     case compute_constexpr(P) of
         {ok, Res} -> Res;
@@ -1126,7 +1130,8 @@ bind_exprs(Name, [Expr|Rest], Acc, Stmts0, Env) ->
 
 compute_constexpr({string, _, Str}) ->
     {ok, Str};
-compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed
+compute_constexpr({op, _, Op, L, R} = E) -> %% FIXME: float handling needs to be fixed
+    io:format(user, "~p\n", [E]),
     case {compute_constexpr(L), compute_constexpr(R)} of
         {{ok, LV}, {ok, RV}}
           when is_number(LV) andalso is_number(RV) andalso
