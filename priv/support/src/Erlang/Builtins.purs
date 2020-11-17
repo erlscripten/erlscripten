@@ -2,10 +2,12 @@ module Erlang.Builtins where
 
 import Erlang.Type
 import Erlang.Exception as EXT
+import Erlang.Helpers as H
 import Prelude
 import Data.Maybe as DM
 import Data.Array as DA
 import Data.List as DL
+import Data.Int as DI
 import Control.Monad
 import Effect.Exception (throw)
 import Effect
@@ -204,13 +206,16 @@ erlang__integer_to_binary__2 :: ErlangFun
 erlang__integer_to_binary__2 args = throw "unimplemented"
 
 erlang__integer_to_list__2 :: ErlangFun
-erlang__integer_to_list__2 args = throw "unimplemented"
+erlang__integer_to_list__2 [ErlangNum num, ErlangNum base]
+    | DM.Just radix <- DI.radix base
+    = pure $ H.make_string $ DI.toStringAs radix num
+erlang__integer_to_list__2 _ = EXT.error_badarg
 
 erlang__fun_info_mfa__1 :: ErlangFun
 erlang__fun_info_mfa__1 args = throw "unimplemented"
 
 erlang__nif_error__2 :: ErlangFun
-erlang__nif_error__2 args = throw "unimplemented"
+erlang__nif_error__2 args = erlang__error__2 args
 
 erlang__get_stacktrace__0 :: ErlangFun
 erlang__get_stacktrace__0 args = throw "unimplemented"
@@ -615,7 +620,10 @@ erlang__statistics__1 :: ErlangFun
 erlang__statistics__1 args = throw "unimplemented"
 
 erlang__max__2 :: ErlangFun
-erlang__max__2 args = throw "unimplemented"
+erlang__max__2 [t1, t2] | t1 == t2  = pure t1
+                        | t1 > t2   = pure t1
+                        | otherwise = pure t2
+erlang__max__2 _ = EXT.error_badarg
 
 erlang__apply__2 :: ErlangFun
 erlang__apply__2 args = throw "unimplemented"
@@ -808,10 +816,16 @@ erlang__monotonic_time__0 :: ErlangFun
 erlang__monotonic_time__0 args = throw "unimplemented"
 
 erlang__length__1 :: ErlangFun
-erlang__length__1 args = throw "unimplemented"
+erlang__length__1 [ErlangEmptyList] = pure $ ErlangNum 0
+erlang__length__1 [ErlangCons _ t] = do
+    r <- erlang__length__1 [t]
+    case r of
+        ErlangNum tl -> pure $ ErlangNum $ tl+1
+        _ -> EXT.error_badarg
+erlang__length__1 _ = EXT.error_badarg
 
 erlang__nif_error__1 :: ErlangFun
-erlang__nif_error__1 args = throw "unimplemented"
+erlang__nif_error__1 args = erlang__error__1 args
 
 erlang__check_process_code__3 :: ErlangFun
 erlang__check_process_code__3 args = throw "unimplemented"
@@ -901,7 +915,8 @@ erlang__bsl__2 :: ErlangFun
 erlang__bsl__2 args = throw "unimplemented"
 
 erlang__atom_to_list__1 :: ErlangFun
-erlang__atom_to_list__1 args = throw "unimplemented"
+erlang__atom_to_list__1 [ErlangAtom atom] = pure $ H.make_string atom
+erlang__atom_to_list__1 _ = EXT.error_badarg
 
 erlang__get_keys__0 :: ErlangFun
 erlang__get_keys__0 args = throw "unimplemented"
@@ -960,7 +975,8 @@ erlang__unregister__1 :: ErlangFun
 erlang__unregister__1 args = throw "unimplemented"
 
 erlang__integer_to_list__1 :: ErlangFun
-erlang__integer_to_list__1 args = throw "unimplemented"
+erlang__integer_to_list__1 [ErlangNum num] = pure $ H.make_string $ DI.toStringAs DI.decimal num
+erlang__integer_to_list__1 _ = EXT.error_badarg
 
 erlang__dist_ctrl_input_handler__2 :: ErlangFun
 erlang__dist_ctrl_input_handler__2 args = throw "unimplemented"
@@ -1056,7 +1072,8 @@ erlang__processes__0 :: ErlangFun
 erlang__processes__0 args = throw "unimplemented"
 
 erlang__error__2 :: ErlangFun
-erlang__error__2 args = throw "unimplemented"
+erlang__error__2 [err, _] = erlang__error__1 [err]
+erlang__error__2 _ = EXT.error_badarg
 
 erlang__loaded__0 :: ErlangFun
 erlang__loaded__0 args = throw "unimplemented"
@@ -1092,7 +1109,10 @@ erlang__spawn_monitor__1 :: ErlangFun
 erlang__spawn_monitor__1 args = throw "unimplemented"
 
 erlang__min__2 :: ErlangFun
-erlang__min__2 args = throw "unimplemented"
+erlang__min__2 [t1, t2] | t1 == t2  = pure t1
+                        | t1 > t2   = pure t2
+                        | otherwise = pure t1
+erlang__min__2 _ = EXT.error_badarg
 
 erlang__float_to_binary__2 :: ErlangFun
 erlang__float_to_binary__2 args = throw "unimplemented"
@@ -1102,6 +1122,7 @@ erlang__system_profile__2 args = throw "unimplemented"
 
 erlang__error__1 :: ErlangFun
 erlang__error__1 [arg] = EXT.error arg
+erlang__error__1 _ = EXT.error_badarg
 
 erlang__delay_trap__2 :: ErlangFun
 erlang__delay_trap__2 args = throw "unimplemented"
