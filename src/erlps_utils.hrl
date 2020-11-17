@@ -46,13 +46,13 @@ make_expr_list([]) ->
 make_expr_list([H|T]) ->
     ?make_expr_cons(H, make_expr_list(T)).
 
--define(ps_error(Msg),
-        #expr_app{function = #expr_var{name = "error"},
-                  args = [#expr_string{value = Msg}]}).
+-define(common_error(Msg, T),
+        #expr_app{function = #expr_var{name = "EXC.error"},
+                  args = [?make_expr_tuple([?make_expr_atom(Msg), T])]}).
 
 
--define(function_clause, ?ps_error("function_clause")).
--define(case_clause, ?ps_error("case_clause")).
--define(if_clause, ?ps_error("if_clause")).
--define(try_clause, ?ps_error("try_clause")).
--define(bad_match, ?ps_error("bad_match")).
+-define(function_clause(T), ?common_error(function_clause, T)).
+-define(case_clause(T), ?common_error(case_clause, T)).
+-define(if_clause(T), ?common_error(if_clause, T)).
+-define(try_clause(T), ?common_error(try_clause, T)).
+-define(bad_match(T), ?common_error(badmatch, T)).

@@ -36,7 +36,7 @@ let tryOfCatch =
                     return function() { return resultEr; };
                 }
                 let result = ofHandler(computed)();
-                return result;
+                return function(){ return result; };
             };
         };
     };

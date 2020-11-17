@@ -16,11 +16,6 @@ import Effect.Exception(throw, catchException)
 import Prelude
 import Control.Semigroupoid((<<<), (>>>))
 
-erlCaseIf :: forall a. ErlangTerm -> a -> a -> a
-erlCaseIf (ErlangAtom "true") t _  = t
-erlCaseIf (ErlangAtom "false") _ e = e
-erlCaseIf _ _ _ = error "case_clause"
-
 error :: forall a. String -> a
 error = throw >>> unsafePerformEffect
 

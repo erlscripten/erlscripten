@@ -237,7 +237,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
           (\_ -> pure (ErlangAtom "bad"))
           (\_ -> pure (ErlangAtom "ok"))
         ErlangAtom "hey" `shouldEqual` r
-      -- it "throw" do
+      it "throw" do
         r <- liftEffect $ tryCatchFinally
           (\_ -> throw (ErlangAtom "boom"))
           dropStack
@@ -297,7 +297,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
         ok `shouldEqualOk` r
       it "try/catch on typed" do
         r <- exec_may_throw erlps__test_try_catch_type__0 []
-        ok `shouldEqualOk` r
+        atomTup ["throw", "ok"] `shouldEqualOk` r
       it "try/catch select throw" do
         r <- exec_may_throw erlps__test_try_catch_select_throw__0 []
         ok `shouldEqualOk` r
@@ -337,10 +337,10 @@ main = launchAff_ $ runSpec [consoleReporter] do
       it "Factorial on exceptions" do
         r1 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 1]
         ErlangNum 1 `shouldEqualOk` r1
-        r2 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 6]
-        ErlangNum 720 `shouldEqualOk` r2
-        r3 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 10]
-        ErlangNum 3628800 `shouldEqualOk` r3
+        r2 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 4]
+        ErlangNum 24 `shouldEqualOk` r2
+        r3 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 6]
+        ErlangNum 720 `shouldEqualOk` r3
       it "Continuational fold left on exceptions" do
         r1 <- exec_may_throw erlps__test_completely_casual_foldl__3
              [ ErlangFun 2 BIF.erlang__op_plus

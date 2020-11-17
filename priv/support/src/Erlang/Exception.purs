@@ -68,3 +68,22 @@ exit term = do
   raise $ buildException "exit" term stack
 
 
+function_clause :: ErlangTerm -> Effect ErlangTerm
+function_clause term =
+  error (ErlangTuple [ErlangAtom "function_clause", term])
+
+case_clause :: ErlangTerm -> Effect ErlangTerm
+case_clause term =
+  error (ErlangTuple [ErlangAtom "case_clause", term])
+
+if_clause :: ErlangTerm -> Effect ErlangTerm
+if_clause term =
+  error (ErlangTuple [ErlangAtom "if_clause", term])
+
+try_clause :: ErlangTerm -> Effect ErlangTerm
+try_clause term =
+  error (ErlangTuple [ErlangAtom "try_clause", term])
+
+bad_match :: ErlangTerm -> Effect ErlangTerm
+bad_match term =
+  error (ErlangTuple [ErlangAtom "badmatch", term])

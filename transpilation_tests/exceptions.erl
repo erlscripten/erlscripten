@@ -29,7 +29,7 @@ test_try_catch_select_error() ->
 
 test_try_of() ->
     try ok of
-        ok -> ok
+        X -> X
     catch _:_ -> bad
     end.
 
@@ -159,17 +159,17 @@ test_nasty_nest() ->
 test_sick_factorial(N) ->
     Guess =
         fun Guess(X, Pred) ->
-                try true=Pred(X), X
-                catch error:{badmatch, false} -> Guess(X+1, Pred)
+                try true = Pred(X), X
+                catch error:{badmatch, false} -> Guess(X + 1, Pred)
                 end
         end,
     Mul =
         fun(X,Y) ->
-                Guess(0, fun(Z) -> Z==X*Y end)
+                Guess(0, fun(Z) -> Z == X * Y end)
         end,
     Prev =
         fun(X) ->
-                Guess(0, fun(Z) -> Z==X-1 end)
+                Guess(0, fun(Z) -> Z == X - 1 end)
         end,
     FacW =
         fun FacW(0) -> 1;
@@ -192,7 +192,7 @@ test_completely_casual_foldl(F, Acc, L) ->
             Rec([H|T]) ->
                 try Rec(T)
                 catch Cont ->
-                        throw(fun(X) -> F(X, Cont(H)) end)
+                        throw(fun(X) -> Cont(F(X, H)) end)
                 end
         end,
     try Sick(L)

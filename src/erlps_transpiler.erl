@@ -125,10 +125,13 @@ transpile_function({function, _, FunName, Arity, Clauses}, Env) ->
     Type = #type_var{name = "ErlangFun"},
     PSClauses = [transpile_function_clause(Clause, Env) ||
                     Clause <- Clauses],
-    CatchClause = #clause{args = [pat_wildcard], value = ?function_clause},
+    CatchVars = [state_create_fresh_var("arg") || _ <- lists:seq(1, Arity)],
+    CatchClause = #clause{args = [#pat_array{
+                                     value = [#pat_var{name = Var} || Var <- CatchVars]}],
+                          value = ?function_clause(make_expr_list([#expr_var{name = Var} || Var <- CatchVars]))},
     #valdecl{
        name = transpile_fun_name(FunName, Arity),
-       clauses = PSClauses ++ [CatchClause],
+       clauses = PSClauses ++ case Arity of 0 -> []; _ -> [CatchClause] end,
        type = Type
       }.
 
@@ -637,15 +640,16 @@ catch_partial_lets_in_statements([], Acc, Ret) ->
 catch_partial_lets_in_statements(
   [#do_let{lvalue = LV, rvalue = RV, guards = Guards}|Rest], Acc, Ret)
   when (element(1, LV) =/= pat_var andalso LV =/= pat_wildcard) orelse (Guards =/= []) ->
+    FixedRV = catch_partial_lets(RV),
     #expr_do{
        statements =
            lists:reverse(Acc),
        return =
            #expr_case{
-              expr = RV,
+              expr = FixedRV,
               cases =
                   [ {LV, Guards, catch_partial_lets_in_statements(Rest, Ret)}
-                  , {pat_wildcard, [], ?bad_match}
+                  , {pat_wildcard, [], ?bad_match(FixedRV)}
                   ]
              }
       };
@@ -749,13 +753,14 @@ transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
            ],
     Cases = case UserCases of
               [] ->
-                    [{pat_wildcard, [], ?case_clause}];
+                    [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}];
               _ ->
                 case lists:last(UserCases) of
                     {#pat_var{}, [], _} ->
                         UserCases;
                     _ ->
-                        UserCases ++ [{pat_wildcard, [], ?case_clause}]
+                        UserCases ++
+                            [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}]
                 end
             end,
     Case = #expr_case{
@@ -988,7 +993,7 @@ transpile_expr({record, _, Expr, RecordName, RecordFields}, Stmts0, Env) ->
                     )
                  )
                  }
-            , {pat_wildcard, [], ?bad_match} %% FIXME Badmatch or what?
+            , {#pat_var{name = "something_else"}, [], ?bad_match(#expr_var{name = "something_else"})} %% FIXME Badmatch or what?
             ]
        },
      Stmts2
@@ -1027,7 +1032,7 @@ transpile_expr({record_field, _, Expr, Record, {atom, _, Field}}, Stmts0, Env) -
                    }]
               , pure(#expr_var{name = FieldVar})
               }
-            , {pat_wildcard, [], ?bad_match} %% FIXME Badmatch or what?
+            , {#pat_var{name = "something_else"}, [], ?bad_match(#expr_var{name = "something_else"})} %% FIXME Badmatch or what?
             ]
        },
      Stmts1
@@ -1128,7 +1133,7 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, Stmts, Env) ->
                                    R
                                end
                               || {clause, _, Pat, Guards, Cont} <- Clauses
-                             ] ++ [{pat_wildcard, [], ?try_clause}]
+                             ] ++ [{#pat_var{name = "something_else"}, [], ?try_clause(#expr_var{name = "something_else"})}]
                        }
                      }
         end,

@@ -127,25 +127,6 @@ peephole(_,
              #expr_app{function = #expr_var{name = "pure"},
                        args = [#expr_app{function = Fun, args = [Ex]}]
                       });
-%% case X of true -> T; false -> F end --> erlCaseIf X T F
-peephole(_,
-  #expr_case{
-     expr = Expr,
-     cases = [{#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = "true"}]},
-               [],
-               T
-              },
-              {#pat_constr{constr = "ErlangAtom", args = [#pat_string{value = "false"}]},
-               [],
-               F
-              },
-              {pat_wildcard, [], ?case_clause}
-             ]
-    }) ->
-    peephole(first,
-             #expr_app{function = #expr_var{name = "erlCaseIf"},
-                       args = [Expr, T, F]
-                      });
 %% case X of V -> V --> X
 peephole(_,
   #expr_case{
