@@ -5,6 +5,7 @@ module Erlang.Exception
   , tryOfCatch
   , raise
   , throw, error, exit
+  , error_badarg
   ) where
 
 import Prelude
@@ -87,3 +88,6 @@ try_clause term =
 bad_match :: ErlangTerm -> Effect ErlangTerm
 bad_match term =
   error (ErlangTuple [ErlangAtom "badmatch", term])
+
+error_badarg :: Effect ErlangTerm
+error_badarg = error (ErlangAtom "badarg")

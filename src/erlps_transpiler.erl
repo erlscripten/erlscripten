@@ -213,13 +213,15 @@ check_builtin(Module, Name, Arity) ->
 
 -spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
-    transpile_fun_ref(Module, Name, Arity, Env).
--spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
-transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Name) ->
-    transpile_fun_ref(Module, atom_to_list(Name), Arity, Env);
-transpile_fun_ref(Module, Name, Arity, Env) when is_atom(Module) ->
-    transpile_fun_ref(atom_to_list(Module), Name, Arity, Env);
-transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
+    transpile_fun_ref(Module, Name, Arity, false, Env).
+transpile_fun_ref(Module, Name, Arity, Env) ->
+    transpile_fun_ref(Module, Name, Arity, true, Env).
+-spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), boolean(), #env{}) -> purs_expr().
+transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Name) ->
+    transpile_fun_ref(Module, atom_to_list(Name), Arity, IsRemote, Env);
+transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
+    transpile_fun_ref(atom_to_list(Module), Name, Arity, IsRemote, Env);
+transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule}) ->
     case check_builtin(Module, Name, Arity) of
         {builtin, Builtin} ->
             #expr_var{name = "BIF." ++ Builtin};
@@ -227,9 +229,9 @@ transpile_fun_ref(Module, Name, Arity, #env{current_module = CurModule}) ->
             %% TODO: import resolving
             %% assuming nobody overwrites autoimported stuff
             case check_builtin("erlang", Name, Arity) of
-                {builtin, BuiltinAnyway} ->
+                {builtin, BuiltinAnyway} when IsRemote =:= false ->
                     #expr_var{name = "BIF." ++ BuiltinAnyway};
-                local -> if CurModule == Module -> #expr_var{name = transpile_fun_name(Name, Arity)};
+                _ -> if CurModule == Module -> #expr_var{name = transpile_fun_name(Name, Arity)};
                         true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "."
                                           ++ transpile_fun_name(Name, Arity)}
                      end
@@ -736,8 +738,14 @@ transpile_expr({'if', _, Clauses}, Stmts, Env) ->
         expr = ?make_expr_atom(true),
         cases = [begin
                    state_push_var_stack(),
+                   Guards = case GuardSequence of
+                              [[{atom, _, true}]] ->
+                                [];
+                              _ ->
+                                transpile_boolean_guards(GuardSequence, Env)
+                            end,
                    R = {pat_wildcard,
-                    transpile_boolean_guards(GuardSequence, Env),
+                    Guards,
                     transpile_body(Body, Env)},
                    state_pop_var_stack(),
                    R

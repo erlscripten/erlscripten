@@ -28,6 +28,7 @@ import Lists
 import Lambdas
 import Records
 import Exceptions
+import Test.Array
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -120,6 +121,17 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_seq 0 0 [0]
             test_seq 1 0 []
             test_seq 1 10 [1,2,3,4,5,6,7,8,9,10]
+
+    describe "STDLIB Array" do
+        it "can create zero size array" do
+            r <- exec_may_throw erlps__test_create_0__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Create a fixed-size array with entries 0-9 set to 'undefined'" do
+            r <- exec_may_throw erlps__test_create_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "is functional :)" do
+            r <- exec_may_throw erlps__test_functionality__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
 
     describe "Lambdas" do
         it "can be called" do

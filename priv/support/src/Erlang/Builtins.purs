@@ -331,7 +331,8 @@ erlang__is_alive__0 :: ErlangFun
 erlang__is_alive__0 args = throw "unimplemented"
 
 erlang__make_tuple__2 :: ErlangFun
-erlang__make_tuple__2 args = throw "unimplemented"
+erlang__make_tuple__2 [ErlangNum arity, what] = pure $ ErlangTuple $ DA.replicate arity what
+erlang__make_tuple__2 _ = EXT.error_badarg
 
 erlang__is_port__1 :: ErlangFun
 erlang__is_port__1 args = throw "unimplemented"
@@ -343,7 +344,10 @@ erlang__is_process_alive__1 :: ErlangFun
 erlang__is_process_alive__1 args = throw "unimplemented"
 
 erlang__is_boolean__1 :: ErlangFun
-erlang__is_boolean__1 args = throw "unimplemented"
+erlang__is_boolean__1 [ErlangAtom "true"] = pure $ boolToTerm true
+erlang__is_boolean__1 [ErlangAtom "false"] = pure $ boolToTerm true
+erlang__is_boolean__1 [_] = pure $ boolToTerm false
+erlang__is_boolean__1 _ = EXT.error_badarg
 
 erlang__is_record__2 :: ErlangFun
 erlang__is_record__2 args = throw "unimplemented"
@@ -370,7 +374,8 @@ erlang__iolist_size__1 :: ErlangFun
 erlang__iolist_size__1 args = throw "unimplemented"
 
 erlang__element__2 :: ErlangFun
-erlang__element__2 args = throw "unimplemented"
+erlang__element__2 [ErlangNum pos, ErlangTuple array] | DM.Just res <- DA.index array (pos-1) = pure res
+erlang__element__2 _ = EXT.error_badarg
 
 erlang__port_get_data__1 :: ErlangFun
 erlang__port_get_data__1 args = throw "unimplemented"
@@ -655,7 +660,8 @@ erlang__resume_process__1 :: ErlangFun
 erlang__resume_process__1 args = throw "unimplemented"
 
 erlang__rem__2 :: ErlangFun
-erlang__rem__2 args = throw "unimplemented"
+erlang__rem__2 [ErlangNum left, ErlangNum right] = pure $ ErlangNum (mod left right)
+erlang__rem__2 _ = EXT.error_badarg
 
 erlang__port_close__1 :: ErlangFun
 erlang__port_close__1 args = throw "unimplemented"
@@ -700,7 +706,10 @@ erlang__port_connect__2 :: ErlangFun
 erlang__port_connect__2 args = throw "unimplemented"
 
 erlang__setelement__3 :: ErlangFun
-erlang__setelement__3 args = throw "unimplemented"
+erlang__setelement__3 [ErlangNum pos, ErlangTuple tuple, new_el]
+    | DM.Just new_tuple <- DA.updateAt (pos-1) new_el tuple =
+    pure $ ErlangTuple new_tuple
+erlang__setelement__3 _ = EXT.error_badarg
 
 erlang__gather_gc_info_result__1 :: ErlangFun
 erlang__gather_gc_info_result__1 args = throw "unimplemented"
@@ -1116,7 +1125,9 @@ erlang__set_cpu_topology__1 :: ErlangFun
 erlang__set_cpu_topology__1 args = throw "unimplemented"
 
 erlang__list_to_tuple__1 :: ErlangFun
-erlang__list_to_tuple__1 args = throw "unimplemented"
+erlang__list_to_tuple__1 [list] | DM.Just r <- erlangListToList list =
+    pure $ ErlangTuple (DA.fromFoldable r)
+erlang__list_to_tuple__1 _ = EXT.error_badarg
 
 erlang__universaltime__0 :: ErlangFun
 erlang__universaltime__0 args = throw "unimplemented"
