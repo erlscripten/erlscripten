@@ -142,8 +142,8 @@ transpile_fun_name(Name, Arity) when is_binary(Name) ->
 transpile_fun_name(Name, Arity) ->
     lists:flatten(io_lib:format("erlps__~s__~p", [Name, Arity])).
 
--spec builtins() -> #{{string(), string(), non_neg_integer()} => string()}.
-builtins() ->
+-spec builtins_calc() -> #{{string(), string(), non_neg_integer()} => string()}.
+builtins_calc() ->
     Operators = [ {"+",   "op_plus"}
                 , {"-",   "op_minus"}
                 , {"*",   "op_mult"}
@@ -201,6 +201,16 @@ builtins() ->
                    ]
                   )
         ]])).
+
+builtins() ->
+    case persistent_term:get({?MODULE, builtins}, error) of
+      error ->
+          R = builtins_calc(),
+          persistent_term:put({?MODULE, builtins}, R),
+          R;
+      R ->
+          R
+    end.
 
 -spec check_builtin(string(), string(), non_neg_integer()) -> local | {builtin, string()}.
 check_builtin(Module, Name, Arity) ->
@@ -715,7 +725,7 @@ transpile_expr(Expr, Env) ->
     {PSExpr, Stmts} = transpile_expr(Expr, [], Env),
     #expr_do{statements = lists:reverse(Stmts), return = PSExpr}.
 transpile_expr({block, _, Body}, Stmts, Env) ->
-    transpile_expr(Body, Stmts, Env);
+    {transpile_body(Body, Stmts, Env), Stmts};
 transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
     %% When matching to a wildcard pattern we may skip the case statement
     transpile_expr(Expr, Stmts, Env);

@@ -43,7 +43,7 @@ pat_maps(#{dupa := X, pupa := X}) -> ok.
 pat_match(X = {X, X} = [X | X]) -> X.
 
 pat_ops(1 + 2) -> aa;
-pat_ops(1 + 2 * 3 / 4) -> kek.
+pat_ops(1 + 2 * 3) -> kek.
 
 
 expr_ops(X = ok) -> X + X * X - X ++ X.
