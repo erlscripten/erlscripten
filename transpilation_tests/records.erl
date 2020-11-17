@@ -25,7 +25,7 @@ test_build_2() ->
 test_build_3() ->
     #typed{}.
 test_build_4() ->
-    #defaulted{noooo = nn, yep = yyy, no = n}.
+    #defaulted{yep = yyy, no = n}.
 
 test_query_1() ->
     R = test_build_2(),

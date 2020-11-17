@@ -29,54 +29,48 @@ buildException exType exPayload exStack =
   , exceptionStack: make_string exStack
   }
 
-foreign import throwImpl :: forall a. String -> ErlangTerm -> a
+foreign import raise :: Exception -> Effect ErlangTerm
 
-foreign import tryCatchFinallyImpl
-  :: forall a. (String -> ErlangTerm -> String -> Exception)
-  -> (Unit -> Effect ErlangTerm)
+foreign import getStack :: Effect String
+
+foreign import tryCatchFinally
+  :: forall a. (Unit -> Effect ErlangTerm)
   -> (Exception -> Effect ErlangTerm)
   -> (Unit -> Effect a)
   -> Effect ErlangTerm
 
-foreign import tryOfCatchFinallyImpl
-  :: forall a. (String -> ErlangTerm -> String -> Exception)
-  -> (Unit -> Effect ErlangTerm)
+foreign import tryOfCatchFinally
+  :: forall a. (Unit -> Effect ErlangTerm)
   -> (ErlangTerm -> Effect ErlangTerm)
   -> (Exception -> Effect ErlangTerm)
   -> (Unit -> Effect a)
   -> Effect ErlangTerm
 
-throw :: forall a. ErlangTerm -> a
-throw term = throwImpl "throw" term
 
-error :: forall a. ErlangTerm -> a
-error term = throwImpl "error" term
+foreign import tryCatch
+  :: (Unit -> Effect ErlangTerm)
+  -> (Exception -> Effect ErlangTerm)
+  -> Effect ErlangTerm
 
-exit :: forall a. ErlangTerm -> a
-exit term = throwImpl "exit" term
+foreign import tryOfCatch
+  :: (Unit -> Effect ErlangTerm)
+  -> (ErlangTerm -> Effect ErlangTerm)
+  -> (Exception -> Effect ErlangTerm)
+  -> Effect ErlangTerm
 
-tryCatchFinally :: forall a. (Unit -> Effect ErlangTerm)
-                -> (Exception -> Effect ErlangTerm)
-                -> (Unit -> Effect a)
-                -> Effect ErlangTerm
-tryCatchFinally = tryCatchFinallyImpl buildException
+throw :: ErlangTerm -> Effect ErlangTerm
+throw term = do
+  stack <- getStack
+  raise $ buildException "throw" term stack
 
-tryCatch :: (Unit -> Effect ErlangTerm)
-         -> (Exception -> Effect ErlangTerm)
-         -> Effect ErlangTerm
-tryCatch ex handler =
-  tryCatchFinallyImpl buildException ex handler (\_ -> pure unit)
+error :: ErlangTerm -> Effect ErlangTerm
+error term = do
+  stack <- getStack
+  raise $ buildException "error" term stack
 
-tryOfCatchFinally :: forall a. (Unit -> Effect ErlangTerm)
-                  -> (ErlangTerm -> Effect ErlangTerm)
-                  -> (Exception -> Effect ErlangTerm)
-                  -> (Unit -> Effect a)
-                  -> Effect ErlangTerm
-tryOfCatchFinally = tryOfCatchFinallyImpl buildException
+exit :: ErlangTerm -> Effect ErlangTerm
+exit term = do
+  stack <- getStack
+  raise $ buildException "exit" term stack
 
-tryOfCatch :: (Unit -> Effect ErlangTerm)
-           -> (ErlangTerm -> Effect ErlangTerm)
-           -> (Exception -> Effect ErlangTerm)
-           -> Effect ErlangTerm
-tryOfCatch ex ofHandler handler =
-  tryOfCatchFinallyImpl buildException ex ofHandler handler (\_ -> pure unit)
+

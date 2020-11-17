@@ -165,69 +165,75 @@ main = launchAff_ $ runSpec [consoleReporter] do
       it "Build product" do
         r <- exec_may_throw erlps__test_build_2__0 []
         atomTup ["product", "l", "r"] `shouldEqualOk` r
-      it "Build typed" do
+      it "Build typed with defaults" do
         r <- exec_may_throw erlps__test_build_3__0 []
         atomTup ["typed", "undefined", "undefined"] `shouldEqualOk` r
-      it "Build defaulted" do
+      it "Build partially defaulted" do
         r <- exec_may_throw erlps__test_build_4__0 []
-        atomTup ["defaulted", "n", "yyy", "nn", ";)"] `shouldEqualOk` r
+        atomTup ["defaulted", "n", "yyy", "undefined", ";)"] `shouldEqualOk` r
 
-      it "Query product `left`" do
+      it "Query product left" do
         r <- exec_may_throw erlps__test_query_1__0 []
         ErlangAtom "l" `shouldEqualOk` r
-      it "Query product `right`" do
+      it "Query product right" do
         r <- exec_may_throw erlps__test_query_2__0 []
         ErlangAtom "r" `shouldEqualOk` r
-      it "Query typed" do
+      it "Query typed with default" do
         r <- exec_may_throw erlps__test_query_3__0 []
         ErlangAtom "undefined" `shouldEqualOk` r
-      it "Query defaulted `no`" do
+      it "Query defaulted updated undefined" do
         r <- exec_may_throw erlps__test_query_4__0 []
         ErlangAtom "n" `shouldEqualOk` r
-      it "Query defaulted `yep`" do
+      it "Query defaulted updated defaulted" do
         r <- exec_may_throw erlps__test_query_5__0 []
         ErlangAtom "yyy" `shouldEqualOk` r
-      it "Query defaulted `noooo`" do
+      it "Query defaulted undefined" do
         r <- exec_may_throw erlps__test_query_6__0 []
-        ErlangAtom "nn" `shouldEqualOk` r
-      it "Query defaulted `yeeeep`" do
+        ErlangAtom "undefined" `shouldEqualOk` r
+      it "Query defaulted defaulted" do
         r <- exec_may_throw erlps__test_query_7__0 []
         ErlangAtom ";)" `shouldEqualOk` r
 
-      it "Update 1" do
+      it "Update single field" do
         r <- exec_may_throw erlps__test_update_1__0 []
         atomTup ["product", "l", "updated"] `shouldEqualOk` r
-      it "Update 2" do
+      it "Update all fields" do
         r <- exec_may_throw erlps__test_update_2__0 []
         atomTup ["product", "updated_as_well", "reupdated"] `shouldEqualOk` r
-      it "Update 3" do
+      it "Update defaulted" do
         r <- exec_may_throw erlps__test_update_3__0 []
-        atomTup ["defaulted", "n", "yepyep", "nn", ";)"] `shouldEqualOk` r
-      it "Update 4" do
+        atomTup ["defaulted", "n", "yepyep", "undefined", ";)"] `shouldEqualOk` r
+      it "Update nothing at all" do
         r <- exec_may_throw erlps__test_update_4__0 []
-        atomTup ["defaulted", "n", "yyy", "nn", ";)"] `shouldEqualOk` r
-      it "Update 5" do
+        atomTup ["defaulted", "n", "yyy", "undefined", ";)"] `shouldEqualOk` r
+      it "Update some random stuff" do
         r <- exec_may_throw erlps__test_update_5__0 []
         atomTup ["defaulted", "n", "lol", "nn", ";)"] `shouldEqualOk` r
 
-      it "Match 1" do
+      it "Match empty" do
         r <- exec_may_throw erlps__test_match_1__0 []
         ErlangAtom "empty" `shouldEqualOk` r
-      it "Match 2" do
+      it "Match single field" do
         r <- exec_may_throw erlps__test_match_2__0 []
         ErlangAtom "l" `shouldEqualOk` r
-      it "Match 3" do
+      it "Match all fields (undefined)" do
         r <- exec_may_throw erlps__test_match_3__0 []
         atomTup ["undefined", "undefined"] `shouldEqualOk` r
-      it "Match 4" do
+      it "Match all some fields with default" do
         r <- exec_may_throw erlps__test_match_4__0 []
         atomTup ["yyy", ";)"] `shouldEqualOk` r
-      it "Match 5" do
+      it "Match defaults in expr" do
         r <- exec_may_throw erlps__test_match_5__0 []
         atomTup ["y", "undefined"] `shouldEqualOk` r
 
     describe "Exception library" do
-      it "throw" do
+      it "no exception" do
+        r <- liftEffect $ tryCatchFinally
+          (\_ -> pure (ErlangAtom "hey"))
+          (\_ -> pure (ErlangAtom "bad"))
+          (\_ -> pure (ErlangAtom "ok"))
+        ErlangAtom "hey" `shouldEqual` r
+      -- it "throw" do
         r <- liftEffect $ tryCatchFinally
           (\_ -> throw (ErlangAtom "boom"))
           (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))

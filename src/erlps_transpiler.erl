@@ -48,6 +48,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Helpers"]}
+        %% , #import{path = ["Erlang", "Exception"]}
         , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
@@ -590,7 +591,7 @@ transpile_body(Body, Env) ->
     catch_partial_lets(PSBody).
 transpile_body([], _, _) ->
     error(empty_body);
-transpile_body([{match, Ann, Pat, Expr}] =Racc, Acc, Env) ->
+transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
     %% We can't just return a bind
     Var = "match_final_", % do NOT register it at this point
     %%io:format(user, "AAAAa ~p ~p\n", [state_get_vars(), Racc]),
@@ -1105,24 +1106,53 @@ transpile_expr({map, Ann, Map, Associations}, Stmts0, Env) ->
     };
 
 
-%% transpile_expr({'try', _, ExprBlock, [_|_], Catches, After}, Stmts0, Env) ->
+transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, Stmts0, Env) ->
+    PSExpr = transpile_body(ExprBlock, Env),
+    OfVar = state_create_fresh_var("of"),
+    ExVar = state_create_fresh_var("ex"),
+    OfHandler =
+        case Clauses of
+            [] -> [];
+            _ -> #expr_lambda
+                     { args = [#pat_var{name = OfVar}]
+                     , body = #expr_case
+                       { expr = #expr_var{name = OfVar}
+                       , cases =
+                             [ begin
+                                   {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
+                                   R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
+                                        transpile_body(Cont, Env)},
+                                   state_pop_var_stack(),
+                                   R
+                               end
+                              || {clause, _, Pat, Guards, Cont} <- Clauses
+                             ] ++ [{pat_wildcard, [], ?try_clause}]
+                       }
+                     }
+        end,
+    ExHandler =
+        case Clauses of
+            [] -> [];
+            _ -> #expr_lambda
+                     { args = [#pat_var{name = OfVar}]
+                     , body = #expr_case
+                       { expr = #expr_var{name = OfVar}
+                       , cases =
+                             [ begin
+                                   {[PSPat], PSGuards} = transpile_pattern_sequence(Pat, Env),
+                                   R = {PSPat, PSGuards ++ transpile_boolean_guards(Guards, Env),
+                                        transpile_body(Cont, Env)},
+                                   state_pop_var_stack(),
+                                   R
+                               end
+                               || {clause, _, Pat, Guards, Cont} <- Clauses
+                             ] ++ {pat_wildcard, [], ?try_clause}
+                       }
+                     }
+        end,
+    ok;
 
-%% transpile_expr({'try', _, ExprBlock, [], Catches, After}, Stmts0, Env) ->
-%%     {ExprVar, Stmts1} <- bind_expr("tried", Expr, Stmts0, Env),
 
-%%     AfterWrap =
-%%         fun(E) ->
-%%                 ErVar = state_create_fresh_var("er"),
-%%                 #expr_app{
-%%                    function = #expr_var{name = "catchException"},
-%%                    args =
-%%                        [ #expr_lambda{
-%%                             args = [#pat_var{name = ErVar}],
-%%                             body =
-%%                            }
-%%                        , transpile_expr(After, Env)
-%%                        ]
-%%                   },
 
 transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).

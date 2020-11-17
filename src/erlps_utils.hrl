@@ -54,5 +54,5 @@ make_expr_list([H|T]) ->
 -define(function_clause, ?ps_error("function_clause")).
 -define(case_clause, ?ps_error("case_clause")).
 -define(if_clause, ?ps_error("if_clause")).
+-define(try_clause, ?ps_error("try_clause")).
 -define(bad_match, ?ps_error("bad_match")).
-
