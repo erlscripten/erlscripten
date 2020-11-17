@@ -649,7 +649,7 @@ catch_partial_lets_in_statements(
               expr = FixedRV,
               cases =
                   [ {LV, Guards, catch_partial_lets_in_statements(Rest, Ret)}
-                  , {pat_wildcard, [], ?bad_match(FixedRV)}
+                  , {pat_wildcard, [], ?badmatch(FixedRV)}
                   ]
              }
       };
@@ -993,7 +993,7 @@ transpile_expr({record, _, Expr, RecordName, RecordFields}, Stmts0, Env) ->
                     )
                  )
                  }
-            , {#pat_var{name = "something_else"}, [], ?bad_match(#expr_var{name = "something_else"})} %% FIXME Badmatch or what?
+            , {pat_wildcard, [], ?badrecord(?make_expr_atom(RecordName))}
             ]
        },
      Stmts2
@@ -1032,7 +1032,7 @@ transpile_expr({record_field, _, Expr, Record, {atom, _, Field}}, Stmts0, Env) -
                    }]
               , pure(#expr_var{name = FieldVar})
               }
-            , {#pat_var{name = "something_else"}, [], ?bad_match(#expr_var{name = "something_else"})} %% FIXME Badmatch or what?
+            , {pat_wildcard, [], ?badrecord(?make_expr_atom(Record))}
             ]
        },
      Stmts1
