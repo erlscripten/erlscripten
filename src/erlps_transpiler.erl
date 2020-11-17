@@ -1253,15 +1253,15 @@ compute_constexpr({float, _, Num}) ->
     {ok, Num}.
 
 %% Hacky emulation of a state monad using the process dictionary :P
--define(ID_SUPPLY, id_supply).
 -define(BINDINGS, var_bindings).
 -define(BINDINGS_STACK, var_bindings_stack).
 %% Id supply (basically a counter, todo: implement as a petri net)
 state_reset_supply_id() ->
-    put(?ID_SUPPLY, 0).
+    persistent_term:put({?MODULE, ctr}, counters:new(1, [])).
 state_new_id() ->
-    Id = get(?ID_SUPPLY),
-    put(?ID_SUPPLY, Id + 1),
+    Ctr = persistent_term:get({?MODULE, ctr}),
+    Id = counters:get(Ctr, 1),
+    counters:add(Ctr, 1, 1),
     Id.
 %% Variable bindings
 state_clear_vars() ->
