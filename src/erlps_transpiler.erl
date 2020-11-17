@@ -491,9 +491,11 @@ transpile_pattern({op, Ann, '++', {string, AnnS, String}, Right}, Env) ->
     P = lists:foldr(fun (Char, Acc) -> {cons, AnnS, {integer, AnnS, Char}, Acc}
                  end, {nil, AnnS}, String),
     transpile_pattern({op, Ann, '++', P, Right}, Env);
-transpile_pattern(P, _Env) when element(1, P) =:= op ->
+transpile_pattern(P, Env) when element(1, P) =:= op ->
     case compute_constexpr(P) of
-        {ok, Res} -> Res;
+        {ok, Num} when is_integer(Num) -> transpile_pattern({integer, element(2, P), Num}, Env);
+        {ok, Float} when is_float(Float) -> transpile_pattern({float, element(2, P), Float}, Env);
+        {ok, Res} -> {Res, [], []};
         error -> error({illegal_operator_pattern, P})
     end;
 
@@ -712,6 +714,8 @@ catch_partial_lets_in_statements(
 transpile_expr(Expr, Env) ->
     {PSExpr, Stmts} = transpile_expr(Expr, [], Env),
     #expr_do{statements = lists:reverse(Stmts), return = PSExpr}.
+transpile_expr({block, _, Body}, Stmts, Env) ->
+    transpile_expr(Body, Stmts, Env);
 transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
     %% When matching to a wildcard pattern we may skip the case statement
     transpile_expr(Expr, Stmts, Env);
