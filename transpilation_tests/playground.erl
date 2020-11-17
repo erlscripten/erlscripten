@@ -16,10 +16,7 @@
 -record(dupa, {jaja, kek :: integer(), kok = 123, lol = 1999 :: integer()}).
 
 test_3(X) ->
-    %% try X of
-    %%     _ -> kek
-    %% catch
-    %%     _ -> lol
-    %% after
-        jup.
-    %% end.
+    case X of
+        {_, _} ->
+            ok
+    end.

@@ -22,10 +22,12 @@ import Data.Array as A
 import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
+import Erlang.Builtins as BIF
 import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
 import Records
+import Exceptions
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -226,6 +228,8 @@ main = launchAff_ $ runSpec [consoleReporter] do
         r <- exec_may_throw erlps__test_match_5__0 []
         atomTup ["y", "undefined"] `shouldEqualOk` r
 
+    let dropStack (ErlangTuple [t, p, _]) = pure (ErlangTuple [t, p])
+        dropStack _ = pure (ErlangAtom "bad_exception")
     describe "Exception library" do
       it "no exception" do
         r <- liftEffect $ tryCatchFinally
@@ -236,20 +240,20 @@ main = launchAff_ $ runSpec [consoleReporter] do
       -- it "throw" do
         r <- liftEffect $ tryCatchFinally
           (\_ -> throw (ErlangAtom "boom"))
-          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          dropStack
           (\_ -> pure (ErlangAtom "ok"))
         atomTup ["throw", "boom"] `shouldEqual` r
       it "exit" do
         r <- liftEffect $ tryCatchFinally
           (\_ -> exit (ErlangAtom "boom"))
-          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          dropStack
           (\_ -> pure (ErlangAtom "ok"))
         atomTup ["exit", "boom"] `shouldEqual` r
       it "error" do
         r <- liftEffect $ tryOfCatchFinally
           (\_ -> error (ErlangAtom "boom"))
           (\x -> pure x)
-          (\err -> pure (ErlangTuple [err.exceptionType, err.exceptionPayload]))
+          dropStack
           (\_ -> pure (ErlangAtom "ok"))
         atomTup ["error", "boom"] `shouldEqual` r
       it "finally from catch" do
@@ -285,3 +289,68 @@ main = launchAff_ $ runSpec [consoleReporter] do
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true
         ErlangAtom "ok_e" `shouldEqual` r
+
+    let ok = ErlangAtom "ok"
+    describe "Exception transpilation" do
+      it "try/catch" do
+        r <- exec_may_throw erlps__test_try_catch__0 []
+        ok `shouldEqualOk` r
+      it "try/catch on typed" do
+        r <- exec_may_throw erlps__test_try_catch_type__0 []
+        ok `shouldEqualOk` r
+      it "try/catch select throw" do
+        r <- exec_may_throw erlps__test_try_catch_select_throw__0 []
+        ok `shouldEqualOk` r
+      it "try/catch select error" do
+        r <- exec_may_throw erlps__test_try_catch_select_error__0 []
+        ok `shouldEqualOk` r
+      it "try of" do
+        r <- exec_may_throw erlps__test_try_of__0 []
+        ok `shouldEqualOk` r
+      it "try of catch" do
+        r <- exec_may_throw erlps__test_try_of_catch__0 []
+        ok `shouldEqualOk` r
+      it "Rethrow" do
+        r <- exec_may_throw erlps__test_rethrow__0 []
+        ok `shouldEqualOk` r
+      it "throw from of" do
+        r <- exec_may_throw erlps__test_throw_of__0 []
+        ok `shouldEqualOk` r
+      it "Unmatched catch" do
+        r <- exec_may_throw erlps__test_unmatched_catch__0 []
+        ok `shouldEqualOk` r
+      it "throw in `after` after return" do
+        r <- exec_may_throw erlps__test_after_throw_return__0 []
+        ok `shouldEqualOk` r
+      it "throw in `after` after catch" do
+        r <- exec_may_throw erlps__test_after_throw_catch__0 []
+        ok `shouldEqualOk` r
+      it "throw in `after` after rethrow" do
+        r <- exec_may_throw erlps__test_after_throw_rethrow__0 []
+        ok `shouldEqualOk` r
+      it "throw in `after` after catch after throw in `of`" do
+        r <- exec_may_throw erlps__test_after_throw_of__0 []
+        ok `shouldEqualOk` r
+      it "Some nasty nesting" do
+        r <- exec_may_throw erlps__test_nasty_nest__0 []
+        ok `shouldEqualOk` r
+      it "Factorial on exceptions" do
+        r1 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 1]
+        ErlangNum 1 `shouldEqualOk` r1
+        r2 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 6]
+        ErlangNum 720 `shouldEqualOk` r2
+        r3 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangNum 10]
+        ErlangNum 3628800 `shouldEqualOk` r3
+      it "Continuational fold left on exceptions" do
+        r1 <- exec_may_throw erlps__test_completely_casual_foldl__3
+             [ ErlangFun 2 BIF.erlang__op_plus
+             , ErlangNum 0
+             , arrayToErlangList (map ErlangNum [1,2,3,4])
+             ]
+        ErlangNum 10 `shouldEqualOk` r1
+        r2 <- exec_may_throw erlps__test_completely_casual_foldl__3
+             [ ErlangFun 2 BIF.erlang__op_div
+             , ErlangNum 210
+             , arrayToErlangList (map ErlangNum [2,3,5,7])
+             ]
+        ErlangNum 1 `shouldEqualOk` r2

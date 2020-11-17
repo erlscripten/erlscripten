@@ -1,6 +1,7 @@
 module Erlang.Builtins where
 
 import Erlang.Type
+import Erlang.Exception as EXT
 import Prelude
 import Data.Maybe as DM
 import Data.Array as DA
@@ -576,7 +577,7 @@ erlang__spawn__1 :: ErlangFun
 erlang__spawn__1 args = throw "unimplemented"
 
 erlang__throw__1 :: ErlangFun
-erlang__throw__1 args = throw "unimplemented"
+erlang__throw__1 [arg] = EXT.throw arg
 
 erlang__float_to_list__2 :: ErlangFun
 erlang__float_to_list__2 args = throw "unimplemented"
@@ -908,7 +909,7 @@ erlang__fun_info__1 :: ErlangFun
 erlang__fun_info__1 args = throw "unimplemented"
 
 erlang__exit__1 :: ErlangFun
-erlang__exit__1 args = throw "unimplemented"
+erlang__exit__1 [arg] = EXT.exit arg
 
 erlang__system_info__1 :: ErlangFun
 erlang__system_info__1 args = throw "unimplemented"
@@ -1091,7 +1092,7 @@ erlang__system_profile__2 :: ErlangFun
 erlang__system_profile__2 args = throw "unimplemented"
 
 erlang__error__1 :: ErlangFun
-erlang__error__1 args = throw "unimplemented"
+erlang__error__1 [arg] = EXT.error arg
 
 erlang__delay_trap__2 :: ErlangFun
 erlang__delay_trap__2 args = throw "unimplemented"

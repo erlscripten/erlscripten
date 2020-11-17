@@ -137,8 +137,11 @@ pp_expr(#expr_case{expr = Ex, cases = Cases}) ->
                 ])
          );
 pp_expr(#expr_lambda{args = Args, body = Body}) ->
-    block(hsep(lists:flatten([text("\\"), [pp_pat(Arg) || Arg <- Args], text("->")])),
-          pp_expr(Body));
+    paren(block(
+            hsep(lists:flatten([text("\\"),
+                                [pp_pat(Arg) || Arg <- Args],
+                                text("->")])),
+            pp_expr(Body)));
 pp_expr(#expr_do{statements = Stm, return = Ret}) ->
     paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)])));
 pp_expr(#expr_record{fields = Fields}) ->
