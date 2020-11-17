@@ -734,10 +734,14 @@ transpile_expr({match, _, Pat, Val}, Stmts0, Env) ->
 transpile_expr({'if', _, Clauses}, Stmts, Env) ->
     {#expr_case{
         expr = ?make_expr_atom(true),
-        cases = [{pat_wildcard,
-                  transpile_boolean_guards(GuardSequence, Env),
-                  transpile_body(Body, Env)} ||
-                    {clause, _, [], GuardSequence, Body} <- Clauses]
+        cases = [begin
+                   state_push_var_stack(),
+                   R = {pat_wildcard,
+                    transpile_boolean_guards(GuardSequence, Env),
+                    transpile_body(Body, Env)},
+                   state_pop_var_stack(),
+                   R
+                 end || {clause, _, [], GuardSequence, Body} <- Clauses]
        }, Stmts};
 %% TODO Scope leaking!
 transpile_expr({'case', _, Expr, Clauses}, Stmts0, Env) ->
