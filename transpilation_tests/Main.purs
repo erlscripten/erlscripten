@@ -29,6 +29,7 @@ import Lambdas
 import Records
 import Exceptions
 import Test.Array
+import Array.SUITE
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -131,6 +132,59 @@ main = launchAff_ $ runSpec [consoleReporter] do
             make_ok (ErlangAtom "ok") `shouldEqual` r
         it "is functional :)" do
             r <- exec_may_throw erlps__test_functionality__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+
+    describe "Real Array tests taken from OTP - array_SUITE.erl" do
+        it "new_test" do
+            r <- exec_may_throw erlps__new_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "fix_test" do
+            r <- exec_may_throw erlps__fix_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "relax_test" do
+            r <- exec_may_throw erlps__relax_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "resize_test" do
+            r <- exec_may_throw erlps__resize_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "set_get_test" do
+            r <- exec_may_throw erlps__set_get_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "to_list_test" do
+            r <- exec_may_throw erlps__to_list_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "sparse_to_list_test" do
+            r <- exec_may_throw erlps__sparse_to_list_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "from_list_test" do
+            r <- exec_may_throw erlps__from_list_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "to_orddict_test" do
+            r <- exec_may_throw erlps__to_orddict_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "sparse_to_orddict_test" do
+            r <- exec_may_throw erlps__sparse_to_orddict_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "from_orddict_test" do
+            r <- exec_may_throw erlps__from_orddict_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "map_test" do
+            r <- exec_may_throw erlps__map_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "sparse_map_test" do
+            r <- exec_may_throw erlps__sparse_map_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "foldl_test" do
+            r <- exec_may_throw erlps__foldl_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "sparse_foldl_test" do
+            r <- exec_may_throw erlps__sparse_foldl_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "foldr_test" do
+            r <- exec_may_throw erlps__foldr_test__1 [ErlangEmptyList]
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "sparse_foldr_test" do
+            r <- exec_may_throw erlps__sparse_foldr_test__1 [ErlangEmptyList]
             make_ok (ErlangAtom "ok") `shouldEqual` r
 
     describe "Lambdas" do

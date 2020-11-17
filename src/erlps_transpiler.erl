@@ -725,7 +725,7 @@ transpile_expr(Expr, Env) ->
     {PSExpr, Stmts} = transpile_expr(Expr, [], Env),
     #expr_do{statements = lists:reverse(Stmts), return = PSExpr}.
 transpile_expr({block, _, Body}, Stmts, Env) ->
-    {transpile_body(Body, Stmts, Env), Stmts};
+    {transpile_body(Body, Env), Stmts};
 transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, Stmts, Env) ->
     %% When matching to a wildcard pattern we may skip the case statement
     transpile_expr(Expr, Stmts, Env);
@@ -1238,8 +1238,7 @@ bind_exprs(Name, [Expr|Rest], Acc, Stmts0, Env) ->
 
 compute_constexpr({string, _, Str}) ->
     {ok, Str};
-compute_constexpr({op, _, Op, L, R} = E) -> %% FIXME: float handling needs to be fixed
-    io:format(user, "~p\n", [E]),
+compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed
     case {compute_constexpr(L), compute_constexpr(R)} of
         {{ok, LV}, {ok, RV}}
           when is_number(LV) andalso is_number(RV) andalso
