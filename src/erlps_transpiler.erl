@@ -545,7 +545,7 @@ transpile_pattern({var, _, ErlangVar}, _) ->
             {#pat_var{name = Var}, [], []};
         true ->
             %% Variable was used before so emit an extra guard
-            state_put_var(Var, Var),
+            %%state_put_var(Var, Var),
             {#pat_var{name = Var},
                 [],
                 [#guard_expr{guard = #expr_binop{
@@ -1272,7 +1272,7 @@ state_put_var(ErlangVar, PsVar) ->
     put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
 state_create_fresh_var(Name) ->
     Var = lists:flatten(io_lib:format("~s_~p", [Name, state_new_id()])),
-    state_put_var(Var, Var),
+    %%state_put_var(Var, Var),
     Var.
 state_is_used(ErlangVar) ->
     maps:is_key(ErlangVar, state_get_vars()).
