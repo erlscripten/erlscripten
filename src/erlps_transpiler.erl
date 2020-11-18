@@ -1063,6 +1063,21 @@ transpile_expr({record_field, _, Expr, Record, {atom, _, Field}}, Stmts0, Env) -
        },
      Stmts1
     };
+transpile_expr({record_index, _, Record, {atom, _, Field}}, Stmts, Env) ->
+    AllRecordFields =
+        [FieldName || {FieldName, _} <- maps:get(Record, Env#env.records)],
+    FindIndex =
+        fun R([FieldName|_], N) when FieldName == Field ->
+                N;
+            R([_|Rest], N) ->
+                R(Rest, N + 1);
+            R([], _) ->
+                error({field_not_in_record, Record, Field})
+        end,
+    %% It counts tuple elements from 1
+    {pure(?make_expr_int(FindIndex(AllRecordFields, 1) + 1)),
+     Stmts
+    };
 
 transpile_expr({lc, _, Ret, []}, Stmts0, Env) ->
     {RetVar, Stmts1} = bind_expr("lc_ret", Ret, Stmts0, Env),
@@ -1165,9 +1180,9 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, Stmts, Env) ->
         end,
     ExHandler =
         #expr_lambda
-        { args = [#pat_var{name = OfVar}]
+        { args = [#pat_var{name = ExVar}]
         , body = #expr_case
-          { expr = #expr_var{name = OfVar}
+          { expr = #expr_var{name = ExVar}
           , cases =
                 [ begin
                       {[PSPat], PSGuards0} = transpile_pattern_sequence(Pat, Env),
@@ -1212,6 +1227,29 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, Stmts, Env) ->
                   }
         end,
     {Res, Stmts};
+transpile_expr({'catch', Ann, Expr}, Stmts, Env) ->
+    transpile_expr(
+      { 'try', Ann
+      , [Expr]
+      , []
+      , [ { clause, Ann
+          , [{tuple, Ann, [{atom, Ann, throw}, {var, Ann, 'payload'}, {var, Ann, '_'}]}]
+          , [], [{var, Ann, 'payload'}]
+          }
+        , { clause, Ann
+          , [{tuple, Ann, [{atom, Ann, error}, {var, Ann, 'payload'}, {var, Ann, 'stack'}]}]
+          , [], [{tuple, Ann, [{atom, Ann, 'EXIT'},
+                              {tuple, Ann, [{var, Ann, 'payload'}, {var, Ann, 'stack'}]}]}]
+          }
+        , { clause, Ann
+          , [{tuple, Ann, [{atom, Ann, exit}, {var, Ann, 'payload'}, {var, Ann, '_'}]}]
+          , [], [{tuple, Ann, [{atom, Ann, 'EXIT'}, {var, Ann, 'payload'}]}]
+          }
+        ]
+      , []
+      },
+      Stmts, Env
+     );
 
 transpile_expr(X, _Stmts, _Env) ->
     error({unimplemented_expr, X}).

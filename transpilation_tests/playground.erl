@@ -12,11 +12,8 @@
 -compile({parse_transform, erlps_parse_transform}).
 -compile(nowarn).
 
--export([test_3/1]).
+-compile(export_all).
 -record(dupa, {jaja, kek :: integer(), kok = 123, lol = 1999 :: integer()}).
 
-test_3(X) ->
-    case X of
-        {_, _} ->
-            ok
-    end.
+test_3() ->
+    catch throw(xd).

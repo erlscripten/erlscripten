@@ -199,3 +199,13 @@ test_completely_casual_foldl(F, Acc, L) ->
     catch Res ->
             Res(Acc)
     end.
+
+test_deprecated_catch_throw() ->
+    catch throw(ok).
+test_deprecated_catch_error() ->
+    case catch error(ok) of
+        {E, {P, _}} -> {E, P};
+        _ -> bad
+    end.
+test_deprecated_catch_exit() ->
+    catch exit(ok).

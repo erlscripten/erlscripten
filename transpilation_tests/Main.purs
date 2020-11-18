@@ -46,7 +46,7 @@ exec_may_throw_aff fun args =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    liftEffect $ log $ show res -- Uncomment for logs :)
+    -- liftEffect $ log $ show res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
@@ -294,6 +294,16 @@ main = launchAff_ $ runSpec [consoleReporter] do
         r <- exec_may_throw erlps__test_match_5__0 []
         atomTup ["y", "undefined"] `shouldEqualOk` r
 
+      it "Test index 1" do
+        r <- exec_may_throw erlps__test_index_1__0 []
+        ErlangNum 3 `shouldEqualOk` r
+      it "Test index 2" do
+        r <- exec_may_throw erlps__test_index_2__0 []
+        ErlangNum 2 `shouldEqualOk` r
+      it "Test index 3" do
+        r <- exec_may_throw erlps__test_index_3__0 []
+        ErlangNum 3 `shouldEqualOk` r
+
     let dropStack (ErlangTuple [t, p, _]) = pure (ErlangTuple [t, p])
         dropStack _ = pure (ErlangAtom "bad_exception")
     describe "Exception library" do
@@ -420,3 +430,12 @@ main = launchAff_ $ runSpec [consoleReporter] do
              , arrayToErlangList (map ErlangNum [2,3,5,7])
              ]
         ErlangNum 1 `shouldEqualOk` r2
+      it "Deprecated catch / throw" do
+        r <- exec_may_throw erlps__test_deprecated_catch_throw__0 []
+        ok `shouldEqualOk` r
+      it "Deprecated catch / error" do
+        r <- exec_may_throw erlps__test_deprecated_catch_error__0 []
+        atomTup ["EXIT", "ok"] `shouldEqualOk` r
+      it "Deprecated catch / exit" do
+        r <- exec_may_throw erlps__test_deprecated_catch_exit__0 []
+        atomTup ["EXIT", "ok"] `shouldEqualOk` r

@@ -76,3 +76,10 @@ test_match_4() ->
 test_match_5() ->
     #defaulted{yep = Y, no = N} = #defaulted{},
     {Y, N}.
+
+test_index_1() ->
+    #defaulted.yep.
+test_index_2() ->
+    #product.left.
+test_index_3() ->
+    #product.right.
