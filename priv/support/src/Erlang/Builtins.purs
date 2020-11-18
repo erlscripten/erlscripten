@@ -187,7 +187,7 @@ erlang__op_append [ErlangEmptyList, l@(ErlangCons _ _)] = pure l
 erlang__op_append [l@(ErlangCons _ _), ErlangEmptyList] = pure l
 erlang__op_append [ErlangCons h t, l@(ErlangCons _ _)] =
   map (ErlangCons h) (erlang__op_append [t, l])
-
+erlang__op_append _ = EXT.error_badarg
 
 -- -
 erlang__op_neg :: ErlangFun

@@ -46,7 +46,7 @@ exec_may_throw_aff fun args =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    -- liftEffect $ log $ show res -- Uncomment for logs :)
+    liftEffect $ log $ show res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
