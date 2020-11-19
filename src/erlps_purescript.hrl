@@ -58,6 +58,15 @@
 -type purs_clause() :: #clause{}.
 -export_type([purs_clause/0]).
 
+-record(letfun, {name :: string(),
+                 args :: [purs_pat()],
+                 guards = [] :: [purs_guard()],
+                 body :: purs_expr()}).
+-record(letval, {lvalue :: purs_pat(),
+                 guards = [] :: [purs_guard()],
+                 rvalue :: purs_expr()}).
+-type purs_letdef() :: #letfun{} | #letval{}.
+-export_type([purs_letdef/0]).
 
 -record(expr_binop, {name :: string(), lop :: purs_expr(), rop :: purs_expr()}).
 -record(expr_num, {value :: number()}).
@@ -69,6 +78,7 @@
 -record(expr_lambda, {args :: [purs_pat()], body :: purs_expr()}).
 -record(expr_do, {statements :: [purs_do_statement()], return :: purs_expr()}).
 -record(expr_record, {fields :: [{string(), purs_expr()}]}).
+-record(expr_let, {letdefs :: [purs_letdef()], in :: purs_expr()}).
 -type purs_expr()
 :: #expr_binop{}
 | #expr_num{}
@@ -80,6 +90,7 @@
 | #expr_lambda{}
 | #expr_do{}
 | #expr_record{}
+ | #expr_let{}
 .
 -export_type([purs_expr/0]).
 

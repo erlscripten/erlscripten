@@ -144,10 +144,26 @@ pp_expr(#expr_lambda{args = Args, body = Body}) ->
             pp_expr(Body)));
 pp_expr(#expr_do{statements = Stm, return = Ret}) ->
     paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)])));
+pp_expr(#expr_let{letdefs = LDs, in = In}) ->
+    above(
+      block(text("let"), above([pp_letdef(LD) || LD <- LDs])),
+      block(text("in"), pp_expr(In))
+      );
 pp_expr(#expr_record{fields = Fields}) ->
     comma_brackets(
       "{", "}",
       [hsep(beside(text(Name), text(":")), pp_expr(Value))|| {Name, Value} <- Fields]).
+
+-spec pp_letdef(purs_letdef()) -> doc().
+pp_letdef(#letval{lvalue = LV, guards = [], rvalue = RV}) ->
+    block(
+      hsep(pp_pat(LV), text("=")),
+      pp_expr(RV)
+     );
+pp_letdef(LV = #letval{}) ->
+    error({unsolved_guards_in_letval, LV});
+pp_letdef(#letfun{name = F, args = Args, guards = Guards, body = Body}) ->
+    pp_clause(F, #clause{args = Args, guards = Guards, value = Body}).
 
 -spec pp_do_statement(purs_do_statement()) -> doc().
 pp_do_statement(#do_bind{lvalue = LV, rvalue = RV}) ->
@@ -187,7 +203,7 @@ pp_pat(#pat_record{fields = Fields}) ->
 pp_guard(#guard_expr{guard = Guard}) ->
     pp_expr(Guard);
 pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
-    block(hsep(pp_pat(LV), text("<-")), pp_expr(RV)).
+    block(hsep(pp_pat(LV), text("<-")), paren(pp_expr(RV))).
 
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();

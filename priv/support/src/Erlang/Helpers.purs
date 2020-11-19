@@ -23,10 +23,6 @@ applyTerm :: Partial => ErlangTerm -> ErlangFun
 applyTerm (ErlangFun arityVal fun) argsL |
   DA.length argsL == arityVal = fun argsL
 
-unsafePerformEffectGuard :: Effect ErlangTerm -> ErlangTerm
-unsafePerformEffectGuard action =
-  unsafePerformEffect (catchException (\_ -> pure (ErlangAtom "false")) action)
-
 isEL :: ErlangTerm -> Boolean
 isEL ErlangEmptyList = true
 isEL (ErlangCons _ _) = true

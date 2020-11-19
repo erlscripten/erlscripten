@@ -35,9 +35,12 @@ peephole(Phase, L) when is_list(L) ->
 %% do X --> X
 peephole(_, #expr_do{statements = [], return = Expr}) ->
     peephole(first, Expr);
-%% %% _ <- S --> S ---- THIS ACTUALLY DOESNT WORK IN PS. LEAVING IT COMMENTED FOR SHAME PURPOSES
-%% peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
-%%     peephole(first, #do_expr{expr = Expr});
+%% let in X --> X
+peephole(_, #expr_let{letdefs = [], in = Expr}) ->
+    peephole(first, Expr);
+% %% _ <- S --> S ---- THIS ACTUALLY DOESNT WORK IN PS. LEAVING IT COMMENTED FOR SHAME PURPOSES
+% peephole(_, #do_bind{lvalue = pat_wildcard, rvalue = Expr}) ->
+%     peephole(first, #do_expr{expr = Expr});
 %% S --> _ <- S
 peephole(_, #do_expr{expr = Expr}) ->
     peephole(first, #do_bind{lvalue = pat_wildcard, rvalue = Expr});
@@ -175,8 +178,12 @@ peephole(first, #expr_lambda{args = Args, body = Body}) ->
              #expr_lambda{args = Args, body = peephole(first, Body)});
 peephole(first, #expr_do{statements = Stmts, return = Ret0}) ->
     peephole(second,
-            #expr_do{statements = peephole_stmts(peephole(first, Stmts))
-            , return = peephole(first, Ret0)});
+             #expr_do{ statements = peephole_stmts(peephole(first, Stmts))
+                     , return = peephole(first, Ret0)});
+peephole(first, #expr_let{letdefs = Letdefs, in = In}) ->
+    peephole(second,
+            #expr_let{ letdefs = peephole_letdefs(peephole(first, Letdefs))
+                     , in = peephole(first, In)});
 
 peephole(first, #do_bind{lvalue = Pat, rvalue = Expr}) ->
     peephole(second,
@@ -220,6 +227,23 @@ peephole_stmts([Stmt|Rest], Acc) ->
     peephole_stmts(Rest, [Stmt|Acc]).
 
 
+peephole_letdefs(L) ->
+    peephole_letdefs(L, []).
+peephole_letdefs([], Acc) ->
+    lists:reverse(Acc);
+peephole_letdefs([#letval{lvalue = LV,
+                          guards = [],
+                          rvalue = #expr_let{letdefs = Letdefs, in = In}}|Rest], Acc) ->
+    peephole_letdefs(Letdefs ++ [#letval{lvalue = LV, rvalue = In}] ++ Rest, Acc);
+peephole_letdefs([#letval{lvalue = pat_wildcard, guards = [], rvalue = RV} = Letdef|Rest], Acc) ->
+    case element(1, RV) =:= expr_var orelse inlineable(RV) of
+        true -> peephole_letdefs(Rest, Acc);
+        false -> peephole_letdefs(Rest, [Letdef|Acc])
+    end;
+peephole_letdefs([Letdef|Rest], Acc) ->
+    peephole_letdefs(Rest, [Letdef|Acc]).
+
+
 %% --- CONSTANT PROPAGATION ----------------------------------------------------
 
 constant_propagation(Expr) ->
@@ -251,6 +275,13 @@ constant_propagation(#expr_do{statements = Stmts0, return = Ret}, State0) ->
         _ -> #expr_do{ statements = Stmts1
                      , return = constant_propagation(Ret, State1)}
     end;
+constant_propagation(#expr_let{letdefs = Letdefs0, in = In}, State0) ->
+    {Letdefs1, State1} = constant_propagation_letdefs(Letdefs0, State0),
+    case Letdefs1 of
+        [] -> constant_propagation(In, State1);
+        _ -> #expr_let{ letdefs = Letdefs1
+                      , in = constant_propagation(In, State1)}
+    end;
 
 constant_propagation(#do_bind{lvalue = Pat, rvalue = Expr}, State) ->
     #do_bind{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
@@ -281,35 +312,65 @@ constant_propagation_stmts(
 constant_propagation_stmts(
   [#do_let{lvalue = #pat_var{name = Var}, rvalue = RV, guards = []} = Stmt|Rest], Acc, State) ->
     RV1 = constant_propagation(RV, State),
-    Inline =
-        case RV1 of
-            #expr_var{} -> true;
-            #expr_num{} -> true;
-            #expr_string{} -> true;
-            #expr_app{function = Fun} ->
-                case Fun of
-                    #expr_var{name = "ErlangNum"} -> true;
-                    #expr_var{name = "ErlangAtom"} -> true;
-                    #expr_var{name = "ErlangCons"} -> true;
-                    #expr_var{name = "ErlangBinary"} -> true;
-                    #expr_var{name = "applyTerm"} -> true;
-                    #expr_var{name = "isEL"} -> true;
-                    #expr_var{name = "unsafePerformEffect"} -> true;
-                    #expr_var{name = "unsafePerformEffectGuard"} -> true;
-                    _ -> false
-                end;
-            _ -> false
-            end,
-    case Inline of
+    case inlineable(RV1) of
         true ->
             constant_propagation_stmts(Rest, Acc, State#{Var => RV1});
         false ->
             constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = RV1}|Acc], State)
     end;
 constant_propagation_stmts([#do_let{rvalue = RV, guards = Guards} = Stmt|Rest], Acc, State) ->
-    constant_propagation_stmts(Rest, [Stmt#do_let{rvalue = constant_propagation(RV, State), guards = Guards}|Acc], State);
+    constant_propagation_stmts(
+      Rest,
+      [Stmt#do_let{
+         rvalue = constant_propagation(RV, State),
+         guards = Guards
+        }|Acc],
+      State);
 constant_propagation_stmts([#do_bind{rvalue = RV} = Stmt|Rest], Acc, State) ->
     constant_propagation_stmts(Rest, [Stmt#do_bind{rvalue = constant_propagation(RV, State)}|Acc], State).
 
 
+constant_propagation_letdefs(Letdefs, State) ->
+    constant_propagation_letdefs(Letdefs, [], State).
+constant_propagation_letdefs([], Acc, State) ->
+    {lists:reverse(Acc), State};
+constant_propagation_letdefs(
+  [#letval{lvalue = #pat_var{name = Var}, rvalue = RV, guards = []} = Lefdef|Rest], Acc, State) ->
+    RV1 = constant_propagation(RV, State),
+    case inlineable(RV1) of
+        true ->
+            constant_propagation_letdefs(Rest, Acc, State#{Var => RV1});
+        false ->
+            constant_propagation_letdefs(Rest, [Lefdef#letval{rvalue = RV1}|Acc], State)
+    end;
+constant_propagation_letdefs([#letval{rvalue = RV, guards = Guards} = Lefdef|Rest], Acc, State) ->
+    constant_propagation_letdefs(
+      Rest,
+      [Lefdef#letval{
+         rvalue = constant_propagation(RV, State),
+         guards = Guards}|Acc],
+      State);
+constant_propagation_letdefs([#letfun{body = B} = Lefdef|Rest], Acc, State) ->
+    constant_propagation_letdefs(Rest, [Lefdef#letfun{body = constant_propagation(B, State)}|Acc], State).
 
+
+
+inlineable(Expr) ->
+    case Expr of
+        #expr_var{} -> true;
+        #expr_num{} -> true;
+        #expr_string{} -> true;
+        #expr_app{function = Fun} ->
+            case Fun of
+                #expr_var{name = "ErlangNum"} -> true;
+                #expr_var{name = "ErlangAtom"} -> true;
+                #expr_var{name = "ErlangCons"} -> true;
+                #expr_var{name = "ErlangBinary"} -> true;
+                #expr_var{name = "applyTerm"} -> true;
+                #expr_var{name = "isEL"} -> true;
+                #expr_var{name = "unsafePerformEffect"} -> true;
+                #expr_var{name = "unsafePerformEffectGuard"} -> true;
+                _ -> false
+            end;
+        _ -> false
+    end.

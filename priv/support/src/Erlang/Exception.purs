@@ -12,8 +12,6 @@ import Prelude
 import Erlang.Type
 import Erlang.Helpers
 
-import Effect (Effect)
-
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 
@@ -24,70 +22,67 @@ buildException exType exPayload exStack = ErlangTuple
   , make_string exStack
   ]
 
-foreign import raise :: ErlangTerm -> Effect ErlangTerm
+foreign import raise :: ErlangTerm -> ErlangTerm
 
-foreign import getStack :: Effect String
+foreign import getStack :: Unit -> String
 
 foreign import tryCatchFinally
-  :: forall a. (Unit -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> (Unit -> Effect a)
-  -> Effect ErlangTerm
+  :: forall a. (Unit -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> (Unit -> a)
+  -> ErlangTerm
 
 foreign import tryOfCatchFinally
-  :: forall a. (Unit -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> (Unit -> Effect a)
-  -> Effect ErlangTerm
+  :: forall a. (Unit -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> (Unit -> a)
+  -> ErlangTerm
 
 
 foreign import tryCatch
-  :: (Unit -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> Effect ErlangTerm
+  :: (Unit -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> ErlangTerm
 
 foreign import tryOfCatch
-  :: (Unit -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> (ErlangTerm -> Effect ErlangTerm)
-  -> Effect ErlangTerm
+  :: (Unit -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> (ErlangTerm -> ErlangTerm)
+  -> ErlangTerm
 
-throw :: ErlangTerm -> Effect ErlangTerm
-throw term = do
-  stack <- getStack
-  raise $ buildException "throw" term stack
+throw :: ErlangTerm -> ErlangTerm
+throw term =
+  raise $ buildException "throw" term (getStack unit)
 
-error :: ErlangTerm -> Effect ErlangTerm
-error term = do
-  stack <- getStack
-  raise $ buildException "error" term stack
+error :: ErlangTerm -> ErlangTerm
+error term =
+  raise $ buildException "error" term (getStack unit)
 
-exit :: ErlangTerm -> Effect ErlangTerm
-exit term = do
-  stack <- getStack
-  raise $ buildException "exit" term stack
+exit :: ErlangTerm -> ErlangTerm
+exit term =
+  raise $ buildException "exit" term (getStack unit)
 
 
-function_clause :: ErlangTerm -> Effect ErlangTerm
+function_clause :: ErlangTerm -> ErlangTerm
 function_clause term =
   error (ErlangTuple [ErlangAtom "function_clause", term])
 
-case_clause :: ErlangTerm -> Effect ErlangTerm
+case_clause :: ErlangTerm -> ErlangTerm
 case_clause term =
   error (ErlangTuple [ErlangAtom "case_clause", term])
 
-if_clause :: ErlangTerm -> Effect ErlangTerm
+if_clause :: ErlangTerm -> ErlangTerm
 if_clause term =
   error (ErlangTuple [ErlangAtom "if_clause", term])
 
-try_clause :: ErlangTerm -> Effect ErlangTerm
+try_clause :: ErlangTerm -> ErlangTerm
 try_clause term =
   error (ErlangTuple [ErlangAtom "try_clause", term])
 
-bad_match :: ErlangTerm -> Effect ErlangTerm
+bad_match :: ErlangTerm -> ErlangTerm
 bad_match term =
   error (ErlangTuple [ErlangAtom "badmatch", term])
 
-error_badarg :: Effect ErlangTerm
-error_badarg = error (ErlangAtom "badarg")
+error_badarg :: Unit -> ErlangTerm
+error_badarg _ = error (ErlangAtom "badarg")

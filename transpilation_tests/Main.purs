@@ -23,7 +23,6 @@ import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
 import Erlang.Builtins as BIF
-import Erlang.Helpers (unsafePerformEffectGuard)
 import Lists
 import Lambdas
 import Records
@@ -37,7 +36,7 @@ import Array.SUITE
 exec_may_throw_aff :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw_aff fun args =
     let
-        t = defer $ (\_ -> unsafePerformEffect $ unsafePartial $ fun args)
+        t = defer $ (\_ -> unsafePartial $ fun args)
         f = defer $ (\_ -> ErlangAtom "error")
     in do
         v <- liftEffect (catchException (\_ -> pure f) (pure t))
@@ -111,8 +110,8 @@ main = launchAff_ $ runSpec [consoleReporter] do
             test_sort [10,9,8,7,6,5,4,3,2,1]
             test_sort [5,3,34,6,2,5,7565,4,3,7,8,5,3]
         it "map/1" do
-            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> pure $ ErlangNum (a*20))) (\x -> x*20)
-            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> pure $ ErlangNum (-a))) (\x -> -x)
+            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> ErlangNum (a*20))) (\x -> x*20)
+            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> ErlangNum (-a))) (\x -> -x)
         it "zip/2" do
             test_zip_ok [1,2,3,4] [4,3,2,1]
             test_zip_ok [1,2,7,4] [1,3,2,1]
@@ -304,64 +303,64 @@ main = launchAff_ $ runSpec [consoleReporter] do
         r <- exec_may_throw erlps__test_index_3__0 []
         ErlangNum 3 `shouldEqualOk` r
 
-    let dropStack (ErlangTuple [t, p, _]) = pure (ErlangTuple [t, p])
-        dropStack _ = pure (ErlangAtom "bad_exception")
+    let dropStack (ErlangTuple [t, p, _]) = ErlangTuple [t, p]
+        dropStack _ = ErlangAtom "bad_exception"
     describe "Exception library" do
       it "no exception" do
-        r <- liftEffect $ tryCatchFinally
-          (\_ -> pure (ErlangAtom "hey"))
-          (\_ -> pure (ErlangAtom "bad"))
-          (\_ -> pure (ErlangAtom "ok"))
+        let r = tryCatchFinally
+                (\_ -> ErlangAtom "hey")
+                (\_ -> ErlangAtom "bad")
+                (\_ -> ErlangAtom "ok")
         ErlangAtom "hey" `shouldEqual` r
       it "throw" do
-        r <- liftEffect $ tryCatchFinally
-          (\_ -> throw (ErlangAtom "boom"))
-          dropStack
-          (\_ -> pure (ErlangAtom "ok"))
+        let r = tryCatchFinally
+                (\_ -> throw (ErlangAtom "boom"))
+                dropStack
+                (\_ -> ErlangAtom "ok")
         atomTup ["throw", "boom"] `shouldEqual` r
       it "exit" do
-        r <- liftEffect $ tryCatchFinally
-          (\_ -> exit (ErlangAtom "boom"))
-          dropStack
-          (\_ -> pure (ErlangAtom "ok"))
+        let r = tryCatchFinally
+                (\_ -> exit (ErlangAtom "boom"))
+                dropStack
+                (\_ -> ErlangAtom "ok")
         atomTup ["exit", "boom"] `shouldEqual` r
       it "error" do
-        r <- liftEffect $ tryOfCatchFinally
-          (\_ -> error (ErlangAtom "boom"))
-          (\x -> pure x)
-          dropStack
-          (\_ -> pure (ErlangAtom "ok"))
+        let r = tryOfCatchFinally
+                (\_ -> error (ErlangAtom "boom"))
+                (\x -> x)
+                dropStack
+                (\_ -> ErlangAtom "ok")
         atomTup ["error", "boom"] `shouldEqual` r
       it "finally from catch" do
         ref <- liftEffect $ Ref.new false
-        r <- liftEffect $ tryCatchFinally
-          (\_ -> error (ErlangAtom "boom"))
-          (\err -> pure (ErlangAtom "ok"))
-          (\_ -> Ref.write true ref)
+        let r = tryCatchFinally
+                (\_ -> error (ErlangAtom "boom"))
+                (\err -> ErlangAtom "ok")
+                (\_ -> Ref.write true ref)
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true
         ErlangAtom "ok" `shouldEqual` r
       it "finally from rethrow" do
         ref <- liftEffect $ Ref.new false
-        r <- liftEffect $ tryCatch
+        let r = tryCatch
              (\_ -> tryCatchFinally
                     (\_ -> error (ErlangAtom "boom"))
                     (\err -> error (ErlangAtom "boom"))
                     (\_ -> Ref.write true ref)
              )
-             (\_ -> pure (ErlangAtom "ok_e"))
+             (\_ -> ErlangAtom "ok_e")
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true
         ErlangAtom "ok_e" `shouldEqual` r
       it "finally from `of`" do
         ref <- liftEffect $ Ref.new false
-        r <- liftEffect $ tryCatch
+        let r = tryCatch
              (\_ -> tryOfCatchFinally
-                    (\_ -> pure (ErlangAtom "ok"))
+                    (\_ -> ErlangAtom "ok")
                     (\_ -> error (ErlangAtom "boom"))
-                    (\err -> pure (ErlangAtom "bad"))
+                    (\err -> ErlangAtom "bad")
                     (\_ -> Ref.write true ref))
-             (\_ -> pure (ErlangAtom "ok_e"))
+             (\_ -> ErlangAtom "ok_e")
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true
         ErlangAtom "ok_e" `shouldEqual` r

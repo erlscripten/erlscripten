@@ -1,9 +1,7 @@
 "use strict";
 
 exports.raise = function(ex) {
-    return function() {
-        throw ex;
-    };
+    throw ex;
 };
 
 exports.getStack = function() {
@@ -15,11 +13,11 @@ let tryCatch =
     function(exprC) {
         return function(handler) {
             try {
-                let result = exprC()();
-                return function() { return result; };
+                let result = exprC();
+                return result;
             } catch(error) {
-                let resultEr = handler(error)();
-                return function() { return resultEr; };
+                let resultEr = handler(error);
+                return resultEr;
             }
         };
     };
@@ -30,13 +28,13 @@ let tryOfCatch =
         return function(ofHandler) {
             return function(handler) {
                 var computed;
-                try { computed = exprC()(); }
+                try { computed = exprC(); }
                 catch(error) {
-                    let resultEr = handler(error)();
-                    return function() { return resultEr; };
+                    let resultEr = handler(error);
+                    return resultEr;
                 }
-                let result = ofHandler(computed)();
-                return function(){ return result; };
+                let result = ofHandler(computed);
+                return result;
             };
         };
     };
@@ -48,9 +46,9 @@ exports.tryCatchFinally =
         return function(handler) {
             return function(afterC) {
                 try {
-                    let result = tryCatch(exprC)(handler)();
-                    return function() { return result; };
-                } finally { afterC()(); }
+                    let result = tryCatch(exprC)(handler);
+                    return result;
+                } finally { afterC(); }
             };
         };
     };
@@ -62,9 +60,9 @@ exports.tryOfCatchFinally =
                 return function(afterC) {
                     var computed;
                     try {
-                        let result = tryOfCatch(exprC)(ofHandler)(handler)();
-                        return function() { return result; };
-                    } finally { afterC()(); }
+                        let result = tryOfCatch(exprC)(ofHandler)(handler);
+                        return result;
+                    } finally { afterC(); }
                 };
             };
         };
