@@ -223,3 +223,12 @@ test_ordering_2() ->
   catch error:{badmatch, true} ->
     ok
   end.
+
+test_scope_1() ->
+  [begin true = true end, begin false = false end],
+  ok.
+
+test_scope_2() ->
+  [true = true, false = false],
+  ok.
+
