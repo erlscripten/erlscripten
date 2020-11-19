@@ -466,3 +466,9 @@ main = launchAff_ $ runSpec [consoleReporter] do
       it "Deprecated catch / exit" do
         r <- exec_may_throw erlps__test_deprecated_catch_exit__0 []
         atomTup ["EXIT", "ok"] `shouldEqualOk` r
+      it "Properly orders operations 1" do
+        r <- exec_may_throw erlps__test_ordering_1__0 []
+        ok `shouldEqualOk` r
+      it "Properly orders operations 2" do
+        r <- exec_may_throw erlps__test_ordering_2__0 []
+        ok `shouldEqualOk` r

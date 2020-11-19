@@ -209,3 +209,17 @@ test_deprecated_catch_error() ->
     end.
 test_deprecated_catch_exit() ->
     catch exit(ok).
+
+test_ordering_1() ->
+  try
+    [false = true, throw(probe)]
+  catch error:{badmatch, true} ->
+    ok
+  end.
+
+test_ordering_2() ->
+  try
+    [begin false = true end, begin throw(probe) end]
+  catch error:{badmatch, true} ->
+    ok
+  end.
