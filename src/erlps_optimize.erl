@@ -293,6 +293,13 @@ constant_propagation(#guard_expr{guard = Expr}, State) ->
     #guard_expr{guard = constant_propagation(Expr, State)};
 constant_propagation(#guard_assg{lvalue = Pat, rvalue = Expr}, State) ->
     #guard_assg{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
+%% constant_propagation(#expr_case{expr = Expr0,
+%%                                 cases = [{#pat_var{name = AnotherVar}, [], Cont}|_]
+%%                                }, State) ->
+%%     Expr1 = constant_propagation(Expr0),
+%%     case inlineable(Expr1) of
+%%         true -> constant_propagation(Cont, State#{AnotherVar => Expr1});
+%%         false -> 
 constant_propagation(NothingToDo, _State) ->
     NothingToDo.
 

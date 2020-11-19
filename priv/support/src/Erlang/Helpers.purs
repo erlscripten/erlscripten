@@ -35,3 +35,13 @@ codePointToInt = unsafeCoerce
 make_string :: String -> ErlangTerm
 make_string str = arrayToErlangList (map (ErlangNum <<< codePointToInt) (Str.toCodePointArray str))
 
+flmap :: ErlangFun
+flmap [ErlangFun 1 f, list] = erflat (ermap list ErlangEmptyList) ErlangEmptyList where
+  ermap :: ErlangTerm -> ErlangTerm -> ErlangTerm
+  ermap ErlangEmptyList acc = acc
+  ermap (ErlangCons h t) acc = ermap t (ErlangCons (f [h]) acc)
+
+  erflat :: ErlangTerm -> ErlangTerm -> ErlangTerm
+  erflat ErlangEmptyList acc = acc
+  erflat (ErlangCons ErlangEmptyList t) acc = erflat t acc
+  erflat (ErlangCons h t) acc = erflat t (ErlangCons h acc)

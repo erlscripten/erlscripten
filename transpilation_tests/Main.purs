@@ -336,7 +336,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
         let r = tryCatchFinally
                 (\_ -> error (ErlangAtom "boom"))
                 (\err -> ErlangAtom "ok")
-                (\_ -> Ref.write true ref)
+                (\_ -> unsafePerformEffect $ Ref.write true ref)
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true
         ErlangAtom "ok" `shouldEqual` r
@@ -346,7 +346,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
              (\_ -> tryCatchFinally
                     (\_ -> error (ErlangAtom "boom"))
                     (\err -> error (ErlangAtom "boom"))
-                    (\_ -> Ref.write true ref)
+                    (\_ -> unsafePerformEffect $ Ref.write true ref)
              )
              (\_ -> ErlangAtom "ok_e")
         executed <- liftEffect $ Ref.read ref
@@ -359,7 +359,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
                     (\_ -> ErlangAtom "ok")
                     (\_ -> error (ErlangAtom "boom"))
                     (\err -> ErlangAtom "bad")
-                    (\_ -> Ref.write true ref))
+                    (\_ -> unsafePerformEffect $ Ref.write true ref))
              (\_ -> ErlangAtom "ok_e")
         executed <- liftEffect $ Ref.read ref
         executed `shouldEqual` true

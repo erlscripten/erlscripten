@@ -1105,7 +1105,7 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, LetDefs0, Env)
     Var = state_create_fresh_var("lc"),
     Gen =
         #expr_app{
-           function = transpile_fun_ref(lists, "flatmap", 2, Env),
+           function = #expr_var{name = "flmap"},
            args =
                [#expr_array{
                    value =

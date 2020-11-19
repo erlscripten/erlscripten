@@ -13,7 +13,11 @@
 -compile(nowarn).
 
 -compile(export_all).
--record(dupa, {jaja, kek :: integer(), kok = 123, lol = 1999 :: integer()}).
 
-test_3() ->
-    catch throw(xd).
+test() ->
+    test(),
+    X = 1,
+    Y = X + 1,
+    X,
+    X = Y - 1,
+    123.
