@@ -589,8 +589,13 @@ transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
     ok.
 
 transpile_body(Body, Env) ->
-    PSBody = transpile_body(Body, [], Env),
-    catch_partial_lets(PSBody).
+    {PSBody0, LetDefs} = transpile_body(Body, [], Env),
+    PSBody1 = 
+	case LetDefs of
+	    [] -> PSBody0;
+	    _ -> #expr_let{letdefs = lists:reverse(LetDefs), in = PSBody0}
+	end,
+    catch_partial_lets(PSBody1).
 transpile_body([], _, _) ->
     error(empty_body);
 transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
@@ -601,10 +606,8 @@ transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
                     {var, Ann, Var}],
                    Acc,
                    Env);
-transpile_body([Expr], [], Env) ->
-    transpile_expr(Expr, Env);
 transpile_body([Expr], Acc, Env) ->
-    #expr_let{letdefs = lists:reverse(Acc), in = transpile_expr(Expr, Env)};
+    {transpile_expr(Expr, Env), Acc};
 transpile_body([Expr|Rest], Acc, Env) ->
     {PSExpr, Acc1} = transpile_expr(Expr, Acc, Env),
     transpile_body(Rest, [#letval{lvalue = pat_wildcard, rvalue = PSExpr}|Acc1], Env).
@@ -744,7 +747,7 @@ transpile_expr(Expr, Env) ->
             #expr_let{letdefs = lists:reverse(LetDefs), in = PSExpr}
     end.
 transpile_expr({block, _, Body}, LetDefs, Env) ->
-    {transpile_body(Body, Env), LetDefs};
+    transpile_body(Body, LetDefs, Env);
 transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, LetDefs, Env) ->
     %% When matching to a wildcard pattern we may skip the case statement
     transpile_expr(Expr, LetDefs, Env);
