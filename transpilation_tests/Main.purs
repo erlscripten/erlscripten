@@ -14,11 +14,14 @@ import Test.Spec (pending, describe, it)
 import Test.Spec.Assertions (shouldEqual, expectError)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
+import Data.String.CodePoints as StrCP
+import Data.String as Str
 
 import Data.Lazy
 import Data.Either
 import Data.Tuple as T
 import Data.Array as A
+import Data.Maybe as M
 import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
@@ -29,6 +32,7 @@ import Records
 import Exceptions
 import Test.Array
 import Array.SUITE
+import Unsafe.Coerce
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -43,10 +47,33 @@ exec_may_throw_aff fun args =
                                       ) (pure t))
       pure $ force v
 
+wololo_term :: Error -> ErlangTerm
+wololo_term res = unsafeCoerce res
+
+wololo_codepoint :: Partial => ErlangTerm -> StrCP.CodePoint
+wololo_codepoint (ErlangNum res) = unsafeCoerce res
+
+print_err (Right r) = show r
+print_err (Left e) =
+    case show e of
+        "[object Object]" ->
+            case (wololo_term e) of
+                ErlangTuple [a,b,stack] ->
+                    let
+                        m1 = show a
+                        m2 = show b
+                        m3 = unsafePartial $ Str.fromCodePointArray $ map wololo_codepoint $ A.fromFoldable $ M.fromJust $ erlangListToList stack
+                    in
+                        "[" <> m1 <> ", " <> m2 <> ", " <> m3 <> "]"
+                r ->
+                    show r
+        r ->
+            r
+
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    liftEffect $ log $ show res -- Uncomment for logs :)
+    liftEffect $ log $ print_err res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
