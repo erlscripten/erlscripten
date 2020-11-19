@@ -46,52 +46,64 @@ instance showErlangTerm :: Show ErlangTerm where
     show (ErlangMap m) =
         show m
 
-instance eqErlangTerm :: Eq ErlangTerm where
-    eq (ErlangAtom a) (ErlangAtom b) = a == b
-    eq (ErlangNum a) (ErlangNum b) = a == b
-    eq (ErlangCons ha ta) (ErlangCons hb tb) = ha == hb && ta == tb
-    eq ErlangEmptyList ErlangEmptyList = true
-    eq (ErlangBinary a) (ErlangBinary b) = (unsafePerformEffect $ toArray a) == (unsafePerformEffect $ toArray b)
-    eq (ErlangTuple a) (ErlangTuple b) = a == b
-    eq (ErlangMap m1) (ErlangMap m2) = m1 == m2
-    eq _ _ = false
+eqErlangTermImpl :: ErlangTerm -> ErlangTerm -> Boolean
+eqErlangTermImpl (ErlangAtom a) (ErlangAtom b) = a == b
+eqErlangTermImpl (ErlangNum a) (ErlangNum b) = a == b
+eqErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
+  -- heads MUST NOT be compared by recursive call
+  if eq ha hb then eqErlangTermImpl ta tb else false
+eqErlangTermImpl ErlangEmptyList ErlangEmptyList = true
+eqErlangTermImpl (ErlangBinary a) (ErlangBinary b) =
+  (unsafePerformEffect $ toArray a) == (unsafePerformEffect $ toArray b)
+eqErlangTermImpl (ErlangTuple a) (ErlangTuple b) = a == b
+eqErlangTermImpl (ErlangMap m1) (ErlangMap m2) = m1 == m2
+eqErlangTermImpl _ _ = false
 
+instance eqErlangTerm :: Eq ErlangTerm where
+    eq = eqErlangTermImpl
+
+compareErlangTermImpl :: ErlangTerm -> ErlangTerm -> Ordering
+compareErlangTermImpl (ErlangNum a) (ErlangNum b) = compare a b
+compareErlangTermImpl (ErlangAtom a) (ErlangAtom b) = compare a b
+compareErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
+  -- heads MUST NOT be compared by recursive call
+  case compare ha hb of
+    EQ -> compareErlangTermImpl ta tb
+    res -> res
+compareErlangTermImpl ErlangEmptyList ErlangEmptyList = EQ
+compareErlangTermImpl (ErlangBinary a) (ErlangBinary b) =
+  compare (unsafePerformEffect $ toArray a) (unsafePerformEffect $ toArray b)
+compareErlangTermImpl (ErlangTuple a) (ErlangTuple b) = compare a b
+compareErlangTermImpl (ErlangMap m1) (ErlangMap m2) =
+  let sizeCMP = compare (Map.size m1) (Map.size m2)
+  in case sizeCMP of
+    EQ ->
+      let l1 :: DL.List (DT.Tuple ErlangTerm ErlangTerm)
+          l1 = Map.toUnfoldable m1
+          l2 = Map.toUnfoldable m2 -- FIXME erlang float vs int ordering
+      in compare l1 l2
+    _ -> sizeCMP
+
+compareErlangTermImpl   (ErlangBinary _)  _ = GT
+compareErlangTermImpl   (ErlangCons _ _)  _ = GT
+compareErlangTermImpl   (ErlangEmptyList) _ = GT
+compareErlangTermImpl   (ErlangMap _)     _ = GT
+compareErlangTermImpl   (ErlangTuple _)   _ = GT
+compareErlangTermImpl   (ErlangFun _ _)   _ = GT
+compareErlangTermImpl   (ErlangAtom _)    _ = GT
+compareErlangTermImpl   (ErlangNum _)     _ = GT
+
+compareErlangTermImpl _ (ErlangNum _)       = LT
+compareErlangTermImpl _ (ErlangAtom _)      = LT
+compareErlangTermImpl _ (ErlangFun _ _)     = LT
+compareErlangTermImpl _ (ErlangTuple _)     = LT
+compareErlangTermImpl _ (ErlangMap _)       = LT
+compareErlangTermImpl _ (ErlangEmptyList)   = LT
+compareErlangTermImpl _ (ErlangCons _ _)    = LT
+compareErlangTermImpl _ (ErlangBinary _)    = LT
 
 instance ordErlangTerm :: Ord ErlangTerm where
-    compare (ErlangNum a) (ErlangNum b) = compare a b
-    compare (ErlangAtom a) (ErlangAtom b) = compare a b
-    compare (ErlangCons ha ta) (ErlangCons hb tb) = compare [ha, ta] [hb, tb]
-    compare ErlangEmptyList ErlangEmptyList = EQ
-    compare (ErlangBinary a) (ErlangBinary b) =
-      compare (unsafePerformEffect $ toArray a) (unsafePerformEffect $ toArray b)
-    compare (ErlangTuple a) (ErlangTuple b) = compare a b
-    compare (ErlangMap m1) (ErlangMap m2) =
-      let sizeCMP = compare (Map.size m1) (Map.size m2)
-      in case sizeCMP of
-        EQ ->
-          let l1 :: DL.List (DT.Tuple ErlangTerm ErlangTerm)
-              l1 = Map.toUnfoldable m1
-              l2 = Map.toUnfoldable m2 -- FIXME erlang float vs int ordering
-          in compare l1 l2
-        _ -> sizeCMP
-
-    compare   (ErlangBinary _)  _ = GT
-    compare   (ErlangCons _ _)  _ = GT
-    compare   (ErlangEmptyList) _ = GT
-    compare   (ErlangMap _)     _ = GT
-    compare   (ErlangTuple _)   _ = GT
-    compare   (ErlangFun _ _)   _ = GT
-    compare   (ErlangAtom _)    _ = GT
-    compare   (ErlangNum _)     _ = GT
-
-    compare _ (ErlangNum _)       = LT
-    compare _ (ErlangAtom _)      = LT
-    compare _ (ErlangFun _ _)     = LT
-    compare _ (ErlangTuple _)     = LT
-    compare _ (ErlangMap _)       = LT
-    compare _ (ErlangEmptyList)   = LT
-    compare _ (ErlangCons _ _)    = LT
-    compare _ (ErlangBinary _)    = LT
+    compare = compareErlangTermImpl
 
 
 concatArrays :: Buffer -> Buffer -> Effect (Buffer)
