@@ -75,6 +75,7 @@
 -record(expr_var, {name :: string()}).
 -record(expr_array, {value :: [purs_expr()]}).
 -record(expr_case, {expr :: purs_expr(), cases :: [{purs_pat(), [purs_guard()], purs_expr()}]}).
+-record(expr_if, {condition :: purs_expr(), then :: purs_expr(), else :: purs_expr()}).
 -record(expr_lambda, {args :: [purs_pat()], body :: purs_expr()}).
 -record(expr_do, {statements :: [purs_do_statement()], return :: purs_expr()}).
 -record(expr_record, {fields :: [{string(), purs_expr()}]}).
@@ -87,6 +88,7 @@
 | #expr_var{}
 | #expr_array{}
 | #expr_case{}
+| #expr_if{}
 | #expr_lambda{}
 | #expr_do{}
 | #expr_record{}

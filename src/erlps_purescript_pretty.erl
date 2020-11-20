@@ -15,7 +15,8 @@
 
 %% API
 -export([
-    format_module/1
+    format_module/1,
+    with_options/2
 ]).
 
 -export([
@@ -136,6 +137,32 @@ pp_expr(#expr_case{expr = Ex, cases = Cases}) ->
                  || {Pat, Guards, Expr} <- Cases
                 ])
          );
+pp_expr(#expr_if{condition = C0, then = T0, else = E0 = #expr_if{}}) ->
+    GetGroups = fun GetGroups(#expr_if{condition = C, then = T, else = E}, Acc) ->
+                        GetGroups(E, [{C, T}|Acc]);
+                    GetGroups(NotIf, Acc) ->
+                        {lists:reverse(Acc), NotIf}
+                end,
+    {Groups, FinalElse} = GetGroups(E0, []),
+
+    above(
+      [ above(
+          block(text("if"), pp_expr(C0)),
+          block(text("then"), pp_expr(T0))
+         ) ] ++
+      [ above(block(text("else if"), pp_expr(C)),
+              block(text("then"), pp_expr(T))
+             )
+        || {C, T} <- Groups
+      ] ++
+      [ block(text("else"), pp_expr(FinalElse)) ]
+      );
+pp_expr(#expr_if{condition = C, then = T, else = E}) ->
+    above(
+      [ block(text("if"), pp_expr(C))
+      , block(text("then"), pp_expr(T))
+      , block(text("else"), pp_expr(E))
+      ]);
 pp_expr(#expr_lambda{args = Args, body = Body}) ->
     paren(block(
             hsep(lists:flatten([text("\\"),
