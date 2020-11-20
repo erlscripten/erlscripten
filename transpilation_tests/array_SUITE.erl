@@ -226,31 +226,31 @@ new_test_() ->
     ].
 
 fix_test_() ->
-    [%%?_assert(is_array(fix(new()))),
+    [?_assert(is_array(fix(new()))),
      ?_assert(fix(new()) =:= new(fixed)),
 
-     ?_assertNot(is_fix(new()))%%,
-     %%?_assertNot(is_fix(new([]))),
-     %%?_assertNot(is_fix(new({fixed,false})))%%,
+     ?_assertNot(is_fix(new())),
+     ?_assertNot(is_fix(new([]))),
+     ?_assertNot(is_fix(new({fixed,false}))),
 
 
-     %%?_assertNot(is_fix(new(10, {fixed,false}))),
-     %%?_assert(is_fix(new({fixed,true}))),
-     %%?_assert(is_fix(new(fixed))),
-     %%?_assert(is_fix(new(10))),
-     %%?_assert(is_fix(new(10, []))),
-     %%?_assert(is_fix(new(10, {fixed,true}))),
-     %%?_assert(is_fix(fix(new()))),
-     %%?_assert(is_fix(fix(new({fixed,false})))),
+     ?_assertNot(is_fix(new(10, {fixed,false}))),
+     ?_assert(is_fix(new({fixed,true}))),
+     ?_assert(is_fix(new(fixed))),
+     ?_assert(is_fix(new(10))),
+     ?_assert(is_fix(new(10, []))),
+     ?_assert(is_fix(new(10, {fixed,true}))),
+     ?_assert(is_fix(fix(new()))),
+     ?_assert(is_fix(fix(new({fixed,false})))),
 
 
-     %%?_test(set(0, 17, new())),
-     %%?_assertError(badarg, set(0, 17, new(fixed))),
-     %%?_assertError(badarg, set(1, 42, fix(set(0, 17, new())))),
+     ?_test(set(0, 17, new())),
+     ?_assertError(badarg, set(0, 17, new(fixed))),
+     ?_assertError(badarg, set(1, 42, fix(set(0, 17, new())))),
 
-     %%?_test(set(9, 17, new(10))),
-     %%?_assertError(badarg, set(10, 17, new(10))),
-     %%?_assertError(badarg, set(10, 17, fix(new(10, {fixed,false}))))
+     ?_test(set(9, 17, new(10))),
+     ?_assertError(badarg, set(10, 17, new(10))),
+     ?_assertError(badarg, set(10, 17, fix(new(10, {fixed,false}))))
     ].
 
 relax_test_() ->
