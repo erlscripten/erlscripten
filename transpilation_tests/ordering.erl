@@ -35,3 +35,9 @@ test_ordering_3() ->
             ok;
           Bad -> Bad
     end.
+
+
+test_lc() ->
+    [{1,2}, {1,2}] = [{1,2} || _ <- [1,2]],
+    ok.
+
