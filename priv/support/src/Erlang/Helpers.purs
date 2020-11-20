@@ -43,5 +43,5 @@ flmap [ErlangFun 1 f, list] = erflat (ermap list ErlangEmptyList) ErlangEmptyLis
 
   erflat :: ErlangTerm -> ErlangTerm -> ErlangTerm
   erflat ErlangEmptyList acc = acc
-  erflat (ErlangCons ErlangEmptyList t) acc = erflat t acc
-  erflat (ErlangCons h t) acc = erflat t (ErlangCons h acc)
+  erflat (ErlangCons ErlangEmptyList rest) acc = erflat rest acc
+  erflat (ErlangCons (ErlangCons h t) rest) acc = erflat (ErlangCons t rest) (ErlangCons h acc)
