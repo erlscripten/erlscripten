@@ -144,26 +144,25 @@ pp_expr(#expr_lambda{args = Args, body = Body}) ->
             pp_expr(Body)));
 pp_expr(#expr_do{statements = Stm, return = Ret}) ->
     paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)])));
-pp_expr(#expr_let{letdefs = LDs0, in = In0}) ->
+pp_expr(#expr_let{letdefs = LDs0, in = In0 = #expr_let{}}) ->
     GetGroups = fun GetGroups(#expr_let{letdefs = LDs, in = In}, Acc) ->
                         GetGroups(In, [LDs|Acc]);
                     GetGroups(NotLet, Acc) ->
                         {lists:reverse(Acc), NotLet}
                 end,
     {Groups, FinalIn} = GetGroups(In0, []),
-    case Groups of
-        [] -> above(
-                block(text("let"), above([pp_letdef(LD) || LD <- LDs0])),
-                block(text("in"), pp_expr(FinalIn))
-               );
-        _ ->
-            above([ block(text("let   "), above([pp_letdef(LD) || LD <- LDs0])) ] ++
-                      [ block(text("in let"), above([pp_letdef(LD) || LD <- LDs]))
-                        || LDs <- Groups
-                      ] ++
-                      [ block(text("in"), pp_expr(FinalIn)) ]
-                 )
-    end;
+
+    above([ block(text("let   "), above([pp_letdef(LD) || LD <- LDs0])) ] ++
+          [ block(text("in let"), above([pp_letdef(LD) || LD <- LDs]))
+            || LDs <- Groups
+          ] ++
+          [ block(text("in"), pp_expr(FinalIn)) ]
+         );
+pp_expr(#expr_let{letdefs = LDs, in = In}) ->
+    above(
+      block(text("let"), above([pp_letdef(LD) || LD <- LDs])),
+      block(text("in"), pp_expr(In))
+     );
 pp_expr(#expr_record{fields = Fields}) ->
     comma_brackets(
       "{", "}",

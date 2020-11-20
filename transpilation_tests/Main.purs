@@ -16,6 +16,7 @@ import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Data.String.CodePoints as StrCP
 import Data.String as Str
+import Unsafe.Coerce
 
 import Data.Lazy
 import Data.Either
@@ -26,13 +27,15 @@ import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
 import Erlang.Builtins as BIF
+
 import Lists
 import Lambdas
 import Records
 import Exceptions
+import Scoping
+import Ordering
 import Test.Array
 import Array.SUITE
-import Unsafe.Coerce
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
