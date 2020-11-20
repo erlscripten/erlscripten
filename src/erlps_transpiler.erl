@@ -284,14 +284,23 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
        value = PSBody
     }.
 
+combine_guards([#guard_expr{guard = First}|Guards]) ->
+    combine_guards(Guards, First, Guards);
+combine_guards(Guards) ->
+    Guards.
+combine_guards([], Acc, _) ->
+    [#guard_expr{guard = Acc}];
+combine_guards([#guard_expr{guard = G}|Rest], Acc, Init) ->
+    combine_guards(Rest, #expr_binop{name = "&&", lop = Acc, rop = G}, Init);
+combine_guards(_, _, Init) ->
+    Init.
 
 transpile_boolean_guards([], _Env) -> [];
 transpile_boolean_guards([SingleConj], Env) ->
     GSeq = [transpile_boolean_guards_singleton(E, Env) || E <- SingleConj],
     %% If all of them compiled to guards then we won :)
     case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
-      [] ->
-          lists:flatten(GSeq);
+      [] -> combine_guards(lists:flatten(GSeq));
       _ ->
           %% Well - just fallback to the general case :P
           transpile_boolean_guards_fallback([SingleConj], Env)
@@ -301,19 +310,21 @@ transpile_boolean_guards(Guards, Env) ->
     transpile_boolean_guards_fallback(Guards, Env).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEL"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
-  Pat = #pat_constr{constr = "ErlangTuple", args = [pat_wildcard]},
-  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
-  Pat = #pat_constr{constr = "ErlangNum", args = [pat_wildcard]},
-  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
-  Pat = #pat_constr{constr = "ErlangAtom", args = [pat_wildcard]},
-  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEMap"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var}]}, _Env) ->
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
-  Pat = #pat_constr{constr = "ErlangFun", args = [#pat_num{value = Arity}, pat_wildcard]},
-  [#guard_assg{lvalue = Pat, rvalue = ?make_expr_var(state_get_var(Var))}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFunA"), args = [?make_expr_var(state_get_var(Var)),
+                                                                               ?make_expr_int(Arity)
+                                                                              ]}}];
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),
     RE = guard_trivial_expr(Rop, Env),

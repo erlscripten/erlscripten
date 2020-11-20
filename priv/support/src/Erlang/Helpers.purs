@@ -23,10 +23,38 @@ applyTerm :: Partial => ErlangTerm -> ErlangFun
 applyTerm (ErlangFun arityVal fun) argsL |
   DA.length argsL == arityVal = fun argsL
 
-isEL :: ErlangTerm -> Boolean
-isEL ErlangEmptyList = true
-isEL (ErlangCons _ _) = true
-isEL _ = false
+isEList :: ErlangTerm -> Boolean
+isEList ErlangEmptyList = true
+isEList (ErlangCons _ _) = true
+isEList _ = false
+
+isENum :: ErlangTerm -> Boolean
+isENum (ErlangNum _) = true
+isENum _ = false
+
+isEAtom :: ErlangTerm -> Boolean
+isEAtom (ErlangAtom _) = true
+isEAtom _ = false
+
+isEBinary :: ErlangTerm -> Boolean
+isEBinary (ErlangBinary _) = true
+isEBinary _ = false
+
+isETuple :: ErlangTerm -> Boolean
+isETuple (ErlangTuple _) = true
+isETuple _ = false
+
+isEFun :: ErlangTerm -> Boolean
+isEFun (ErlangFun _ _) = true
+isEFun _ = false
+
+isEFunA :: ErlangTerm -> ErlangTerm -> Boolean
+isEFunA (ErlangFun a0 _) (ErlangNum a1) = a0 == a1
+isEFunA _ _ = false
+
+isEMap :: ErlangTerm -> Boolean
+isEMap (ErlangMap _) = true
+isEMap _ = false
 
 -- They removed support of it. CodePoint is just a newtype for Int.
 codePointToInt :: StrCP.CodePoint -> Int

@@ -14,10 +14,8 @@
 
 -compile(export_all).
 
-test() ->
-    test(),
-    X = 1,
-    Y = X + 1,
-    X,
-    X = Y - 1,
-    123.
+test(X) ->
+    case X of
+        Y when is_integer(Y) -> test(1);
+        [] -> test(999)
+    end.

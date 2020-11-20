@@ -180,10 +180,8 @@ erlang__op_unAppend [ErlangCons hl tl, r@(ErlangCons hr tr)] =
 
 -- ++
 erlang__op_append :: ErlangFun
-erlang__op_append [ErlangEmptyList, ErlangEmptyList] = ErlangEmptyList
-erlang__op_append [ErlangEmptyList, l@(ErlangCons _ _)] = l
-erlang__op_append [l@(ErlangCons _ _), ErlangEmptyList] = l
-erlang__op_append [ErlangCons h t, l@(ErlangCons _ _)] =
+erlang__op_append [ErlangEmptyList, l] = l
+erlang__op_append [ErlangCons h t, l] =
   ErlangCons h (erlang__op_append [t, l])
 erlang__op_append _ = EXT.error_badarg unit
 
