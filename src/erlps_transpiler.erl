@@ -590,11 +590,11 @@ transpile_binary_pattern_segments(UnboxedVar, [], NewBindings) ->
 
 transpile_body(Body, Env) ->
     {PSBody0, LetDefs} = transpile_body(Body, [], Env),
-    PSBody1 = 
-	case LetDefs of
-	    [] -> PSBody0;
-	    _ -> #expr_let{letdefs = lists:reverse(LetDefs), in = PSBody0}
-	end,
+    PSBody1 =
+        case LetDefs of
+            [] -> PSBody0;
+            _ -> apply_assignments(LetDefs, PSBody0)
+        end,
     catch_partial_lets(PSBody1).
 transpile_body([], _, _) ->
     error(empty_body);
@@ -744,7 +744,7 @@ transpile_expr(Expr, Env) ->
     case LetDefs of
         [] -> PSExpr;
         _ ->
-            #expr_let{letdefs = lists:reverse(LetDefs), in = PSExpr}
+            apply_assignments(LetDefs, PSExpr)
     end.
 transpile_expr({block, _, Body}, LetDefs, Env) ->
     transpile_body(Body, LetDefs, Env);
@@ -1306,6 +1306,12 @@ compute_constexpr({integer, _, Num}) ->
     {ok, Num};
 compute_constexpr({float, _, Num}) ->
     {ok, Num}.
+
+apply_assignments([], Expr) ->
+    Expr;
+apply_assignments([Letdef|Rest], Expr) ->
+    apply_assignments(Rest, #expr_let{letdefs = [Letdef], in = Expr}).
+
 
 %% Hacky emulation of a state monad using the process dictionary :P
 -define(BINDINGS, var_bindings).

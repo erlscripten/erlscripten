@@ -472,6 +472,9 @@ main = launchAff_ $ runSpec [consoleReporter] do
       it "Properly orders operations 2" do
         r <- exec_may_throw erlps__test_ordering_2__0 []
         ok `shouldEqualOk` r
+      it "Properly orders operations 3" do
+        r <- exec_may_throw erlps__test_ordering_3__0 []
+        ok `shouldEqualOk` r
       it "test_scope_1" do
         r <- exec_may_throw erlps__test_scope_1__0 []
         ok `shouldEqualOk` r

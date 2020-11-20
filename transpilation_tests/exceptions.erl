@@ -224,6 +224,24 @@ test_ordering_2() ->
     ok
   end.
 
+boom() ->
+    throw(boom).
+kaboom() ->
+    throw(kaboom).
+ok() ->
+    ok.
+test_ordering_3() ->
+    try
+        [ ok()
+        , boom()
+        , kaboom()
+        , ok()
+        ]
+    catch boom ->
+            ok;
+          Bad -> Bad
+    end.
+
 test_scope_1() ->
   [begin true = true end, begin false = false end],
   ok.
@@ -231,4 +249,3 @@ test_scope_1() ->
 test_scope_2() ->
   [true = true, false = false],
   ok.
-
