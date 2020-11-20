@@ -411,32 +411,32 @@ from_list_test_() ->
 
 to_orddict_test_() ->
     N0 = ?LEAFSIZE,
-    [%%?_assert([] =:= to_orddict(new())),
-     %%?_assert([{0,undefined}] =:= to_orddict(new(1))),
-     %%?_assert([{0,undefined},{1,undefined}] =:= to_orddict(new(2))),
+    [?_assert([] =:= to_orddict(new())),
+     ?_assert([{0,undefined}] =:= to_orddict(new(1))),
+     ?_assert([{0,undefined},{1,undefined}] =:= to_orddict(new(2))),
      ?_assert([{N,0}||N<-lists:seq(0,N0-1)]
-	      =:= to_orddict(new(N0,{default,0})))%%,
-     %%?_assert([{N,1}||N<-lists:seq(0,N0)]
-	 %%     =:= to_orddict(new(N0+1,{default,1}))),
-     %%?_assert([{N,2}||N<-lists:seq(0,N0+1)]
-	 %%     =:= to_orddict(new(N0+2,{default,2}))),
-     %%?_assert([{N,6}||N<-lists:seq(0,665)]
-	 %%     =:= to_orddict(new(666,{default,6}))),
-     %%?_assert([{0,1},{1,2},{2,3}] =:=
-	 %%     to_orddict(set(2,3,set(1,2,set(0,1,new()))))),
-     %%?_assert([{0,3},{1,2},{2,1}] =:=
-	 %%     to_orddict(set(0,3,set(1,2,set(2,1,new())))))%%,
-     %%?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0-2)]++[{N0-1,1}]]
-	 %%     =:= to_orddict(set(N0-1,1,set(0,1,new({default,0}))))),
-     %%?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0-1)]++[{N0,1}]]
-	 %%     =:= to_orddict(set(N0,1,set(0,1,new({default,0}))))),
-     %%?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0)]++[{N0+1,1}]]
-	 %%     =:= to_orddict(set(N0+1,1,set(0,1,new({default,0}))))),
-     %%?_assert([{0,0} | [{N,undefined}||N<-lists:seq(1,N0*2)]] ++
-	 %%     [{N0*2+1,1} | [{N,undefined}||N<-lists:seq(N0*2+2,N0*10)]] ++
-	 %%     [{N0*10+1,2}] =:=
-	 %%     to_orddict(set(N0*10+1,2,set(N0*2+1,1,set(0,0,new()))))),
-     %%?_assertError(badarg, to_orddict(no_array))
+	      =:= to_orddict(new(N0,{default,0}))),
+     ?_assert([{N,1}||N<-lists:seq(0,N0)]
+	      =:= to_orddict(new(N0+1,{default,1}))),
+     ?_assert([{N,2}||N<-lists:seq(0,N0+1)]
+	      =:= to_orddict(new(N0+2,{default,2}))),
+     ?_assert([{N,6}||N<-lists:seq(0,665)]
+	      =:= to_orddict(new(666,{default,6}))),
+     ?_assert([{0,1},{1,2},{2,3}] =:=
+	      to_orddict(set(2,3,set(1,2,set(0,1,new()))))),
+     ?_assert([{0,3},{1,2},{2,1}] =:=
+	      to_orddict(set(0,3,set(1,2,set(2,1,new()))))),
+     ?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0-2)]++[{N0-1,1}]]
+	      =:= to_orddict(set(N0-1,1,set(0,1,new({default,0}))))),
+     ?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0-1)]++[{N0,1}]]
+	      =:= to_orddict(set(N0,1,set(0,1,new({default,0}))))),
+     ?_assert([{0,1}|[{N,0}||N<-lists:seq(1,N0)]++[{N0+1,1}]]
+	      =:= to_orddict(set(N0+1,1,set(0,1,new({default,0}))))),
+     ?_assert([{0,0} | [{N,undefined}||N<-lists:seq(1,N0*2)]] ++
+	      [{N0*2+1,1} | [{N,undefined}||N<-lists:seq(N0*2+2,N0*10)]] ++
+	      [{N0*10+1,2}] =:=
+	      to_orddict(set(N0*10+1,2,set(N0*2+1,1,set(0,0,new()))))),
+     ?_assertError(badarg, to_orddict(no_array))
     ].
 
 sparse_to_orddict_test_() ->
