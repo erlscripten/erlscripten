@@ -598,9 +598,10 @@ transpile_body(Body, Env) ->
     catch_partial_lets(PSBody1).
 transpile_body([], _, _) ->
     error(empty_body);
+%% We can't just return a let expression
 transpile_body([{match, Ann, Pat, Expr}], Acc, Env) ->
-    %% We can't just return a bind
-    Var = "match_final_", % do NOT register it at this point
+    %% do NOT register it at this point
+    Var = "match_final_" ++ integer_to_list(state_new_id()),
     transpile_body([{match, Ann, {var, Ann, Var}, Expr},
                     {match, Ann, Pat, {var, Ann, Var}},
                     {var, Ann, Var}],
