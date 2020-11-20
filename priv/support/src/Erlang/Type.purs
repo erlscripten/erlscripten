@@ -114,10 +114,12 @@ instance semigroupErlangTerm :: Semigroup ErlangTerm where
      append (ErlangBinary a) (ErlangBinary b) = ErlangBinary $ unsafePerformEffect (concatArrays a b)
      append _ _ = unsafePerformEffect $ throw "Invalid append"
 
+
 erlangListToList :: ErlangTerm -> DM.Maybe (DL.List ErlangTerm)
-erlangListToList ErlangEmptyList = DM.Just DL.Nil
-erlangListToList (ErlangCons h t) | DM.Just et <- erlangListToList t = DM.Just (DL.Cons h et)
-erlangListToList _ = DM.Nothing
+erlangListToList = go DL.Nil where
+  go acc ErlangEmptyList = DM.Just (DL.reverse acc)
+  go acc (ErlangCons h t) = go (DL.Cons h acc) t
+  go _ _ = DM.Nothing
 
 arrayToErlangList :: Array ErlangTerm -> ErlangTerm
 arrayToErlangList arr = go (DL.fromFoldable arr) where
