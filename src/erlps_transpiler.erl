@@ -21,6 +21,7 @@
 -record(env,
         { current_module :: string()
         , records :: map()
+        , local_imports :: #{{string(), non_neg_integer()} => string()}
         }).
 
 version() -> "v0.0.2".
@@ -57,9 +58,14 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Control", "Monad"]}
         ],
     state_clear_import_requests(),
+    LocalImports = maps:from_list([ {{Name, Arity}, Module}
+                       || {import, {Module, ImportList}} <- Attributes,
+                          {Name, Arity} <- ImportList
+                      ]),
     Env = #env{
              current_module = atom_to_list(ModuleName),
-             records = Records
+             records = Records,
+             local_imports = LocalImports
             },
     %% Now do the dirty work - transpile every function OwO
     Decls = [transpile_function(Function, Env) ||
@@ -194,7 +200,7 @@ builtins_calc() ->
                      , {"maps", "update", 3}
                      , {"maps", "values", 1}
                      ]
-                   , [ {"erlang", atom_to_list(BIF), Arity}
+                    , [ {"erlang", atom_to_list(BIF), Arity}
                        || {BIF, Arity} <- erlang:module_info(exports),
                           proplists:get_value(atom_to_list(BIF), Operators, none) =:= none
                      ]
@@ -220,7 +226,6 @@ check_builtin(Module, Name, Arity) ->
         _ -> local
     end.
 
-
 -spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
     transpile_fun_ref(Module, Name, Arity, false, Env).
@@ -231,18 +236,25 @@ transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Name) ->
     transpile_fun_ref(Module, atom_to_list(Name), Arity, IsRemote, Env);
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
     transpile_fun_ref(atom_to_list(Module), Name, Arity, IsRemote, Env);
-transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule}) ->
+transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule, local_imports = Imported} = Env) ->
     case check_builtin(Module, Name, Arity) of
         {builtin, Builtin} ->
             #expr_var{name = "BIF." ++ Builtin};
         local ->
-            %% TODO: import resolving
-            %% assuming nobody overwrites autoimported stuff
             case check_builtin("erlang", Name, Arity) of
                 {builtin, BuiltinAnyway} when IsRemote =:= false ->
                     #expr_var{name = "BIF." ++ BuiltinAnyway};
-                _ -> if CurModule == Module -> #expr_var{name = transpile_fun_name(Name, Arity)};
-                        true -> #expr_var{name = erlang_module_to_purs_module(Module) ++ "."
+                _ -> if CurModule == Module ->
+                            %% Check if the local module call is in fact a call to an imported function
+                            Key = {list_to_atom(Name), Arity},
+                            case Imported of
+                                #{Key := M} ->
+                                    transpile_fun_ref(M, Name, Arity, Env);
+                                _ ->
+                                    #expr_var{name = transpile_fun_name(Name, Arity)}
+                            end;
+                        true ->
+                            #expr_var{name = erlang_module_to_purs_module(Module) ++ "."
                                           ++ transpile_fun_name(Name, Arity)}
                      end
             end
