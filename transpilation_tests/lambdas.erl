@@ -123,3 +123,45 @@ test_factorial_abuse_3() ->
 test_factorial_comp() ->
     [true = ((get_cancer_factorial())(X) =:= (mk_fact())(X)) || X <- lists:seq(1,20)],
     ok.
+
+test_apply_and_make_fun() ->
+    A = lists,
+    B = seq,
+    C = [1,10],
+    [1,2,3,4,5,6,7,8,9,10] = apply(A, B, C),
+    [1,2,3,4,5,6,7,8,9,10] = apply(fun A:B/2, C),
+    D = erlang:make_fun(A,B,2),
+    [1,2,3,4,5,6,7,8,9,10] = apply(D, C),
+    [1,2,3,4,5,6,7,8,9,10] = D(1,10),
+    ok.
+
+test_apply_exceptions() ->
+    try
+        erlang:apply(fun(_) -> ok end, []),
+        1=2
+    catch
+        error:{badarity, _} ->
+            ok
+    end,
+    try
+        erlang:apply(a,b,[]),
+        1=2
+    catch
+        error:undef ->
+            ok
+    end,
+    try
+        (erlang:make_fun(a,b,3))(1,2,3,4),
+        1=2
+    catch
+        error:{badarity, _} ->
+            ok
+    end,
+    try
+        (erlang:make_fun(a,b,3))(1,2,3),
+        1=2
+    catch
+        error:undef ->
+            ok
+    end,
+    ok.

@@ -237,9 +237,6 @@ erlang__dist_ctrl_get_data_notification__1 args = unimplemented "erlang__dist_ct
 erlang__list_to_float__1 :: ErlangFun
 erlang__list_to_float__1 args = unimplemented "erlang__list_to_float__1"
 
-erlang__apply__3 :: ErlangFun
-erlang__apply__3 args = unimplemented "erlang__apply__3"
-
 erlang__is_builtin__3 :: ErlangFun
 erlang__is_builtin__3 args = unimplemented "erlang__is_builtin__3"
 
@@ -474,9 +471,6 @@ erlang__garbage_collect__2 args = unimplemented "erlang__garbage_collect__2"
 erlang__system_flag__2 :: ErlangFun
 erlang__system_flag__2 args = unimplemented "erlang__system_flag__2"
 
-erlang__make_fun__3 :: ErlangFun
-erlang__make_fun__3 args = unimplemented "erlang__make_fun__3"
-
 erlang__map_size__1 :: ErlangFun
 erlang__map_size__1 args = unimplemented "erlang__map_size__1"
 
@@ -621,7 +615,32 @@ erlang__max__2 [t1, t2] | t1 >= t2  = t1
 erlang__max__2 _ = EXT.error_badarg unit
 
 erlang__apply__2 :: ErlangFun
-erlang__apply__2 args = unimplemented "erlang__apply__2"
+erlang__apply__2 [ErlangFun arity f, args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
+    case (DA.length args1) == arity of
+        true ->
+            f args1
+        false ->
+            -- TODO: Fixme if needed
+            EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangTuple []]
+erlang__apply__2 _ = EXT.error_badarg unit
+
+foreign import do_apply_4 :: String -> String -> Array ErlangTerm -> (Unit -> ErlangTerm) -> ErlangTerm
+erlang__apply__3 :: ErlangFun
+erlang__apply__3 [ErlangAtom m, ErlangAtom f, args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
+    do_apply_4 m f args1 (\_ -> EXT.error $ ErlangAtom "undef")
+erlang__apply__3 _ = EXT.error_badarg unit
+
+erlang__make_fun__3 :: ErlangFun
+erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangNum arity] =
+    ErlangFun arity
+        (\ args ->
+            case DA.length(args) == arity of
+                true ->
+                    erlang__apply__3 [m, f, arrayToErlangList args]
+                false ->
+                    -- TODO: Fixme if needed
+                    EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangTuple []] )
+erlang__make_fun__3 _ = EXT.error_badarg unit
 
 erlang__nodes__0 :: ErlangFun
 erlang__nodes__0 args = unimplemented "erlang__nodes__0"

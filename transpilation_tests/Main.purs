@@ -254,6 +254,12 @@ main = launchAff_ $ runSpec [consoleReporter] do
         it "Compare two factorial implementations using list comprehensions" do
             r <- exec_may_throw erlps__test_factorial_comp__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "apply/3 apply/2 make_fun/3 work" do
+            r <- exec_may_throw erlps__test_apply_and_make_fun__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "apply/3 apply/2 make_fun/3 throw appropriate exceptions" do
+            r <- exec_may_throw erlps__test_apply_exceptions__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
 
     let atomTup ats = ErlangTuple (map ErlangAtom ats)
     describe "Records" do
