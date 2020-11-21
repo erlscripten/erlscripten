@@ -69,7 +69,8 @@
 -export_type([purs_letdef/0]).
 
 -record(expr_binop, {name :: string(), lop :: purs_expr(), rop :: purs_expr()}).
--record(expr_num, {value :: number()}).
+-record(expr_num, {value :: integer()}).
+-record(expr_float, {value :: float()}).
 -record(expr_string, {value :: string()}).
 -record(expr_app, {function :: purs_expr(), args :: [purs_expr()]}).
 -record(expr_var, {name :: string()}).

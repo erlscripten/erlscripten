@@ -160,13 +160,13 @@ new_test_() ->
      ?_assert(new(10, []) =:= new(10, [{default,undefined},{fixed,true}])),
 
      ?_assertError(badarg, new(-1)),
-     %%?_assertError(badarg, new(10.0)),
+     ?_assertError(badarg, new(10.0)),
      ?_assertError(badarg, new(undefined)),
      ?_assertError(badarg, new([undefined])),
      ?_assertError(badarg, new([{default,0} | fixed])),
 
      ?_assertError(badarg, new(-1, [])),
-     %%?_assertError(badarg, new(10.0, [])),
+     ?_assertError(badarg, new(10.0, [])),
      ?_assertError(badarg, new(undefined, [])),
 
      ?_assertMatch(#array{size=0,max=N0,default=undefined,elements=N0},

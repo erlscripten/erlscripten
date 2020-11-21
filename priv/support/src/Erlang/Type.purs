@@ -18,6 +18,7 @@ type ErlangFun = Partial => Array ErlangTerm -> ErlangTerm
 -- TODO: add floats
 data ErlangTerm
     = ErlangNum       Int
+    | ErlangFloat     Number
     | ErlangAtom      String
     | ErlangCons      ErlangTerm ErlangTerm
     | ErlangEmptyList
@@ -28,6 +29,8 @@ data ErlangTerm
 
 instance showErlangTerm :: Show ErlangTerm where
     show (ErlangNum a) =
+        show a
+    show (ErlangFloat a) =
         show a
     show term  | DM.Just l <- erlangListToList term =
         show l
@@ -49,6 +52,7 @@ instance showErlangTerm :: Show ErlangTerm where
 eqErlangTermImpl :: ErlangTerm -> ErlangTerm -> Boolean
 eqErlangTermImpl (ErlangAtom a) (ErlangAtom b) = a == b
 eqErlangTermImpl (ErlangNum a) (ErlangNum b) = a == b
+eqErlangTermImpl (ErlangFloat a) (ErlangFloat b) = a == b
 eqErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
   -- heads MUST NOT be compared by recursive call
   if eq ha hb then eqErlangTermImpl ta tb else false
@@ -64,6 +68,7 @@ instance eqErlangTerm :: Eq ErlangTerm where
 
 compareErlangTermImpl :: ErlangTerm -> ErlangTerm -> Ordering
 compareErlangTermImpl (ErlangNum a) (ErlangNum b) = compare a b
+compareErlangTermImpl (ErlangFloat a) (ErlangFloat b) = compare a b
 compareErlangTermImpl (ErlangAtom a) (ErlangAtom b) = compare a b
 compareErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
   -- heads MUST NOT be compared by recursive call

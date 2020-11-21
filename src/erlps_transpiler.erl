@@ -413,8 +413,8 @@ transpile_pattern({atom, _, Atom}, _) ->
     {?make_pat_atom(Atom), [], []};
 transpile_pattern({char, Ann, Char}, Env) ->
      transpile_pattern({integer, Ann, Char}, Env);
-%% transpile_pattern({float, _, Float}, _) ->
-%%     error(todo);
+transpile_pattern({float, _, Float}, _) ->
+     {?make_pat_float(Float), [], []};
 %% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
 %%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
@@ -846,6 +846,8 @@ transpile_expr({var, _, Var}, LetDefs, _Env) ->
 
 transpile_expr({integer, _, Int}, LetDefs, _Env) ->
     {?make_expr_int(Int), LetDefs};
+transpile_expr({float, _, Float}, LetDefs, _Env) ->
+    {?make_expr_float(Float), LetDefs};
 transpile_expr({char, Ann, Int}, LetDefs, Env) ->
     transpile_expr({integer, Ann, Int}, LetDefs, Env);
 transpile_expr({string, _, String}, LetDefs, _Env) ->
@@ -895,6 +897,11 @@ transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args},
          args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
     , LetDefs1
     };
+transpile_expr({call, Ann, {remote, _, MVar, FVar}, Args0},
+               LetDefs, Env) ->
+    Args1 = lists:foldr(fun (Arg, Acc) -> {cons, Ann, Arg, Acc}
+                 end, {nil, Ann}, Args0),
+    transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, apply}}, [MVar, FVar, Args1]}, LetDefs, Env);
 transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
     {FunVar, LetDefs1} = bind_expr("fun", Fun, LetDefs0, Env),
     {ArgsVars, LetDefs2} = bind_exprs("arg", Args, LetDefs1, Env),
@@ -927,6 +934,9 @@ transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer
                             transpile_fun_ref(Module, Fun, Arity, Env)]},
      LetDefs
     };
+transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
+               LetDefs, Env) ->
+    transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]}, LetDefs, Env);
 transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, LetDefs, Env) ->
     Arity = length(SomeArgs),
     ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
@@ -1318,6 +1328,11 @@ bind_exprs(Name, [Expr|Rest], Acc, LetDefs0, Env) ->
 
 compute_constexpr({string, _, Str}) ->
     {ok, Str};
+compute_constexpr({op, _, Op, E}) ->
+    case compute_constexpr(E) of
+        {ok, V} when is_number(V) -> {ok, (fun erlang:Op/1)(V)};
+        _ -> error
+    end;
 compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fixed
     case {compute_constexpr(L), compute_constexpr(R)} of
         {{ok, LV}, {ok, RV}}

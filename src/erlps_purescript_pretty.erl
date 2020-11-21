@@ -121,6 +121,8 @@ pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
     paren(block(hsep(pp_expr(L), text(O)), pp_expr(R)));
 pp_expr(#expr_num{value = Val}) ->
     text(integer_to_list(Val));
+pp_expr(#expr_float{value = Val}) ->
+    text(string:replace(string:replace(float_to_list(Val), "e+0", "e+"), "e-0", "e-"));
 pp_expr(#expr_string{value = Val}) ->
     text(io_lib:format("~p", [lists:flatten(Val)]));
 pp_expr(#expr_app{function = F, args = Args}) ->
