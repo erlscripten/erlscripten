@@ -19,10 +19,6 @@ import Control.Semigroupoid((<<<), (>>>))
 error :: forall a. String -> a
 error = throw >>> unsafePerformEffect
 
-applyTerm :: Partial => ErlangTerm -> ErlangFun
-applyTerm (ErlangFun arityVal fun) argsL |
-  DA.length argsL == arityVal = fun argsL
-
 isEList :: ErlangTerm -> Boolean
 isEList ErlangEmptyList = true
 isEList (ErlangCons _ _) = true

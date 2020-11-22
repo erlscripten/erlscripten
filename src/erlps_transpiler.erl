@@ -906,9 +906,14 @@ transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
     {FunVar, LetDefs1} = bind_expr("fun", Fun, LetDefs0, Env),
     {ArgsVars, LetDefs2} = bind_exprs("arg", Args, LetDefs1, Env),
     { #expr_app{
-         function = #expr_var{name = "applyTerm"},
-         args = [#expr_var{name = FunVar},
-                 #expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+         function = #expr_var{name = "BIF.erlang__apply__2"},
+         args = [#expr_array{value =
+                    [
+                      #expr_var{name = FunVar},
+                      lists:foldr(fun (ArgVar, Acc) -> ?make_expr_cons(?make_expr_var(ArgVar), Acc)
+                      end, ?make_expr_empty_list, ArgsVars)
+                    ]
+         }]}
     , LetDefs2
     };
 

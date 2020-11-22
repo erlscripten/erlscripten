@@ -615,13 +615,13 @@ erlang__max__2 [t1, t2] | t1 >= t2  = t1
 erlang__max__2 _ = EXT.error_badarg unit
 
 erlang__apply__2 :: ErlangFun
-erlang__apply__2 [ErlangFun arity f, args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
+erlang__apply__2 [ft@(ErlangFun arity f), args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
     case (DA.length args1) == arity of
         true ->
             f args1
         false ->
             -- TODO: Fixme if needed
-            EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangTuple []]
+            EXT.error $ ErlangTuple [ErlangAtom "badarity", ft]
 erlang__apply__2 _ = EXT.error_badarg unit
 
 foreign import do_apply_4 :: String -> String -> Array ErlangTerm -> (Unit -> ErlangTerm) -> ErlangTerm
@@ -639,7 +639,7 @@ erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangNum arity] =
                     erlang__apply__3 [m, f, arrayToErlangList args]
                 false ->
                     -- TODO: Fixme if needed
-                    EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangTuple []] )
+                    EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangAtom "A"] )
 erlang__make_fun__3 _ = EXT.error_badarg unit
 
 erlang__nodes__0 :: ErlangFun
