@@ -1,5 +1,8 @@
 
-build_parse_transform: src/*.erl src/*.hrl
+build_ffi: priv/ffi_es6_builtins.js
+	npm run babel
+
+build_parse_transform: src/*.erl src/*.hrl build_ffi
 	./rebar3 compile
 
 build_transpilation_tests: build_parse_transform transpilation_tests/*.erl
