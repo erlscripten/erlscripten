@@ -620,7 +620,6 @@ erlang__apply__2 [ft@(ErlangFun arity f), args0] | ErlangTuple args1 <- erlang__
         true ->
             f args1
         false ->
-            -- TODO: Fixme if needed
             EXT.error $ ErlangTuple [ErlangAtom "badarity", ft]
 erlang__apply__2 _ = EXT.error_badarg unit
 
@@ -633,13 +632,7 @@ erlang__apply__3 _ = EXT.error_badarg unit
 erlang__make_fun__3 :: ErlangFun
 erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangNum arity] =
     ErlangFun arity
-        (\ args ->
-            case DA.length(args) == arity of
-                true ->
-                    erlang__apply__3 [m, f, arrayToErlangList args]
-                false ->
-                    -- TODO: Fixme if needed
-                    EXT.error $ ErlangTuple [ErlangAtom "badarity", ErlangAtom "A"] )
+        (\ args -> erlang__apply__3 [m, f, arrayToErlangList args] )
 erlang__make_fun__3 _ = EXT.error_badarg unit
 
 erlang__nodes__0 :: ErlangFun
