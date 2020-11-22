@@ -15,7 +15,6 @@ import Effect.Exception (throw)
 
 type ErlangFun = Partial => Array ErlangTerm -> ErlangTerm
 
--- TODO: add floats
 data ErlangTerm
     = ErlangNum       Int
     | ErlangFloat     Number
@@ -26,6 +25,8 @@ data ErlangTerm
     | ErlangTuple     (Array ErlangTerm)
     | ErlangFun       Int ErlangFun
     | ErlangMap       (Map.Map ErlangTerm ErlangTerm)
+    | ErlangReference Int
+    | ErlangPID       Int
 
 instance showErlangTerm :: Show ErlangTerm where
     show (ErlangNum a) =
@@ -48,11 +49,17 @@ instance showErlangTerm :: Show ErlangTerm where
         atom
     show (ErlangMap m) =
         show m
+    show (ErlangReference a) =
+        show a
+    show (ErlangPID a) =
+        show a
 
 eqErlangTermImpl :: ErlangTerm -> ErlangTerm -> Boolean
 eqErlangTermImpl (ErlangAtom a) (ErlangAtom b) = a == b
 eqErlangTermImpl (ErlangNum a) (ErlangNum b) = a == b
 eqErlangTermImpl (ErlangFloat a) (ErlangFloat b) = a == b
+eqErlangTermImpl (ErlangReference a) (ErlangReference b) = a == b
+eqErlangTermImpl (ErlangPID a) (ErlangPID b) = a == b
 eqErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
   -- heads MUST NOT be compared by recursive call
   if eq ha hb then eqErlangTermImpl ta tb else false
@@ -69,6 +76,8 @@ instance eqErlangTerm :: Eq ErlangTerm where
 compareErlangTermImpl :: ErlangTerm -> ErlangTerm -> Ordering
 compareErlangTermImpl (ErlangNum a) (ErlangNum b) = compare a b
 compareErlangTermImpl (ErlangFloat a) (ErlangFloat b) = compare a b
+compareErlangTermImpl (ErlangReference a) (ErlangReference b) = compare a b
+compareErlangTermImpl (ErlangPID a) (ErlangPID b) = compare a b
 compareErlangTermImpl (ErlangAtom a) (ErlangAtom b) = compare a b
 compareErlangTermImpl (ErlangCons ha ta) (ErlangCons hb tb) =
   -- heads MUST NOT be compared by recursive call
@@ -99,6 +108,9 @@ compareErlangTermImpl   (ErlangAtom _)    _ = GT
 compareErlangTermImpl   (ErlangNum _)     _ = GT
 
 compareErlangTermImpl _ (ErlangNum _)       = LT
+compareErlangTermImpl _ (ErlangFloat _)       = LT
+compareErlangTermImpl _ (ErlangReference _)       = LT
+compareErlangTermImpl _ (ErlangPID _)       = LT
 compareErlangTermImpl _ (ErlangAtom _)      = LT
 compareErlangTermImpl _ (ErlangFun _ _)     = LT
 compareErlangTermImpl _ (ErlangTuple _)     = LT
