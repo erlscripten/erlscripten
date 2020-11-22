@@ -18,6 +18,7 @@ import Data.String.CodePoints as StrCP
 import Data.String as Str
 import Unsafe.Coerce
 
+import Data.Time.Duration
 import Data.Lazy
 import Data.Either
 import Data.Tuple as T
@@ -126,6 +127,8 @@ main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
     describe "Sanity check" do
         it "one should equal one" do
+            -- WARNING!!! DUE TO THE NATURE OF JS BY REMOVING THIS DELAY THE PROCESS SYSTEM WON'T BOOT
+            delay $ Milliseconds 100.0
             1 `shouldEqual` 1
         it "two should equal two" do
             2 `shouldEqual` 2

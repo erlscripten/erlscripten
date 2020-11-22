@@ -38,8 +38,6 @@ require("core-js/modules/es.object.set-prototype-of");
 
 require("core-js/modules/es.object.to-string");
 
-require("core-js/modules/es.promise");
-
 require("core-js/modules/es.reflect.construct");
 
 require("core-js/modules/es.regexp.exec");
@@ -61,10 +59,6 @@ require("core-js/modules/web.dom-collections.iterator");
 require("core-js/modules/web.timers");
 
 require("regenerator-runtime/runtime");
-
-function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
-
-function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
 
 var _marked =
 /*#__PURE__*/
@@ -412,8 +406,6 @@ function () {
 }();
 
 function is_sleep(value) {
-  console.log("SLEEEEEEEEP");
-  console.log(Array.isArray(value) && value[0] === process_state.SLEEP);
   return Array.isArray(value) && value[0] === process_state.SLEEP;
 }
 
@@ -1491,33 +1483,18 @@ regeneratorRuntime.mark(function _callee6() {
   }, _callee6);
 }));
 console.log(system);
-
-_asyncToGenerator(
-/*#__PURE__*/
-regeneratorRuntime.mark(function _callee7() {
-  return regeneratorRuntime.wrap(function _callee7$(_context10) {
-    while (1) {
-      switch (_context10.prev = _context10.next) {
-        case 0:
-          console.log("TEST");
-          setTimeout(function () {
-            return console.log("TEST2");
-          }, 0);
-
-        case 2:
-        case "end":
-          return _context10.stop();
-      }
-    }
-  }, _callee7);
-}))();
+var shown = false;
 /* FFI CODE */
-
 
 exports.do_apply_4 = function (moduleName) {
   return function (functionName) {
     return function (argumentArray) {
       return function (failCallback) {
+        if (!shown) {
+          console.log(system);
+          shown = true;
+        }
+
         var module = undefined;
         var f = undefined;
 

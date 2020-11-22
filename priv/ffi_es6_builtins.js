@@ -178,8 +178,6 @@ class Mailbox {
 }
 
 function is_sleep(value) {
-    console.log("SLEEEEEEEEP");
-    console.log(Array.isArray(value) && value[0] === process_state.SLEEP);
     return Array.isArray(value) && value[0] === process_state.SLEEP;
 }
 function is_receive(value) {
@@ -872,10 +870,7 @@ var pid2 = system.spawn(function*() {
 
 console.log(system);
 
-(async function() {
-    console.log("TEST");
-    setTimeout(() => console.log("TEST2"), 0)
-})()
+var shown = false;
 
 /* FFI CODE */
 exports.do_apply_4 =
@@ -883,6 +878,10 @@ exports.do_apply_4 =
         return function(functionName) {
             return function(argumentArray) {
                 return function(failCallback) {
+                    if (!shown) {
+                        console.log(system);
+                        shown = true;
+                    }
                     var module = undefined;
                     var f = undefined;
                     try {
