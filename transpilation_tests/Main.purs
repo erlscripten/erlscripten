@@ -124,13 +124,15 @@ test_seq from to expected = do
 shouldEqualOk a b = make_ok a `shouldEqual` b
 
 main :: Effect Unit
-main = launchAff_ $ runSpec [consoleReporter] do
+main =
+    launchAff_ $ runSpec [consoleReporter] do
     describe "Sanity check" do
         it "one should equal one" do
             -- WARNING!!! DUE TO THE NATURE OF JS BY REMOVING THIS DELAY THE PROCESS SYSTEM WON'T BOOT
             delay $ Milliseconds 100.0
             1 `shouldEqual` 1
         it "two should equal two" do
+            delay $ Milliseconds 100.0
             2 `shouldEqual` 2
 
     describe "STDLIB Lists" do

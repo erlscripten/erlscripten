@@ -1,13 +1,6 @@
 "use strict";
 
-var ErlangTypes = undefined;
-try {
-    ErlangTypes = $PS["Erlang.Type"]
-} catch (e) {
-    ErlangTypes = require("../Erlang.Type/index.js")
-};
-console.log(ErlangTypes.ErlangNum.create(1))
-console.log(ErlangTypes.ErlangTuple.create([]))
+var RUNTIME = function(){
 
 var pid_ctr = 0;
 var reference_ctr = 0;
@@ -27,6 +20,20 @@ const process_state = {
     EXIT: Symbol.for('exit'),
     NOMATCH: Symbol.for('no_match'),
 };
+
+class PID {
+    constructor() {
+        this.id = pid_ctr;
+        pid_ctr = pid_ctr + 1;
+    }
+}
+
+class REF {
+    constructor() {
+        this.id = reference_ctr;
+        reference_ctr = reference_ctr + 1;
+    }
+}
 
 class ProcessQueue {
     constructor(pid) {
@@ -79,11 +86,13 @@ class DefaultScheduler {
         this.isRunning = false;
     }
     _run(run) {
+        console.log("_run()");
         this.invokeLater(() => {
             run();
         });
     }
     run() {
+        console.log("run()");
         if (this.isRunning) {
             this._run(this.run.bind(this));
         }
@@ -196,14 +205,14 @@ class Process {
         this.func = func;
         this.args = args;
         this.status = process_state.STOPPED;
-        this.pid = ErlangTypes.ErlangPID.create(pid_ctr);
-        pid_ctr = pid_ctr+1;
+        this.pid = new PID();
         this.mailbox = new Mailbox();
         this.dict = new Map();
         this.flags = new Map();
         this.monitors = [];
     }
     start() {
+        console.log("Process start")
         const function_scope = this;
         let machine = this.main();
         this.system.schedule(function () {
@@ -228,8 +237,8 @@ class Process {
         return old_value;
     }
     is_trapping_exits() {
-        return (this.flags.has(ErlangTypes.ErlangAtom.create('trap_exit')) &&
-            this.flags.get(ErlangTypes.ErlangAtom.create('trap_exit')) == true);
+        return (this.flags.has(Symbol.for('trap_exit')) &&
+            this.flags.get(Symbol.for('trap_exit')) == true);
     }
     signal(reason) {
         if (reason !== process_state.NORMAL) {
@@ -238,6 +247,7 @@ class Process {
         this.system.remove_proc(this.pid, reason);
     }
     receive(fun) {
+        console.log("RECEIVE")
         let value = process_state.NOMATCH;
         let messages = this.mailbox.get();
         for (let i = 0; i < messages.length; i++) {
@@ -257,6 +267,7 @@ class Process {
         return value;
     }
     run(machine, step) {
+        console.log("Process run")
         const function_scope = this;
         if (!step.done) {
             let value = step.value;
@@ -313,7 +324,6 @@ class ProcessSystem {
         this.suspended = new Map();
         let process_system_scope = this;
         this.main_process_pid = this.spawn(function* () {
-            console.log("MAIN PROCESS");
             yield process_system_scope.sleep(Symbol.for('Infinity'));
         });
         this.set_current(this.main_process_pid);
@@ -331,6 +341,7 @@ class ProcessSystem {
      * @param args Either a generator function or a module, function and arguments
      */
     spawn(...args) {
+        console.log("SPAAAWN")
         if (args.length === 1) {
             let fun = args[0];
             return this.add_proc(fun, [], false, false).pid;
@@ -426,14 +437,7 @@ class ProcessSystem {
                 return ref;
             }
             else {
-                this.send(this.currentProcess.pid,
-                    ErlangTypes.ErlangTuple.create([
-                        ErlangTypes.ErlangAtom.create('DOWN'),
-                        ref,
-                        pid,
-                        real_pid,
-                        ErlangTypes.ErlangAtom.create('noproc')]
-                        ));
+                this.send(this.currentProcess.pid, ['unboxed', ['DOWN', ref, pid, real_pid, 'noproc']]);
                 return ref;
             }
         }
@@ -547,7 +551,7 @@ class ProcessSystem {
      * @param id The registered name or pid of the process
      */
     pidof(id) {
-        if (id instanceof ErlangTypes.ErlangPID) {
+        if (id instanceof PID) {
             return this.pids.has(id) ? id : null;
         }
         else if (id instanceof Process) {
@@ -664,7 +668,7 @@ class ProcessSystem {
                     reason === process_state.NORMAL) {
                     const mailbox = this.mailboxes.get(process.pid);
                     if (mailbox) {
-                        mailbox.deliver(ErlangTypes.ErlangTuple.create([process_state.EXIT, this.pid(), reason]));
+                        mailbox.deliver(['unboxed', [process_state.EXIT, this.pid(), reason]]);
                     }
                 }
                 else {
@@ -684,9 +688,8 @@ class ProcessSystem {
             for (let ref of process.monitors) {
                 let mons = this.monitors.get(ref);
                 if (mons) {
-                    this.send(mons['monitor'], ErlangTypes.ErlangTuple.create(
-                        [ErlangTypes.ErlangAtom.create('DOWN'), ref, mons['monitee'], mons['monitee'], reason]
-                        ));
+                    this.send(mons['monitor'], ['unboxed', ['DOWN', ref, mons['monitee'], mons['monitee'], reason]]
+                        );
                 }
             }
         }
@@ -702,7 +705,7 @@ class ProcessSystem {
     }
     /**
      * Sets flags on the current process.
-      - Note: the only flag respected is the `ErlangTypes.ErlangAtom.create("trap_exit")` flag.
+      - Note: the only flag respected is the `Symbol.for("trap_exit")` flag.
       If value is `true`, then exit signals from linked processes are turned into
       messages and sent to the current processes mailbox.
       If value is `false`, the exit is treated as normal and terminates the process.
@@ -816,8 +819,7 @@ class ProcessSystem {
      * Returns a unique reference
      */
     make_ref() {
-        return ErlangTypes.ErlangReference.create(reference_ctr);
-        reference_ctr = reference_ctr+1;
+        return new REF();
     }
     get currentProcess() {
         if (this.current_process) {
@@ -827,12 +829,7 @@ class ProcessSystem {
     }
 }
 
-function* a(){
-    yield 20;
-    return 20;
-}
-
-const system = new ProcessSystem();
+var system = new ProcessSystem();
 console.log(system.spawn(function* (){
     console.log("P1: ", system.pid())
     return 0;
@@ -870,18 +867,11 @@ var pid2 = system.spawn(function*() {
 
 console.log(system);
 
-var shown = false;
-
 /* FFI CODE */
-exports.do_apply_4 =
-    function(moduleName) {
+function do_apply_4(moduleName) {
         return function(functionName) {
             return function(argumentArray) {
                 return function(failCallback) {
-                    if (!shown) {
-                        console.log(system);
-                        shown = true;
-                    }
                     var module = undefined;
                     var f = undefined;
                     try {
@@ -905,3 +895,14 @@ exports.do_apply_4 =
             }
         }
     };
+
+    return {
+        do_apply_4: do_apply_4,
+        system: system
+    }
+
+}();
+
+console.log(RUNTIME);
+
+exports.do_apply_4 = RUNTIME.do_apply_4;
