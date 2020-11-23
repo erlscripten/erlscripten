@@ -206,7 +206,7 @@ test_local_tailrec_1() ->
              Go(Go) ->
                  Go
          end,
-    case Go([Go, Go, Go, Go]) of
+    case Go([Go || _ <- lists:seq(1, 1000000)]) of
         [] ->
             ok;
         _ ->
