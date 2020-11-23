@@ -13,3 +13,5 @@ test_spawn() ->
   true = is_process_alive(Pid),
   ok.
 
+test_get_self() ->
+  self().

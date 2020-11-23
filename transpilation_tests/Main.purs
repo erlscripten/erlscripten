@@ -2,6 +2,7 @@ module Test.Main where
 
 import Prelude
 
+import Effect.Aff.AVar as AVar
 import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
 import Effect.Unsafe
@@ -83,8 +84,45 @@ exec_may_throw fun args = do
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
 
+lift_aff_to_erlang_process :: forall a. (Unit -> Aff a) -> Aff (T.Tuple ErlangTerm a)
+lift_aff_to_erlang_process calc = do
+        -- ONLY TOUCH THIS IF YOU KNOW WHAT YOU ARE DOING!!!!!
+        -- THIS IS A DIRTY HACK TO "lift" an calculation in the Aff monad to an ErlangProcess from the GLOBAL scope
+        res_channel <- AVar.empty
+        pid_channel <- AVar.empty
+        _ <- forkAff do
+            packed_pid <- exec_may_throw BIF.erlang__spawn__1 [(
+                ErlangFun 0 (\[] -> let
+                    a = unsafePerformEffect $ launchAff_ (
+                        do
+                            res <- calc unit
+                            AVar.put res res_channel
+                        )
+                    in
+                       ErlangNum 1))]
+            -- At this point we never yielded so the process MUST be alive
+            pid <- unpack_ok packed_pid
+            AVar.put pid pid_channel
+
+        pid <- AVar.take pid_channel
+        packed_is_alive <- exec_may_throw BIF.erlang__is_process_alive__1 [pid]
+        (ErlangAtom "true") `shouldEqualOk` packed_is_alive
+
+        res <- AVar.take res_channel
+
+        delay (Milliseconds 1.0) -- force a context switch to cleanup the process :P
+        packed_is_alive <- exec_may_throw BIF.erlang__is_process_alive__1 [pid]
+        (ErlangAtom "false") `shouldEqualOk` packed_is_alive
+        pure $ T.Tuple pid res
+
 make_ok term = ErlangTuple [ErlangAtom "ok", term]
 make_err = ErlangAtom "error"
+
+unpack_ok :: ErlangTerm -> Aff ErlangTerm
+unpack_ok (ErlangTuple [ErlangAtom "ok", term]) = pure term
+unpack_ok _ = do
+    1 `shouldEqual` 0
+    pure ErlangEmptyList
 
 test_reverse a = do
     let input = arrayToErlangList $ map ErlangNum a
@@ -129,11 +167,8 @@ main =
     launchAff_ $ runSpec [consoleReporter] do
     describe "Sanity check" do
         it "one should equal one" do
-            -- WARNING!!! DUE TO THE NATURE OF JS BY REMOVING THIS DELAY THE PROCESS SYSTEM WON'T BOOT
-            delay $ Milliseconds 100.0
             1 `shouldEqual` 1
         it "two should equal two" do
-            delay $ Milliseconds 100.0
             2 `shouldEqual` 2
 
     describe "STDLIB Lists" do
@@ -523,5 +558,12 @@ main =
     describe "Processes OwO" do
       it "can spawn" do
         r <- exec_may_throw erlps__test_spawn__0 []
-        delay $ Milliseconds 100.0
         ok `shouldEqualOk` r
+      it "can move aff monad to process" do
+          (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> pure "OK")
+          "OK" `shouldEqual` r
+      it "can request it's own pid" do
+          (T.Tuple pid1 packed_pid) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_get_self__0 [])
+          pid1 `shouldEqualOk` packed_pid
+
+

@@ -877,7 +877,13 @@ function do_is_process_alive_1(id) {
     return system.is_alive(new PID(id));
 }
 
+function do_self_0(pid_ctr) {
+    var pid = system.pid();
+    return pid_ctr(pid.id);
+}
+
     return {
+        do_self_0: do_self_0,
         do_is_process_alive_1: do_is_process_alive_1,
         do_spawn_1: do_spawn_1,
         do_apply_4: do_apply_4,
@@ -886,6 +892,7 @@ function do_is_process_alive_1(id) {
 
 }();
 
-exports.do_is_process_alive_1 = RUNTIME.do_is_process_alive_1
+exports.do_self_0 = RUNTIME.do_self_0;
+exports.do_is_process_alive_1 = RUNTIME.do_is_process_alive_1;
 exports.do_spawn_1 = RUNTIME.do_spawn_1;
 exports.do_apply_4 = RUNTIME.do_apply_4;

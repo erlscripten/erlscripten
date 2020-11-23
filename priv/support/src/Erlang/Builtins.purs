@@ -607,8 +607,9 @@ erlang__port_set_data__2 args = unimplemented "erlang__port_set_data__2"
 erlang__tuple_to_list__1 :: ErlangFun
 erlang__tuple_to_list__1 args = unimplemented "erlang__tuple_to_list__1"
 
+foreign import do_self_0 :: (Int -> ErlangTerm) -> ErlangTerm
 erlang__self__0 :: ErlangFun
-erlang__self__0 args = unimplemented "erlang__self__0"
+erlang__self__0 _ = do_self_0 ErlangPID
 
 erlang__read_timer__2 :: ErlangFun
 erlang__read_timer__2 args = unimplemented "erlang__read_timer__2"
