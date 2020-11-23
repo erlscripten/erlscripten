@@ -22,9 +22,13 @@ const process_state = {
 };
 
 class PID {
-    constructor() {
-        this.id = pid_ctr;
-        pid_ctr = pid_ctr + 1;
+    constructor(id) {
+        if(id == undefined) {
+            this.id = pid_ctr;
+            pid_ctr = pid_ctr + 1;
+        } else {
+           this.id = id;
+        }
     }
 }
 
@@ -376,8 +380,8 @@ class ProcessSystem {
     link(pid) {
         const currentProcessPid = this.pid();
         if (currentProcessPid != null) {
-            const currentProcessLink = this.links.get(currentProcessPid);
-            const IncomingProcessLink = this.links.get(pid);
+            const currentProcessLink = this.links.get(currentProcessPid.id);
+            const IncomingProcessLink = this.links.get(pid.id);
             if (currentProcessLink && IncomingProcessLink) {
                 currentProcessLink.add(pid);
                 IncomingProcessLink.add(currentProcessPid);
@@ -391,8 +395,8 @@ class ProcessSystem {
     unlink(pid) {
         const currentProcessPid = this.pid();
         if (currentProcessPid != null) {
-            const currentProcessLink = this.links.get(currentProcessPid);
-            const IncomingProcessLink = this.links.get(pid);
+            const currentProcessLink = this.links.get(currentProcessPid.id);
+            const IncomingProcessLink = this.links.get(pid.id);
             if (currentProcessLink && IncomingProcessLink) {
                 currentProcessLink.delete(pid);
                 IncomingProcessLink.delete(currentProcessPid);
@@ -430,7 +434,7 @@ class ProcessSystem {
                     monitor: this.currentProcess.pid,
                     monitee: real_pid,
                 });
-                const process = this.pids.get(real_pid);
+                const process = this.pids.get(real_pid.id);
                 if (process) {
                     process.monitors.push(ref);
                 }
@@ -461,7 +465,7 @@ class ProcessSystem {
     set_current(id) {
         let pid = this.pidof(id);
         if (pid) {
-            const next = this.pids.get(pid);
+            const next = this.pids.get(pid.id);
             if (next) {
                 this.current_process = next;
                 if (this.currentProcess) {
@@ -472,9 +476,9 @@ class ProcessSystem {
     }
     add_proc(fun, args, linked, monitored) {
         let newproc = new Process(this, fun, args);
-        this.pids.set(newproc.pid, newproc);
-        this.mailboxes.set(newproc.pid, newproc.mailbox);
-        this.links.set(newproc.pid, new Set());
+        this.pids.set(newproc.pid.id, newproc);
+        this.mailboxes.set(newproc.pid.id, newproc.mailbox);
+        this.links.set(newproc.pid.id, new Set());
         if (linked) {
             this.link(newproc.pid);
         }
@@ -485,19 +489,19 @@ class ProcessSystem {
         return newproc;
     }
     remove_proc(pid, exitreason) {
-        this.pids.delete(pid);
+        this.pids.delete(pid.id);
         this.unregister(pid);
         this.scheduler.removePid(pid);
-        const linkedPids = this.links.get(pid);
+        const linkedPids = this.links.get(pid.id);
         if (linkedPids) {
             for (let linkpid of linkedPids) {
                 this.exit(linkpid, exitreason);
-                const linkedPid = this.links.get(linkpid);
+                const linkedPid = this.links.get(linkpid.id);
                 if (linkedPid) {
                     linkedPid.delete(pid);
                 }
             }
-            this.links.delete(pid);
+            this.links.delete(pid.id);
         }
     }
     /**
@@ -552,7 +556,7 @@ class ProcessSystem {
      */
     pidof(id) {
         if (id instanceof PID) {
-            return this.pids.has(id) ? id : null;
+            return this.pids.has(id.id) ? id : null;
         }
         else if (id instanceof Process) {
             return id.pid;
@@ -572,7 +576,7 @@ class ProcessSystem {
     send(id, msg) {
         const pid = this.pidof(id);
         if (pid) {
-            const mailbox = this.mailboxes.get(pid);
+            const mailbox = this.mailboxes.get(pid.id);
             if (mailbox) {
                 mailbox.deliver(msg);
             }
@@ -660,13 +664,13 @@ class ProcessSystem {
             reason = two;
             const thePid = this.pidof(pid);
             if (thePid) {
-                process = this.pids.get(thePid);
+                process = this.pids.get(thePid.id);
             }
             if (process) {
                 if (process.is_trapping_exits() ||
                     reason === process_state.KILL ||
                     reason === process_state.NORMAL) {
-                    const mailbox = this.mailboxes.get(process.pid);
+                    const mailbox = this.mailboxes.get(process.pid.id);
                     if (mailbox) {
                         mailbox.deliver(['unboxed', [process_state.EXIT, this.pid(), reason]]);
                     }
@@ -725,7 +729,7 @@ class ProcessSystem {
             if (pid) {
                 const flag = args[1];
                 const value = args[2];
-                const process = this.pids.get(pid);
+                const process = this.pids.get(pid.id);
                 if (process) {
                     return process.process_flag(flag, value);
                 }
@@ -830,42 +834,6 @@ class ProcessSystem {
 }
 
 var system = new ProcessSystem();
-console.log(system.spawn(function* (){
-    console.log("P1: ", system.pid())
-    return 0;
-    }))
-console.log(system.spawn(function* (){
-    console.log("P2: ", system.pid())
-    return 0;
-    }))
-console.log(system.spawn(function* (){
-    console.log("P3: ", system.pid())
-    return 0;
-    }))
-
-var pid1 = system.spawn(function*() {
-  while (true) {
-    yield system.receive(function(value) {
-      return console.log(value)
-    })
-
-    system.send(pid2, 'message from 1')
-  }
-})
-
-system.register('Sally', pid1)
-
-var pid2 = system.spawn(function*() {
-  while (true) {
-    system.send('Sally', 'message from 2')
-
-    yield system.receive(function(value) {
-      return console.log(value)
-    })
-  }
-})
-
-console.log(system);
 
 /* FFI CODE */
 function do_apply_4(moduleName) {
@@ -896,13 +864,28 @@ function do_apply_4(moduleName) {
         }
     };
 
+function do_spawn_1(action) {
+    return function(pid_ctr) {
+        var pid = system.spawn(function* (){
+            return action();
+        });
+        return pid_ctr(pid.id);
+    }
+}
+
+function do_is_process_alive_1(id) {
+    return system.is_alive(new PID(id));
+}
+
     return {
+        do_is_process_alive_1: do_is_process_alive_1,
+        do_spawn_1: do_spawn_1,
         do_apply_4: do_apply_4,
         system: system
     }
 
 }();
 
-console.log(RUNTIME);
-
+exports.do_is_process_alive_1 = RUNTIME.do_is_process_alive_1
+exports.do_spawn_1 = RUNTIME.do_spawn_1;
 exports.do_apply_4 = RUNTIME.do_apply_4;

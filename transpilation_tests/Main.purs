@@ -29,6 +29,7 @@ import Erlang.Type
 import Erlang.Exception
 import Erlang.Builtins as BIF
 
+import Processes
 import Lists
 import Lambdas
 import Records
@@ -518,4 +519,9 @@ main =
         ok `shouldEqualOk` r
       it "test_scope_2" do
         r <- exec_may_throw erlps__test_scope_2__0 []
+        ok `shouldEqualOk` r
+    describe "Processes OwO" do
+      it "can spawn" do
+        r <- exec_may_throw erlps__test_spawn__0 []
+        delay $ Milliseconds 100.0
         ok `shouldEqualOk` r

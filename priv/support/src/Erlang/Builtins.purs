@@ -338,8 +338,11 @@ erlang__is_port__1 args = unimplemented "erlang__is_port__1"
 erlang__and__2 :: ErlangFun
 erlang__and__2 args = unimplemented "erlang__and__2"
 
+foreign import do_is_process_alive_1 :: Int -> Boolean
 erlang__is_process_alive__1 :: ErlangFun
-erlang__is_process_alive__1 args = unimplemented "erlang__is_process_alive__1"
+erlang__is_process_alive__1 [ErlangPID id] =
+    boolToTerm $ do_is_process_alive_1 id
+erlang__is_process_alive__1 _ = EXT.error_badarg unit
 
 erlang__is_boolean__1 :: ErlangFun
 erlang__is_boolean__1 [ErlangAtom "true"] = boolToTerm true
@@ -523,7 +526,8 @@ erlang__phash2__2 :: ErlangFun
 erlang__phash2__2 args = unimplemented "erlang__phash2__2"
 
 erlang__is_pid__1 :: ErlangFun
-erlang__is_pid__1 args = unimplemented "erlang__is_pid__1"
+erlang__is_pid__1 [ErlangPID _] = boolToTerm true
+erlang__is_pid__1 [_] = boolToTerm false
 
 erlang__floor__1 :: ErlangFun
 erlang__floor__1 args = unimplemented "erlang__floor__1"
@@ -573,8 +577,11 @@ erlang__binary_part__2 args = unimplemented "erlang__binary_part__2"
 erlang__format_cpu_topology__1 :: ErlangFun
 erlang__format_cpu_topology__1 args = unimplemented "erlang__format_cpu_topology__1"
 
+foreign import do_spawn_1 :: (Unit -> ErlangTerm) -> (Int -> ErlangTerm) -> ErlangTerm
 erlang__spawn__1 :: ErlangFun
-erlang__spawn__1 args = unimplemented "erlang__spawn__1"
+erlang__spawn__1 [f@(ErlangFun _ _)] =
+    do_spawn_1 (\x -> erlang__apply__2 [f, ErlangEmptyList]) ErlangPID
+erlang__spawn__1 _ = EXT.error_badarg unit
 
 erlang__throw__1 :: ErlangFun
 erlang__throw__1 [arg] = EXT.throw arg
