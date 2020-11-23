@@ -14,8 +14,11 @@
 
 -compile(export_all).
 
-test(X) ->
-    case X of
-        Y when is_integer(Y) -> test(1);
-        [] -> test(999)
-    end.
+test() ->
+    A = throw(a),
+    fun B() ->
+            1
+    end,
+    fun B() -> 2 end,
+    D = throw(d).
+

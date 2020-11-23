@@ -165,3 +165,86 @@ test_apply_exceptions() ->
             ok
     end,
     ok.
+
+test_local_rec_1() ->
+    (fun F(0) -> ok;
+         F(X) when is_integer(X) ->
+             case F(X - 1) of
+                 ok -> ok;
+                 _ -> bad
+             end;
+         F(_) -> bad
+     end
+    )(10).
+
+
+test_local_rec_2() ->
+    (fun F(X) when X > 0 ->
+             F(X - 1);
+         F(F) ->
+             case F of
+                 0 -> ok;
+                 _ -> bad
+             end
+     end
+    )(10).
+
+test_local_rec_3() ->
+    F = the_worst,
+    (fun F(F) when is_function(F) ->
+             F(F(ok));
+         F(F) when F == ok ->
+             ok;
+         F(_) ->
+             F(F)
+     end
+    )(bawimy_sie).
+
+test_local_tailrec_1() ->
+    Go = fun Go([H|T]) ->
+                 Go(T);
+             Go(Go) ->
+                 Go
+         end,
+    case Go([Go, Go, Go, Go]) of
+        [] ->
+            ok;
+        _ ->
+            bad
+    end.
+
+test_local_tailrec_2() ->
+    Go = fun Go([H|T]) ->
+                 Go(T);
+             Go(Go) ->
+                 ok
+         end,
+   Go(lists:seq(1, 1000000)).
+
+test_local_rec_scoping_1() ->
+    F = fun F(a) ->
+                F(b);
+            F(b) ->
+                H = fun F(a) -> F(b);
+                        F(b) -> F(ok);
+                        F(F) -> F
+                    end,
+                H(a);
+            F(F) ->
+                ok
+        end,
+    F(a).
+
+test_local_rec_scoping_2() ->
+    F = fun F(a) ->
+                F({F, b});
+            F({G, b}) ->
+                H = fun F(a) -> F(b);
+                        F(b) -> F(c);
+                        F(F) -> F
+                    end,
+                G(H(a));
+            F(F) ->
+                ok
+        end,
+    F(a).

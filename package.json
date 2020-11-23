@@ -4,6 +4,8 @@
   "description": "![](images/demo1.gif)",
   "main": "index.js",
   "dependencies": {
+    "@babel/cli": "^7.12.7",
+    "babel-cli": "^6.26.0",
     "core-js": "^3.7.0"
   },
   "devDependencies": {

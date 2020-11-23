@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @author gorbak25
+%%% @author gorbak25, radrow
 %%% @copyright (C) 2020, <COMPANY>
 %%% @doc
 %%%
@@ -22,6 +22,7 @@
         { current_module :: string()
         , records :: map()
         , local_imports :: #{{string(), non_neg_integer()} => string()}
+        , raw_functions :: #{string() => string()}
         }).
 
 version() -> "v0.0.2".
@@ -46,7 +47,6 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Data", "Maybe"], alias = "DM"}
         , #import{path = ["Data", "Map"], alias = "Map"}
         , #import{path = ["Data", "Tuple"], alias = "Tup"}
-        , #import{path = ["Data", "Traversable"], explicit = ["sequence"]}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Helpers"]}
         , #import{path = ["Erlang", "Exception"], alias = "EXC"}
@@ -54,8 +54,6 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
         , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
-        , #import{path = ["Control", "Applicative"]}
-        , #import{path = ["Control", "Monad"]}
         ],
     state_clear_import_requests(),
     LocalImports = maps:from_list([ {{Name, Arity}, Module}
@@ -65,7 +63,8 @@ transpile_erlang_module(Forms) ->
     Env = #env{
              current_module = atom_to_list(ModuleName),
              records = Records,
-             local_imports = LocalImports
+             local_imports = LocalImports,
+             raw_functions = #{}
             },
     %% Now do the dirty work - transpile every function OwO
     Decls = [transpile_function(Function, Env) ||
@@ -557,21 +556,29 @@ transpile_pattern({var, _, '_'}, _) ->
     {pat_wildcard, [], []};
 
 %% Variable pattern
-transpile_pattern({var, _, ErlangVar}, _) ->
+transpile_pattern({var, _, ErlangVar}, Env) ->
     Var = string:to_lower(lists:flatten(io_lib:format("~s_~p", [ErlangVar, state_new_id()]))),
+
     case state_is_used(ErlangVar) of
         false ->
             state_put_var(ErlangVar, Var),
             {#pat_var{name = Var}, [], []};
         true ->
-            %% Variable was used before so emit an extra guard
-            %%state_put_var(Var, Var),
-            {#pat_var{name = Var},
-                [],
-                [#guard_expr{guard = #expr_binop{
-                    name = "==",
-                    lop = #expr_var{name = Var},
-                    rop = #expr_var{name = state_get_var(ErlangVar)}}}]}
+            case Env of
+                #env{raw_functions = #{ErlangVar := {Name, Arity}}} ->
+                    {#pat_constr{
+                       constr = "ErlangFun",
+                       args = [#pat_num{value = Arity}, #pat_var{name = Name}]
+                      }, [], []};
+                _ -> {#pat_var{name = Var},
+                      [],
+                      [#guard_expr{
+                          guard =
+                              #expr_binop{
+                                 name = "==",
+                                 lop = #expr_var{name = Var},
+                                 rop = #expr_var{name = state_get_var(ErlangVar)} }}]}
+            end
     end;
 
 
@@ -618,7 +625,8 @@ transpile_body(Body, Env) ->
             [] -> PSBody0;
             _ -> apply_assignments(LetDefs, PSBody0)
         end,
-    catch_partial_lets(PSBody1).
+    PSBody2 = catch_partial_lets(PSBody1),
+    PSBody2.
 transpile_body([], _, _) ->
     error(empty_body);
 %% We can't just return a let expression
@@ -636,30 +644,48 @@ transpile_body([Expr|Rest], Acc, Env) ->
     {PSExpr, Acc1} = transpile_expr(Expr, Acc, Env),
     transpile_body(Rest, [#letval{lvalue = pat_wildcard, rvalue = PSExpr}|Acc1], Env).
 
+catch_partial_lets(L) when is_list(L) ->
+    catch_partial_lets(L, []);
 catch_partial_lets(Expr = #expr_binop{lop = L, rop = R}) ->
     Expr#expr_binop{lop = catch_partial_lets(L), rop = catch_partial_lets(R)};
 catch_partial_lets(#expr_app{function = F, args = Args}) ->
-    #expr_app{function = catch_partial_lets(F), args = lists:map(fun catch_partial_lets/1, Args)};
+    #expr_app{function = catch_partial_lets(F),
+              args = lists:map(fun catch_partial_lets/1, Args)};
 catch_partial_lets(#expr_array{value = Arr}) ->
     #expr_array{value = lists:map(fun catch_partial_lets/1, Arr)};
 catch_partial_lets(#expr_case{expr = Ex, cases = Cases}) ->
     #expr_case{
        expr = catch_partial_lets(Ex),
        cases =
-           [ {Pat, Guards, catch_partial_lets(Cont)}
+           [ {Pat, catch_partial_lets(Guards), catch_partial_lets(Cont)}
              || {Pat, Guards, Cont} <- Cases
            ]
       };
 catch_partial_lets(Expr = #expr_lambda{body = Body}) ->
     Expr#expr_lambda{body = catch_partial_lets(Body)};
+catch_partial_lets(#expr_if{condition = C, then = T, else = E}) ->
+    #expr_if{
+       condition = catch_partial_lets(C),
+       then = catch_partial_lets(T),
+       else = catch_partial_lets(E)
+     };
 catch_partial_lets(#expr_let{letdefs = LDs, in = In}) ->
     catch_partial_lets_in_letdefs(LDs, catch_partial_lets(In));
 catch_partial_lets(#expr_do{statements = Stm, return = Ret}) ->
     catch_partial_lets_in_statements(Stm, catch_partial_lets(Ret));
 catch_partial_lets(#expr_record{fields = Fields}) ->
     #expr_record{fields = [{Name, catch_partial_lets(Value)}|| {Name, Value} <- Fields]};
+catch_partial_lets(#guard_expr{guard = Guard}) ->
+    #guard_expr{guard = catch_partial_lets(Guard)};
+catch_partial_lets(G = #guard_assg{rvalue = R}) ->
+    G#guard_assg{rvalue = catch_partial_lets(R)};
 catch_partial_lets(Leaf) ->
     Leaf.
+
+catch_partial_lets([], Acc) ->
+    lists:reverse(Acc);
+catch_partial_lets([H|T], Acc) ->
+    catch_partial_lets(T, [catch_partial_lets(H)|Acc]).
 
 catch_partial_lets_in_statements(Stmts, Ret) ->
     catch_partial_lets_in_statements(Stmts, [], Ret).
@@ -709,7 +735,7 @@ catch_partial_lets_in_letdefs(
                #expr_case{
                   expr = FixedRV,
                   cases =
-                      [ {LV, Guards, catch_partial_lets_in_letdefs(Rest, Ret)}
+                      [ {LV, catch_partial_lets(Guards), catch_partial_lets_in_letdefs(Rest, Ret)}
                       , {pat_wildcard, [], ?badmatch(FixedRV)}
                       ]
                  }
@@ -719,10 +745,11 @@ catch_partial_lets_in_letdefs(
     catch_partial_lets_in_letdefs(
       Rest, [LV#letval{rvalue = catch_partial_lets(RV)}|Acc], Ret);
 catch_partial_lets_in_letdefs(
-  [LF = #letfun{body = Body}|Rest], Acc, Ret) ->
+  [LF = #letfun{body = Body, guards = Guards}|Rest], Acc, Ret) ->
     catch_partial_lets_in_letdefs(
-      Rest, [LF#letfun{body = catch_partial_lets(Body)}|Acc], Ret).
-
+      Rest, [LF#letfun{body = catch_partial_lets(Body),
+                       guards = catch_partial_lets(Guards)
+                      }|Acc], Ret).
 
 %% WIP SCOPE LEAKER
 
@@ -841,8 +868,16 @@ transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
 
 transpile_expr({atom, _, Atom}, LetDefs, _Env) ->
     {?make_expr_atom(Atom), LetDefs};
-transpile_expr({var, _, Var}, LetDefs, _Env) ->
-    {#expr_var{name = state_get_var(Var)}, LetDefs};
+transpile_expr({var, _, Var}, LetDefs, Env) ->
+    { case Env of
+          #env{raw_functions = #{Var := {Name, Arity}}} ->
+              #expr_app{
+                 function = #expr_var{name = "ErlangFun"},
+                 args = [#expr_num{value = Arity}, #expr_var{name = Name}]
+                };
+          _ -> #expr_var{name = state_get_var(Var)}
+      end
+    , LetDefs};
 
 transpile_expr({integer, _, Int}, LetDefs, _Env) ->
     {?make_expr_int(Int), LetDefs};
@@ -903,19 +938,33 @@ transpile_expr({call, Ann, {remote, _, MVar, FVar}, Args0},
                  end, {nil, Ann}, Args0),
     transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, apply}}, [MVar, FVar, Args1]}, LetDefs, Env);
 transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
-    {FunVar, LetDefs1} = bind_expr("fun", Fun, LetDefs0, Env),
-    {ArgsVars, LetDefs2} = bind_exprs("arg", Args, LetDefs1, Env),
-    { #expr_app{
+    {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
+    {FunVar, LetDefs2} = bind_expr("fun", Fun, LetDefs1, Env),
+    IfNotVar =
+      #expr_app{
          function = #expr_var{name = "BIF.erlang__apply__2"},
-         args = [#expr_array{value =
-                    [
+         args =
+             [#expr_array{
+                 value =
+                     [
                       #expr_var{name = FunVar},
                       lists:foldr(fun (ArgVar, Acc) -> ?make_expr_cons(?make_expr_var(ArgVar), Acc)
-                      end, ?make_expr_empty_list, ArgsVars)
-                    ]
-         }]}
-    , LetDefs2
-    };
+                                  end, ?make_expr_empty_list, ArgsVars)
+                     ]
+                }]},
+    case Fun of
+        {var, _, Var} ->
+            case Env of
+                #env{raw_functions = #{Var := {Name, _}}} ->
+                    erlps_logger:info("WOW I KNOW THIS DUDE ~p -> ~p", [Var, Name]),
+                    {#expr_app{function = #expr_var{name = Name},
+                               args = [#expr_array{
+                                          value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]
+                              }, LetDefs1};
+                _ -> {IfNotVar, LetDefs2}
+            end;
+        _ -> {IfNotVar, LetDefs2}
+    end;
 
 transpile_expr({nil, _}, LetDefs, _) ->
     {?make_expr_empty_list, LetDefs};
@@ -942,87 +991,96 @@ transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer
 transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
                LetDefs, Env) ->
     transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]}, LetDefs, Env);
-transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, LetDefs, Env) ->
+transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, LetDefs, Env0) ->
+    FunVar = state_create_fresh_var("lambda"),
     Arity = length(SomeArgs),
-    ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
-    Case =
-        #expr_case{
-           expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
-           cases =
-               [ begin
-                     state_push_var_stack(),
-                     state_push_var_stack(), % backup current state
-                     state_clear_vars(), % clear state to free the pattern vars of the scope
-                     {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
-                     state_pop_discard_var_stack(), % remove unnecessary backup
-                     state_merge_down_var_stack(), % merge with the previous state
-                     R = { #pat_array{value = PSArgs}
-                         , PSGuards ++ transpile_boolean_guards(Guards, Env)
-                         , transpile_body(Cont, Env)},
-                     state_pop_var_stack(),
-                     R
-                 end
-                || {clause, _, Args, Guards, Cont} <- Clauses
-               ]
-          },
     Lambda =
         #expr_app{
            function = #expr_var{name = "ErlangFun"},
            args =
                [ #expr_num{value = Arity}
-               , #expr_lambda{
-                    args = [#pat_array{
-                              value = [#pat_var{name = ArgVar} || ArgVar <- ArgVars]
-                             }],
-                   body = Case}
+               , #expr_let{
+                    letdefs =
+                        [ begin
+                              state_push_var_stack(),
+                              state_push_var_stack(), % backup current state
+                              state_clear_vars(), % clear state to free the pattern vars of the scope
+                              {PSArgs, PSGuards0} = transpile_pattern_sequence(Args, Env0#env{raw_functions = #{}}),
+                              state_pop_discard_var_stack(), % remove unnecessary backup
+                              BodyEnv =
+                                  Env0#env {
+                                    raw_functions =
+                                        maps:filter(
+                                          fun(N, _ ) -> not state_is_used(N) end,
+                                          Env0#env.raw_functions
+                                         )
+                                   },
+                              state_merge_down_var_stack(), % merge with the previous state
+                              PSGuards1 = PSGuards0 ++ transpile_boolean_guards(Guards, Env0),
+                              PSBody = transpile_body(Cont, BodyEnv),
+                              state_pop_var_stack(),
+                              #letfun{ name = FunVar
+                                     , args = [#pat_array{value = PSArgs}]
+                                     , guards = PSGuards1
+                                     , body = PSBody
+                                     }
+                          end
+                          || {clause, _, Args, Guards, Cont} <- Clauses
+                        ],
+                    in = #expr_var{name = FunVar}
+                   }
                ]},
-    {Lambda,
-     LetDefs
+    {Lambda, LetDefs
     };
-transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]},
-               LetDefs0, Env) ->
+transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}, LetDefs, Env0) ->
     FunVar = state_create_fresh_var(string:to_lower(lists:flatten(io_lib:format("~s", [Name])))),
-    Arity = length(SomeArgs), %% TODO DEFINE AS FUN FOR RECURSION
-    ArgVars = [state_create_fresh_var("funarg") || _ <- SomeArgs],
-    Case =
-        #expr_case{
-           expr = #expr_array{value = [#expr_var{name = ArgVar}|| ArgVar <- ArgVars]},
-           cases =
-               [ begin
-                     state_push_var_stack(),
-                     state_push_var_stack(), % backup current state
-                     state_clear_vars(), % clear state to free the pattern vars of the scope
-                     % FIXME fun R(R) -> ... end
-                     state_put_var(Name, FunVar), % register recursion
-                     {PSArgs, PSGuards} = transpile_pattern_sequence(Args, Env),
-                     state_pop_discard_var_stack(), % remove unnecessary backup
-                     state_merge_down_var_stack(), % merge with the previous state
-                     state_put_var(Name, FunVar),
-                     R = { #pat_array{value = PSArgs}
-                         , PSGuards ++ transpile_boolean_guards(Guards, Env)
-                         , transpile_body(Cont, Env)},
-                     state_pop_var_stack(),
-                     R
-                 end
-                || {clause, _, Args, Guards, Cont} <- Clauses
-               ]
-          },
+    Arity = length(SomeArgs),
     Lambda =
         #expr_app{
            function = #expr_var{name = "ErlangFun"},
            args =
                [ #expr_num{value = Arity}
-               , #expr_lambda{
-                    args = [#pat_array{
-                              value = [#pat_var{name = ArgVar} || ArgVar <- ArgVars]
-                             }],
-                   body = Case}
+               , #expr_let{
+                    letdefs =
+                        [ begin
+                              state_push_var_stack(),
+                              state_push_var_stack(), % backup current state
+                              state_clear_vars(), % clear state to free the pattern vars of the scope
+                              {PSArgs, PSGuards0} = transpile_pattern_sequence(Args, Env0#env{raw_functions = #{}}),
+                              state_pop_discard_var_stack(), % remove unnecessary backup
+                              Env1 =
+                                  Env0#env {
+                                    raw_functions =
+                                        maps:filter(
+                                          fun(N, _ ) -> not state_is_used(N) end,
+                                          Env0#env.raw_functions
+                                         )
+                                   },
+                              BodyEnv =
+                                  case state_is_used(Name) of
+                                      false ->
+                                          state_put_var(Name, FunVar), %% recursion
+                                          Env1#env{
+                                            raw_functions = (Env1#env.raw_functions)#{Name => {FunVar, Arity}}
+                                           };
+                                      true -> Env1
+                                  end,
+                              state_merge_down_var_stack(), % merge with the previous state
+                              PSGuards1 = PSGuards0 ++ transpile_boolean_guards(Guards, Env0),
+                              PSBody = transpile_body(Cont, BodyEnv),
+                              state_pop_var_stack(),
+                              #letfun{ name = FunVar
+                                     , args = [#pat_array{value = PSArgs}]
+                                     , guards = PSGuards1
+                                     , body = PSBody
+                                     }
+                          end
+                          || {clause, _, Args, Guards, Cont} <- Clauses
+                        ],
+                    in = #expr_var{name = FunVar}
+                   }
                ]},
-    {#expr_var{name = FunVar},
-     [ #letval{lvalue = #pat_var{name = FunVar}, rvalue = Lambda}
-     | LetDefs0
-     ]
-    };
+    {Lambda, LetDefs};
 
 transpile_expr({tuple, _, Exprs}, LetDefs0, Env) ->
     {ExprsVars, LetDefs1} = bind_exprs("tup_el", Exprs, LetDefs0, Env),

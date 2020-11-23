@@ -357,9 +357,14 @@ constant_propagation_letdefs([#letval{rvalue = RV, guards = Guards} = Lefdef|Res
          rvalue = constant_propagation(RV, State),
          guards = Guards}|Acc],
       State);
-constant_propagation_letdefs([#letfun{body = B} = Lefdef|Rest], Acc, State) ->
-    constant_propagation_letdefs(Rest, [Lefdef#letfun{body = constant_propagation(B, State)}|Acc], State).
+constant_propagation_letdefs([#letfun{body = B, guards = G} = Lefdef|Rest], Acc, State0) ->
+    {G1, State1} = constant_propagation_guards(G, State0),
+    constant_propagation_letdefs(Rest, [Lefdef#letfun{body = constant_propagation(B, State1),
+                                                      guards = G1
+                                                     }|Acc], State1).
 
+constant_propagation_guards(G0, S) ->
+    {constant_propagation(G0, S), S}. %% TODO: include guard_assign
 
 
 inlineable(Expr) ->

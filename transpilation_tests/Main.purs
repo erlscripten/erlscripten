@@ -265,6 +265,27 @@ main =
         it "apply/3 apply/2 make_fun/3 throw appropriate exceptions" do
             r <- exec_may_throw erlps__test_apply_exceptions__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (simple)" do
+            r <- exec_may_throw erlps__test_local_rec_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (self shadow in arg)" do
+            r <- exec_may_throw erlps__test_local_rec_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (self shadow call)" do
+            r <- exec_may_throw erlps__test_local_rec_3__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (simple tail rec)" do
+            r <- exec_may_throw erlps__test_local_tailrec_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (tail rec big)" do
+            r <- exec_may_throw erlps__test_local_tailrec_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (nested shadow scopetest 1)" do
+            r <- exec_may_throw erlps__test_local_rec_scoping_1__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
+        it "Local recursion (nested shadow scopetest 2)" do
+            r <- exec_may_throw erlps__test_local_rec_scoping_2__0 []
+            make_ok (ErlangAtom "ok") `shouldEqual` r
 
     let atomTup ats = ErlangTuple (map ErlangAtom ats)
     describe "Records" do
