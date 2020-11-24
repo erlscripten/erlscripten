@@ -251,7 +251,7 @@ class Process {
         this.system.remove_proc(this.pid, reason);
     }
     receive(fun) {
-        console.log("RECEIVE")
+        console.log("RECEIVE");
         let value = process_state.NOMATCH;
         let messages = this.mailbox.get();
         for (let i = 0; i < messages.length; i++) {
@@ -271,7 +271,7 @@ class Process {
         return value;
     }
     run(machine, step) {
-        console.log("Process run")
+        console.log("Process run");
         const function_scope = this;
         if (!step.done) {
             let value = step.value;
@@ -857,11 +857,11 @@ function do_apply_4(moduleName) {
                     if (module !== undefined && f !== undefined) {
                         return f()(argumentArray);
                     } else {
-                        failCallback();
+                        return failCallback();
                     }
-                }
-            }
-        }
+                };
+            };
+        };
     };
 
 function do_spawn_1(action) {
@@ -870,7 +870,7 @@ function do_spawn_1(action) {
             return action();
         });
         return pid_ctr(pid.id);
-    }
+    };
 }
 
 function do_is_process_alive_1(id) {
@@ -888,7 +888,7 @@ function do_self_0(pid_ctr) {
         do_spawn_1: do_spawn_1,
         do_apply_4: do_apply_4,
         system: system
-    }
+    };
 
 }();
 

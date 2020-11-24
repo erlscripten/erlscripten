@@ -92,7 +92,7 @@ lift_aff_to_erlang_process calc = do
         pid_channel <- AVar.empty
         _ <- forkAff do
             packed_pid <- exec_may_throw BIF.erlang__spawn__1 [(
-                ErlangFun 0 (\[] -> let
+                ErlangFun 0 (\ _ -> let
                     a = unsafePerformEffect $ launchAff_ (
                         do
                             res <- calc unit
