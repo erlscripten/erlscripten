@@ -37,6 +37,9 @@ make_pat_list([H|T]) ->
     ?make_expr_var("ErlangEmptyList")).
 -define(make_expr_map(Map),
     #expr_app{function = ?make_expr_var("ErlangMap"), args = [Map]}).
+-define(make_expr_fun(Arity, Fun),
+    #expr_app{function = ?make_expr_var("ErlangFun"),
+              args = [#expr_num{value = Arity}, Fun]}).
 -define(make_expr_lambda(Args, Body),
     #expr_app{function = ?make_expr_var("ErlangFun"),
               args = [#expr_num{value = length(Args)},
@@ -49,15 +52,18 @@ make_expr_list([]) ->
     ?make_expr_empty_list;
 make_expr_list([H|T]) ->
     ?make_expr_cons(H, make_expr_list(T)).
+-define(make_expr_unit, #expr_var{name = "unit"}).
 
--define(common_error(Name, T),
-        #expr_app{function = #expr_var{name = "EXC.error"},
-                  args = [?make_expr_tuple([?make_expr_atom(Name), T])]}).
+-define(common_error(Name, Args),
+        #expr_app{function = #expr_var{name = "EXC." ++ atom_to_list(Name)},
+                  args = Args}).
 
 
--define(function_clause(T), ?common_error(function_clause, T)).
--define(case_clause(T), ?common_error(case_clause, T)).
--define(if_clause(T), ?common_error(if_clause, T)).
--define(try_clause(T), ?common_error(try_clause, T)).
--define(badmatch(T), ?common_error(badmatch, T)).
--define(badrecord(T), ?common_error(badrecord, T)).
+-define(function_clause, ?common_error(function_clause, [?make_expr_unit])).
+-define(case_clause(T), ?common_error(case_clause, [T])).
+-define(if_clause, ?common_error(if_clause, [?make_expr_unit])).
+-define(try_clause(T), ?common_error(try_clause, [T])).
+-define(badmatch(T), ?common_error(badmatch, [T])).
+-define(badrecord(T), ?common_error(badrecord, [T])).
+-define(badarity(F, Args), ?common_error(badarity, [F, Args])).
+-define(badarg, ?common_error(badarg, [?make_expr_unit])).

@@ -128,15 +128,35 @@ erlang_module_to_purs_file(Name) ->
 
 transpile_function({function, _, FunName, Arity, Clauses}, Env) ->
     Type = #type_var{name = "ErlangFun"},
-    PSClauses = [transpile_function_clause(Clause, Env) ||
-                    Clause <- Clauses],
+    PSFunName = transpile_fun_name(FunName, Arity),
+    PSClauses = [transpile_function_clause(Clause, Env) || Clause <- Clauses],
     CatchVars = [state_create_fresh_var("arg") || _ <- lists:seq(1, Arity)],
-    CatchClause = #clause{args = [#pat_array{
-                                     value = [#pat_var{name = Var} || Var <- CatchVars]}],
-                          value = ?function_clause(make_expr_list([#expr_var{name = Var} || Var <- CatchVars]))},
+    FunctionClause =
+        #clause{args = [#pat_array{
+                           value = [#pat_var{name = Var} || Var <- CatchVars]}],
+                value = ?function_clause
+               },
+    BadArity =
+        #clause{
+           args = [#pat_var{name = "args"}],
+           value = ?badarity(
+                      %% TODO: when the TCO detection gets unretarded, uncomment:
+                                                % ?make_expr_fun(Arity, #expr_var{name = PSFunName})
+                      %% ...and remove this lambda
+
+                      ?make_expr_fun(
+                         Arity,
+                         #expr_lambda{args = [pat_wildcard],
+                                      body =?make_expr_atom(purs_tco_sucks)
+                                     }),
+                      #expr_var{name = "args"})
+          },
     #valdecl{
-       name = transpile_fun_name(FunName, Arity),
-       clauses = PSClauses ++ case Arity of 0 -> []; _ -> [CatchClause] end,
+       name = PSFunName,
+       clauses = PSClauses ++
+           case Arity == 0 of  %% TODO some better exhaustiveness heura
+               true -> []; _ -> [FunctionClause] end ++
+           [BadArity],
        type = Type
       }.
 
@@ -819,22 +839,30 @@ transpile_expr({match, _, Pat, Val}, LetDefs0, Env) ->
     end;
 %% TODO Scope leaking!
 transpile_expr({'if', _, Clauses}, LetDefs, Env) ->
+    PSCases =
+        [begin
+             state_push_var_stack(),
+             Guards = case GuardSequence of
+                          [[{atom, _, true}]] ->
+                              [];
+                          _ ->
+                              transpile_boolean_guards(GuardSequence, Env)
+                      end,
+             R = {pat_wildcard,
+                  Guards,
+                  transpile_body(Body, Env)},
+                   state_pop_var_stack(),
+             R
+         end || {clause, _, [], GuardSequence, Body} <- Clauses],
     {#expr_case{
         expr = ?make_expr_atom(true),
-        cases = [begin
-                   state_push_var_stack(),
-                   Guards = case GuardSequence of
-                              [[{atom, _, true}]] ->
-                                [];
-                              _ ->
-                                transpile_boolean_guards(GuardSequence, Env)
-                            end,
-                   R = {pat_wildcard,
-                    Guards,
-                    transpile_body(Body, Env)},
-                   state_pop_var_stack(),
-                   R
-                 end || {clause, _, [], GuardSequence, Body} <- Clauses]
+        cases = PSCases ++
+            case [found || {#pat_constr{constr = "ErlangAtom",
+                                        args = #pat_string{value = "true"}
+                                       }, [], _} <- PSCases ] of
+                [] -> [{pat_wildcard, [], ?if_clause}];
+                _ -> []
+            end
        }, LetDefs};
 %% TODO Scope leaking!
 transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
@@ -956,7 +984,6 @@ transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
         {var, _, Var} ->
             case Env of
                 #env{raw_functions = #{Var := {Name, _}}} ->
-                    erlps_logger:info("WOW I KNOW THIS DUDE ~p -> ~p", [Var, Name]),
                     {#expr_app{function = #expr_var{name = Name},
                                args = [#expr_array{
                                           value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]
@@ -994,6 +1021,21 @@ transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
 transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, LetDefs, Env0) ->
     FunVar = state_create_fresh_var("lambda"),
     Arity = length(SomeArgs),
+    CatchVars = [state_create_fresh_var("arg") || _ <- lists:seq(1, Arity)],
+    FunctionClause =
+        #letfun{
+           name = FunVar,
+           args = [#pat_array{
+                      value = [#pat_var{name = Var} || Var <- CatchVars]}],
+           body = ?function_clause
+          },
+    BadArity =
+        #letfun{
+           name = FunVar,
+           args = [#pat_var{name = "args"}],
+           body = ?badarity( ?make_expr_fun(Arity, #expr_var{name = FunVar})
+                           , #expr_var{name = "args"})
+          },
     Lambda =
         #expr_app{
            function = #expr_var{name = "ErlangFun"},
@@ -1026,7 +1068,7 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
                                      }
                           end
                           || {clause, _, Args, Guards, Cont} <- Clauses
-                        ],
+                        ] ++ [FunctionClause, BadArity],
                     in = #expr_var{name = FunVar}
                    }
                ]},
@@ -1035,6 +1077,30 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
 transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}, LetDefs, Env0) ->
     FunVar = state_create_fresh_var(string:to_lower(lists:flatten(io_lib:format("~s", [Name])))),
     Arity = length(SomeArgs),
+    CatchVars = [state_create_fresh_var("arg") || _ <- lists:seq(1, Arity)],
+    FunctionClause =
+        #letfun{
+           name = FunVar,
+           args = [#pat_array{
+                      value = [#pat_var{name = Var} || Var <- CatchVars]}],
+           body = ?function_clause
+          },
+    BadArity =
+        #letfun{
+           name = FunVar,
+           args = [#pat_var{name = "args"}],
+           body = ?badarity(
+                     %% TODO: when the TCO detection gets unretarded, uncomment:
+                                                % ?make_expr_fun(Arity, #expr_var{name = FunVar})
+                     %% ...and remove this lambda
+
+                     ?make_expr_fun(
+                        Arity,
+                        #expr_lambda{args = [pat_wildcard],
+                                     body =?make_expr_atom(purs_tco_sucks)
+                                 }),
+                     #expr_var{name = "args"})
+          },
     Lambda =
         #expr_app{
            function = #expr_var{name = "ErlangFun"},
@@ -1076,7 +1142,7 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
                                      }
                           end
                           || {clause, _, Args, Guards, Cont} <- Clauses
-                        ],
+                        ] ++ [FunctionClause, BadArity],
                     in = #expr_var{name = FunVar}
                    }
                ]},
@@ -1207,21 +1273,19 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, LetDefs0, Env)
         #expr_app{
            function = #expr_var{name = "flmap"},
            args =
-               [#expr_array{
-                   value =
-                       [ ?make_expr_lambda(
-                            [#pat_var{name = Var}],
-                            #expr_case{
-                               expr = #expr_var{name = Var},
-                               cases =
-                                   [ {PSPat, Guards, transpile_expr({lc, Ann, Ret, Rest}, Env)}
-                                   , {pat_wildcard, [], ?make_expr_empty_list}
-                                   ]
-                              }
-                           )
-                       ,  #expr_var{name = SourceVar}
-                       ]
-                  }]
+               [#expr_lambda{
+                   args = [#pat_var{name = Var}],
+                   body =
+                       #expr_case{
+                          expr = #expr_var{name = Var},
+                          cases =
+                              [ {PSPat, Guards, transpile_expr({lc, Ann, Ret, Rest}, Env)}
+                              , {pat_wildcard, [], ?make_expr_empty_list}
+                              ]
+                         }
+                  }
+               ,  #expr_var{name = SourceVar}
+               ]
           },
     state_pop_var_stack(),
     {Gen, LetDefs1};

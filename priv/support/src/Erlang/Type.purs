@@ -13,7 +13,7 @@ import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (throw)
 
-type ErlangFun = Partial => Array ErlangTerm -> ErlangTerm
+type ErlangFun = Array ErlangTerm -> ErlangTerm
 
 data ErlangTerm
     = ErlangNum       Int

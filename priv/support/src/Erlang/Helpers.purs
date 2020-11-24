@@ -9,6 +9,7 @@ import Data.String as Str
 import Data.String.CodePoints as StrCP
 import Data.Foldable
 
+import Partial.Unsafe
 import Unsafe.Coerce
 import Effect
 import Effect.Unsafe(unsafePerformEffect)
@@ -52,6 +53,10 @@ isEMap :: ErlangTerm -> Boolean
 isEMap (ErlangMap _) = true
 isEMap _ = false
 
+erlToInt :: ErlangTerm -> Int
+erlToInt (ErlangNum x) = x
+erlToInt _ = error "bad int"
+
 -- They removed support of it. CodePoint is just a newtype for Int.
 codePointToInt :: StrCP.CodePoint -> Int
 codePointToInt = unsafeCoerce
@@ -59,13 +64,13 @@ codePointToInt = unsafeCoerce
 make_string :: String -> ErlangTerm
 make_string str = arrayToErlangList (map (ErlangNum <<< codePointToInt) (Str.toCodePointArray str))
 
-flmap :: ErlangFun
-flmap [ErlangFun 1 f, list] = erflat (ermap list ErlangEmptyList) ErlangEmptyList where
-  ermap :: ErlangTerm -> ErlangTerm -> ErlangTerm
+flmap :: (Partial => ErlangTerm -> ErlangTerm) -> ErlangTerm -> ErlangTerm
+flmap f list = unsafePartial $ erflat (ermap list ErlangEmptyList) ErlangEmptyList where
+  ermap :: Partial => ErlangTerm -> ErlangTerm -> ErlangTerm
   ermap ErlangEmptyList acc = acc
-  ermap (ErlangCons h t) acc = ermap t (ErlangCons (f [h]) acc)
+  ermap (ErlangCons h t) acc = ermap t (ErlangCons (f h) acc)
 
-  erflat :: ErlangTerm -> ErlangTerm -> ErlangTerm
+  erflat :: Partial => ErlangTerm -> ErlangTerm -> ErlangTerm
   erflat ErlangEmptyList acc = acc
   erflat (ErlangCons ErlangEmptyList rest) acc = erflat rest acc
   erflat (ErlangCons (ErlangCons h t) rest) acc = erflat (ErlangCons t rest) (ErlangCons h acc)

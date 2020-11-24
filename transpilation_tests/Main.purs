@@ -79,7 +79,7 @@ print_err (Left e) =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    -- liftEffect $ log $ print_err res -- Uncomment for logs :)
+    liftEffect $ log $ print_err res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
@@ -182,8 +182,10 @@ main =
             test_sort [10,9,8,7,6,5,4,3,2,1]
             test_sort [5,3,34,6,2,5,7565,4,3,7,8,5,3]
         it "map/1" do
-            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> ErlangNum (a*20))) (\x -> x*20)
-            test_map [1,2,3,4,5] (ErlangFun 1 (\ [ErlangNum a] -> ErlangNum (-a))) (\x -> -x)
+            test_map [1,2,3,4,5]
+              (ErlangFun 1 (unsafePartial $ \ [ErlangNum a] -> ErlangNum (a*20))) (\x -> x*20)
+            test_map [1,2,3,4,5]
+              (ErlangFun 1 (unsafePartial $ \ [ErlangNum a] -> ErlangNum (-a))) (\x -> -x)
         it "zip/2" do
             test_zip_ok [1,2,3,4] [4,3,2,1]
             test_zip_ok [1,2,7,4] [1,3,2,1]

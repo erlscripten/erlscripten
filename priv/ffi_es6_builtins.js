@@ -849,7 +849,7 @@ function do_apply_4(moduleName) {
                         } catch(e) {
                             module = require("../"+name+"/index.js");
                         }
-                        f = module["erlps__" + functionName + "__" + argumentArray.length]
+                        f = module["erlps__" + functionName + "__" + argumentArray.length];
                     } catch(e) {
                         module = undefined;
                         f = undefined;
@@ -857,7 +857,7 @@ function do_apply_4(moduleName) {
                     if (module !== undefined && f !== undefined) {
                         return f()(argumentArray);
                     } else {
-                        failCallback()
+                        failCallback();
                     }
                 }
             }

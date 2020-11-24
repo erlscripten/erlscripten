@@ -15,10 +15,8 @@
 -compile(export_all).
 
 test() ->
-    A = throw(a),
     fun B() ->
             1
     end,
-    fun B() -> 2 end,
-    D = throw(d).
+    fun B() -> 2 end.
 

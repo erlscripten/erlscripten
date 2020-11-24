@@ -5,7 +5,8 @@ module Erlang.Exception
   , tryOfCatch
   , raise
   , throw, error, exit
-  , error_badarg
+  , function_clause, case_clause, try_clause, if_clause
+  , badarity, badmatch, badarg, badrecord
   ) where
 
 import Prelude
@@ -64,25 +65,27 @@ exit term =
   raise $ buildException "exit" term (getStack unit)
 
 
-function_clause :: ErlangTerm -> ErlangTerm
-function_clause term =
-  error (ErlangTuple [ErlangAtom "function_clause", term])
+function_clause :: Unit -> ErlangTerm
+function_clause _ = error (ErlangAtom "function_clause")
 
 case_clause :: ErlangTerm -> ErlangTerm
-case_clause term =
-  error (ErlangTuple [ErlangAtom "case_clause", term])
+case_clause term = error (ErlangTuple [ErlangAtom "case_clause", term])
 
-if_clause :: ErlangTerm -> ErlangTerm
-if_clause term =
-  error (ErlangTuple [ErlangAtom "if_clause", term])
+if_clause :: Unit -> ErlangTerm
+if_clause _ = error (ErlangAtom "if_clause")
 
 try_clause :: ErlangTerm -> ErlangTerm
-try_clause term =
-  error (ErlangTuple [ErlangAtom "try_clause", term])
+try_clause term = error (ErlangTuple [ErlangAtom "try_clause", term])
 
-bad_match :: ErlangTerm -> ErlangTerm
-bad_match term =
-  error (ErlangTuple [ErlangAtom "badmatch", term])
+badmatch :: ErlangTerm -> ErlangTerm
+badmatch term = error (ErlangTuple [ErlangAtom "badmatch", term])
 
-error_badarg :: Unit -> ErlangTerm
-error_badarg _ = error (ErlangAtom "badarg")
+badarg :: Unit -> ErlangTerm
+badarg _ = error (ErlangAtom "badarg")
+
+badarity :: ErlangTerm -> Array ErlangTerm -> ErlangTerm
+badarity fun args =
+  error (ErlangTuple [ErlangAtom "badarity", ErlangTuple [fun, arrayToErlangList args]])
+
+badrecord :: ErlangTerm -> ErlangTerm
+badrecord _ = error (ErlangAtom "TODO: PROPER BADRECORD ERROR")
