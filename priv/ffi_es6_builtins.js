@@ -71,8 +71,8 @@ class DefaultScheduler {
         // Controls how many tasks are called at a time per process
         this.reductions_per_process = reductions_per_process;
         this.queues = new Map();
-        console.log("SCHEDULER")
-        console.log(this.isRunning)
+        console.log("SCHEDULER");
+        console.log(this.isRunning);
         this.run();
     }
     addToQueue(pid, task) {
@@ -216,7 +216,7 @@ class Process {
         this.monitors = [];
     }
     start() {
-        console.log("Process start")
+        console.log("Process start");
         const function_scope = this;
         let machine = this.main();
         this.system.schedule(function () {
@@ -855,7 +855,7 @@ function do_apply_4(moduleName) {
                         f = undefined;
                     }
                     if (module !== undefined && f !== undefined) {
-                        return f()(argumentArray);
+                        return f(argumentArray);
                     } else {
                         return failCallback();
                     }
