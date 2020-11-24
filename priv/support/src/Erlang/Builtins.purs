@@ -831,10 +831,32 @@ erlang__seq_trace_print__1 args = unimplemented "erlang__seq_trace_print__1"
 erlang__seq_trace_print__1 [_] = EXC.badarg unit
 erlang__seq_trace_print__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__seq_trace_print__1-}) args
 
+erlang__send_nosuspend__3 :: ErlangFun
+erlang__send_nosuspend__3 [arg1, arg2, _] = erlang__send_nosuspend__2 [arg1, arg2]
+erlang__send_nosuspend__3 _ = EXC.badarg unit
+
+erlang__send_nosuspend__2 :: ErlangFun
+erlang__send_nosuspend__2 args =
+    let
+        a = erlang__send__2 args
+    in
+        boolToTerm true
+
+erlang__send__3 :: ErlangFun
+erlang__send__3 [arg1, arg2, _] = erlang__send__2 [arg1, arg2]
+erlang__send__3 _ = EXC.badarg unit
+
+foreign import do_send_2 :: Int -> ErlangTerm -> ErlangTerm
 erlang__send__2 :: ErlangFun
-erlang__send__2 args = unimplemented "erlang__send__2"
-erlang__send__2 [_,_] = EXC.badarg unit
-erlang__send__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__send__2-}) args
+erlang__send__2 [ErlangPID pid, term] = do_send_2 pid term
+erlang__send__2 _ = EXC.badarg unit
+
+foreign import do_receive_2 :: ErlangFun -> Int -> (String -> ErlangTerm) -> ErlangTerm
+prim_eval__receive__2 :: ErlangFun
+prim_eval__receive__2 [ErlangFun 1 fun, ErlangAtom "infinity"] = do_receive_2 fun (-1) (ErlangAtom)
+prim_eval__receive__2 [ErlangFun 1 fun, ErlangNum timeout] | timeout >= 0 =
+        do_receive_2 fun timeout (ErlangAtom)
+prim_eval__receive__2 _ = EXC.badarg unit
 
 erlang__halt__1 :: ErlangFun
 erlang__halt__1 args = unimplemented "erlang__halt__1"
@@ -1008,11 +1030,6 @@ erlang__adler32__1 :: ErlangFun
 erlang__adler32__1 args = unimplemented "erlang__adler32__1"
 erlang__adler32__1 [_] = EXC.badarg unit
 erlang__adler32__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__adler32__1-}) args
-
-erlang__send_nosuspend__2 :: ErlangFun
-erlang__send_nosuspend__2 args = unimplemented "erlang__send_nosuspend__2"
-erlang__send_nosuspend__2 [_,_] = EXC.badarg unit
-erlang__send_nosuspend__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__send_nosuspend__2-}) args
 
 erlang__dt_get_tag_data__0 :: ErlangFun
 erlang__dt_get_tag_data__0 args = unimplemented "erlang__dt_get_tag_data__0"
@@ -1570,11 +1587,6 @@ erlang__band__2 args = unimplemented "erlang__band__2"
 erlang__band__2 [_,_] = EXC.badarg unit
 erlang__band__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__band__2-}) args
 
-erlang__send__3 :: ErlangFun
-erlang__send__3 args = unimplemented "erlang__send__3"
-erlang__send__3 [_,_,_] = EXC.badarg unit
-erlang__send__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__send__3-}) args
-
 erlang__is_function__2 :: ErlangFun
 erlang__is_function__2 args = unimplemented "erlang__is_function__2"
 erlang__is_function__2 [_,_] = EXC.badarg unit
@@ -1660,11 +1672,6 @@ erlang__bump_reductions__1 :: ErlangFun
 erlang__bump_reductions__1 args = unimplemented "erlang__bump_reductions__1"
 erlang__bump_reductions__1 [_] = EXC.badarg unit
 erlang__bump_reductions__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__bump_reductions__1-}) args
-
-erlang__send_nosuspend__3 :: ErlangFun
-erlang__send_nosuspend__3 args = unimplemented "erlang__send_nosuspend__3"
-erlang__send_nosuspend__3 [_,_,_] = EXC.badarg unit
-erlang__send_nosuspend__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__send_nosuspend__3-}) args
 
 erlang__make_tuple__3 :: ErlangFun
 erlang__make_tuple__3 args = unimplemented "erlang__make_tuple__3"

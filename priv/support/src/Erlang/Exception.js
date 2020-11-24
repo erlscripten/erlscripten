@@ -16,6 +16,8 @@ let tryCatch =
                 let result = exprC();
                 return result;
             } catch(error) {
+                //console.log("gggg")
+                //console.log(typeof(error))
                 let resultEr = handler(error);
                 return resultEr;
             }
@@ -30,6 +32,8 @@ let tryOfCatch =
                 var computed;
                 try { computed = exprC(); }
                 catch(error) {
+                    //console.log("gggg")
+                    //console.log(typeof(error))
                     let resultEr = handler(error);
                     return resultEr;
                 }

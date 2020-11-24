@@ -567,5 +567,7 @@ main =
       it "can request it's own pid" do
           (T.Tuple pid1 packed_pid) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_get_self__0 [])
           pid1 `shouldEqualOk` packed_pid
-
+      it "receive primop - simple case" do
+          (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_simple_receive_primop__0 [])
+          ok `shouldEqualOk` r
 

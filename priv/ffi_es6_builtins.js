@@ -867,7 +867,11 @@ function do_apply_4(moduleName) {
 function do_spawn_1(action) {
     return function(pid_ctr) {
         var pid = system.spawn(function* (){
-            return action();
+            try {
+                return action();
+            } catch (e) {
+                console.log("AAAAAA")
+            }
         });
         return pid_ctr(pid.id);
     };
@@ -882,7 +886,40 @@ function do_self_0(pid_ctr) {
     return pid_ctr(pid.id);
 }
 
+function do_send_2(pid_id) {
+    return function(term) {
+        console.log("SEND")
+        console.log(term);
+        return term;
+    }
+}
+
+function do_receive_2(match_fun) {
+    return function(timeout_val) {
+        return function(atom_ctr) {
+            console.log(arguments)
+            console.log("RRRRR")
+            console.log(match_fun);
+            console.log(timeout_val);
+            if (timeout_val < 0) {
+                timeout_val = 0;
+            } else if(timeout_val == 0) {
+                timeout_val = 1;
+            }
+
+            console.log("Calling receive")
+            // TIME FOR A VERY DIRTY HACK :(
+            console.log ( (function*() {yield system.receive( (msg) => {
+                console.log("RECEIVED")
+                });
+            })().next());
+        }
+    }
+}
+
     return {
+        do_receive_2: do_receive_2,
+        do_send_2: do_send_2,
         do_self_0: do_self_0,
         do_is_process_alive_1: do_is_process_alive_1,
         do_spawn_1: do_spawn_1,
@@ -892,6 +929,8 @@ function do_self_0(pid_ctr) {
 
 }();
 
+exports.do_receive_2 = RUNTIME.do_receive_2;
+exports.do_send_2 = RUNTIME.do_send_2;
 exports.do_self_0 = RUNTIME.do_self_0;
 exports.do_is_process_alive_1 = RUNTIME.do_is_process_alive_1;
 exports.do_spawn_1 = RUNTIME.do_spawn_1;

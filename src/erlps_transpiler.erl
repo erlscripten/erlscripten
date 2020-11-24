@@ -186,7 +186,7 @@ builtins_calc() ->
                 , {"--",  "op_unAppend"}
                 , {"and", "op_and"}
                 , {"or",  "op_or"}
-                , {"!",   "send"}
+                , {"!",   "send__2"}
                 , {"andalso", "op_andalso"}
                 , {"orelse",  "op_orelse"}
                 ],
@@ -200,7 +200,8 @@ builtins_calc() ->
            lists:flatten(io_lib:format("~s__~s__~p", [Module, Fun, Arity]))}
           || {Module, Fun, Arity} <-
                  lists:concat(
-                   [ [ {"lists", "keyfind", 3}
+                   [ [ {"prim_eval", "receive", 2} ]
+                   , [ {"lists", "keyfind", 3}
                      , {"lists", "keymember", 3}
                      , {"lists", "keysearch", 3}
                      , {"lists", "member", 2}
@@ -1533,6 +1534,7 @@ state_clear_import_requests() ->
 state_add_import_request(Module, Env) when is_atom(Module) ->
     state_add_import_request(atom_to_list(Module), Env);
 state_add_import_request("erlang", _) -> ok;
+state_add_import_request("prim_eval", _) -> ok;
 state_add_import_request(Module, #env{current_module = Module}) -> ok;
 state_add_import_request(Module, _Env) ->
     put(?IMPORT_REQUESTS, sets:add_element(Module, get(?IMPORT_REQUESTS))).

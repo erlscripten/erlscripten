@@ -15,3 +15,8 @@ test_spawn() ->
 
 test_get_self() ->
   self().
+
+test_simple_receive_primop() ->
+  test = self() ! test,
+  received = prim_eval:'receive'(fun(test) -> received end, infinity),
+  ok.
