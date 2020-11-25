@@ -40,6 +40,18 @@ make_pat_list([H|T]) ->
 -define(make_expr_fun(Arity, Fun),
     #expr_app{function = ?make_expr_var("ErlangFun"),
               args = [#expr_num{value = Arity}, Fun]}).
+-define(make_expr_bin(Ar),
+    #expr_app{function = ?make_expr_var("ErlangBin"),
+              args =
+                  [ #expr_app{
+                       function = ?make_expr_var("Buffer.fromArray"),
+                       args =
+                           [ #expr_app{
+                                function = ?make_expr_var("fromFoldable"),
+                                args = [Ar]
+                               }]
+                      }
+                  ]}).
 -define(make_expr_lambda(Args, Body),
     #expr_app{function = ?make_expr_var("ErlangFun"),
               args = [#expr_num{value = length(Args)},

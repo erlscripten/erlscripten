@@ -14,9 +14,6 @@
 
 -compile(export_all).
 
-test() ->
-    fun B() ->
-            1
-    end,
-    fun B() -> 2 end.
+test(X, <<123/unit:8>>) ->
+    X.
 

@@ -4,54 +4,77 @@ import Prelude
 import Erlang.Type (ErlangTerm(ErlangBinary, ErlangNum, ErlangTuple))
 import Node.Buffer as Buffer
 import Node.Encoding
-import Data.BigInt as BI
 import Data.Num (class Num, fromBigInt)
+import Data.BigInt as BI
 import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
-import Effect.Exception (error, throwException)
+import Effect.Exception (throw, throwException)
 import Data.UInt (UInt, toInt, fromInt)
 import Data.Array.NonEmpty as NonEmpty
 import Partial.Unsafe (unsafePartial)
 import Data.Base58 as B58
+import Data.Array as DA
 import Data.Maybe(Maybe, fromJust)
+import Data.Foldable
 
--- buffer (ErlangBinary x) = x
+error :: forall a. String -> a
+error = unsafePerformEffect <<< throw
 
--- length (ErlangBinary x) = unsafePerformEffect $ Buffer.size x
--- length _ = unsafePerformEffect $ throwException $ error $ "bad value"
+
+fromFoldable :: forall f. Foldable f => f Int -> ErlangTerm
+fromFoldable f = ErlangBinary (unsafePerformEffect (Buffer.fromArray (DA.fromFoldable f)))
+
+concat :: Array ErlangTerm -> ErlangTerm
+concat args =
+  ErlangBinary (unsafePerformEffect $ Buffer.concat (map buffer args))
+
+buffer (ErlangBinary x) = x
+buffer _ = error "buffer – not a binary"
+
+length (ErlangBinary x) = unsafePerformEffect $ Buffer.size x
+length _ = error "length – not a binary"
+
+unboxed_byte_size :: Buffer.Buffer -> Int
+unboxed_byte_size b = unsafePerformEffect $ Buffer.size b
 
 -- at (ErlangBinary a) n = unsafePartial $ fromJust $ unsafePerformEffect $ (Buffer.getAtOffset n a)
--- at _ _ = unsafePerformEffect $ throwException $ error $ "bad value"
+-- at _ _ = error "at – not a binary"
 
 -- empty :: ErlangTerm
 -- empty = ErlangBinary $ unsafePerformEffect $ Buffer.create 0
 
 -- firstN (ErlangBinary a) num =
 --     ErlangTuple [ErlangBinary $ Buffer.slice 0 num a, ErlangBinary $ Buffer.slice num (unsafePerformEffect $ Buffer.size a) a]
+-- firstN _ = error "firstN – not a binary"
 
 -- firstNNum a@(ErlangBinary _) num =
 --     let
 --         ErlangTuple [b@(ErlangBinary _), rest] = firstN a num
 --     in
 --         ErlangTuple [decode_unsigned b, rest]
+-- firstNNum _ = error "firstNNum – not a binary"
 
--- decode_unsigned :: Partial => ErlangTerm -> ErlangTerm
+-- decode_unsigned :: ErlangTerm -> ErlangTerm
 -- decode_unsigned (ErlangBinary a) | (unsafePerformEffect $ Buffer.size a) == 0 =
---     ErlangNum (BI.fromInt 0)
+--     ErlangNum 0
 -- decode_unsigned a@(ErlangBinary _) =
 --     let
---         ErlangTuple [h, t] = firstN a 1
---         ErlangNum n = decode_unsigned t
+--         ErlangNum n = decode_unsigned ErlangBinary $ Buffer.slice num (unsafePerformEffect $ Buffer.size a) a
 --     in
---         ErlangNum $ ((BI.fromInt $ at h 0) + (BI.fromInt 256) * n)
+--         ErlangNum $ at (ErlangBinary $ Buffer.slice 0 num a) 0 + 256 * n
+-- decode_unsigned _ = error "decode_unsigned – not a binary"
 
--- toArray :: Partial => ErlangTerm -> Effect (Array Int)
+-- toArray :: ErlangTerm -> Effect (Array Int)
 -- toArray (ErlangBinary a) = do
 --     Buffer.toArray a
+-- toArray _ = error "toArray – not a binary"
 
--- toB64 :: Partial => ErlangTerm -> String
+
+-- toB64 :: ErlangTerm -> String
 -- toB64 (ErlangBinary a) =
 --     unsafePerformEffect $ Buffer.toString Base64 a
+-- toB64 _ = error "toB64 – not a binary"
+
 -- fromB64 :: String -> ErlangTerm
 -- fromB64 str = do
 --     ErlangBinary $ unsafePerformEffect $ Buffer.fromString str Base64
@@ -59,6 +82,8 @@ import Data.Maybe(Maybe, fromJust)
 -- toB58 :: Partial => ErlangTerm -> String
 -- toB58 (ErlangBinary a) =
 --     B58.encode $ unsafePerformEffect $ Buffer.toArray a
+-- toB58 _ = error "toB58 – not a binary"
+
 -- fromB58 :: String -> Maybe ErlangTerm
 -- fromB58 str = do
 --     s <- B58.decode str
@@ -98,6 +123,6 @@ import Data.Maybe(Maybe, fromJust)
 
 -- instance intBinaryEncoder :: BinaryEncoder Int where
 --     encode_unsigned x =
---         encode_unsigned $ BI.fromInt x
+--         encode_unsigned (BI.fromInt x)
 
 --     fromArray a = fromArray (map fromInt a)
