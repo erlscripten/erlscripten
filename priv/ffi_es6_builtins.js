@@ -929,6 +929,7 @@ function do_receive_2(match_fun) {
 
 }();
 
+exports.system = RUNTIME.system;
 exports.do_receive_2 = RUNTIME.do_receive_2;
 exports.do_send_2 = RUNTIME.do_send_2;
 exports.do_self_0 = RUNTIME.do_self_0;

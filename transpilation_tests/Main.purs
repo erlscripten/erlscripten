@@ -29,6 +29,7 @@ import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
 import Erlang.Builtins as BIF
+import Erlang.Invoke
 
 import Processes
 import Lists
@@ -46,7 +47,7 @@ import Array.SUITE
 exec_may_throw_aff :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw_aff fun args =
     let
-      t = defer $ (\_ -> unsafePartial $ fun args)
+      t = defer $ (\_ -> run_erlang fun args)
       f = defer $ (\_ -> ErlangAtom "error")
     in do
       v <- liftEffect (catchException (\_ -> pure f
@@ -92,7 +93,7 @@ lift_aff_to_erlang_process calc = do
         pid_channel <- AVar.empty
         _ <- forkAff do
             packed_pid <- exec_may_throw BIF.erlang__spawn__1 [(
-                ErlangFun 0 (\ _ -> let
+                ErlangFun 0 (\ _ -> let -- TODO: Fixme - the calculation should yield to the scheduler and only then we may launch the avar. We need a jump to FFI here :(
                     a = unsafePerformEffect $ launchAff_ (
                         do
                             res <- calc unit

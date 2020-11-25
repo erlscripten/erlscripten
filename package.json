@@ -13,7 +13,7 @@
     "@babel/preset-env": "^7.12.7"
   },
   "scripts": {
-    "babel": "babel priv/ffi_es6_builtins.js > priv/support/src/Erlang/Builtins.js",
+    "babel": "babel priv/ffi_es6_builtins.js > priv/support/src/Erlang/Builtins.js; babel priv/ffi_es6_invoke.js > priv/support/src/Erlang/Invoke.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
