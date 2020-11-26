@@ -614,7 +614,9 @@ pattern_vars(#pat_as{name = Name, pattern = Pat}, Acc) ->
 pattern_vars(#pat_record{fields = Fields}, Acc) ->
     pattern_vars([Pat || {_Field, Pat} <- Fields], Acc).
 
-parse_bin_segment_spec(Spec) ->
+parse_bin_segment_spec(Element, default) ->
+    parse_bin_segment_spec(Element, []);
+parse_bin_segment_spec(Element, Spec) ->
     % welcome in erlang
     Type = case lists:member(integer, Spec) of
                true -> integer;
@@ -624,7 +626,12 @@ parse_bin_segment_spec(Spec) ->
                        false ->
                            case lists:member(binary, Spec) of
                                true -> binary;
-                               false -> default
+                               false ->
+                                   case Element of
+                                       {integer, _, _} -> integer;
+                                       {binary, _, _} -> binary;
+                                       _ -> integer
+                                   end
                            end
                    end
            end,
@@ -633,7 +640,7 @@ parse_bin_segment_spec(Spec) ->
                false ->
                    case lists:member(signed, Spec) of
                        true -> signed;
-                       false -> default
+                       false -> unsigned
                    end
            end,
     Endian = case lists:member(little, Spec) of
@@ -643,82 +650,114 @@ parse_bin_segment_spec(Spec) ->
                        true -> big;
                        false ->
                            case lists:member(native, Spec) of
-                               true -> native;
-                               false -> default
+                               true -> big; % native;
+                               false -> big
                            end
                    end
            end,
-    Unit = proplists:get_value(unit, Spec, default),
+    Unit = proplists:get_value(
+             unit, Spec, case Type of
+                             integer -> 1;
+                             binary -> 8;
+                             _ -> error({todo, i_was_to_lazy_to_check_this_case})
+                         end),
+
     #{type => Type, sign => Sign, endian => Endian, unit => Unit}.
 
-
+-define(BinCall(X, Rest, Expr),
+        #guard_assg{
+           lvalue = #pat_constr{
+                       constr = "BIN.Ok",
+                       args = [X, #pat_var{name = Rest}]
+                      },
+           rvalue = Expr
+          }
+       ).
 %% When resolving variables in the size spec look to:
 %% 1) The outer scope on the stack
 %% 2) The newBindings scope
 %% 3) If var is present in both scopes then insert a value guard
 transpile_binary_pattern_segments(UnboxedVar, Segments, Env) ->
-    transpile_binary_pattern_segments(UnboxedVar, Segments, 0, [], [], Env).
-transpile_binary_pattern_segments(_UnboxedVar, [], _Offset, Guards, VarUni, Env) ->
-    {lists:reverse(Guards), lists:reverse(VarUni)};
+    transpile_binary_pattern_segments(UnboxedVar, Segments, [], [], Env).
+transpile_binary_pattern_segments(UnboxedVar, [], Guards, VarUni, _Env) ->
+    Fin = #guard_expr{
+             guard = #expr_app{
+                        function = #expr_var{name = "BIN.empty"},
+                        args = [#expr_var{name = UnboxedVar}]
+                       }
+            },
+    {lists:reverse([Fin|Guards]), lists:reverse(VarUni)};
 transpile_binary_pattern_segments(
- UnboxedVar, [{bin_element, _, Element, Size, Spec}|Rest], Offset, Guards, VarUni, Env) ->
-    case {Element, Size, parse_bin_segment_spec(Spec)} of
-        {{integer, _, I}, default, #{type := Type}}
-          when Type =:= integer orelse Type =:= default ->
-            transpile_binary_pattern_segments(
-              UnboxedVar, Rest, Offset + 1,
-              [ #guard_expr{
-                   guard =
-                       #expr_binop{
-                          name = "==",
-                          lop = #expr_num{value = I},
-                          rop = #expr_app{
-                                   function = #expr_var{name = "BIN.unboxed_byte_at"},
-                                   args = [#expr_var{name = UnboxedVar}, #expr_num{value = Offset}]
-                                  }
-                         }}
-              | Guards], VarUni, Env);
+ UnboxedVar, [{bin_element, Ann, Element, Size, Spec}|Rest], Guards, VarUni, Env) ->
+    case {Element, Size, parse_bin_segment_spec(Element, Spec)} of
 
-        {{string, Ann, S}, default, _} ->
+        {{string, AnnS, S}, _, _} ->
             transpile_binary_pattern_segments(
-              UnboxedVar, [{integer, Ann, I} || I <- S] ++ Rest, Offset, Guards, VarUni, Env);
+              UnboxedVar,
+              [{bin_element, Ann, {integer, AnnS, I}, Size, Spec} || I <- S] ++ Rest,
+              Guards, VarUni, Env);
 
-        {{var, _, _}, default, #{type := Type}}
-          when Type =:= default orelse Type =:= integer ->
+        {_, _, #{type := Type, unit := Unit, sign := Sign, endian := Endian}} ->
+            SizeVar = state_create_fresh_var("size"),
+            RestBinVar = state_create_fresh_var("bin"),
+            SizeExpr = case Size of
+                           default ->
+                               case Type of
+                                   integer -> ?make_expr_int(8);
+                                   binary -> #expr_app{function = #expr_var{name = "BIN.size"},
+                                                       args = [#expr_var{name = UnboxedVar}]
+                                                      }
+                                   end;
+                           _ -> transpile_expr(Size, Env)
+                       end,
             {P, G, V} = transpile_pattern(Element, Env),
+
+            SizeGuard =
+                #guard_assg{
+                   lvalue = #pat_constr{constr = "ErlangNum", args = [#pat_var{name = SizeVar}]},
+                   rvalue = SizeExpr
+                  },
+
+            GetGuard =
+                case Type of
+                    integer ->
+                        ?BinCall(
+                           P, RestBinVar,
+                           #expr_app{
+                              function = #expr_var{name = "BIN.chop_int"},
+                              args =
+                                  [ #expr_var{name = UnboxedVar}
+                                  , #expr_var{name = SizeVar}
+                                  , #expr_num{value = Unit}
+                                  , #expr_var{name = case Endian of
+                                                         big -> "BIN.Big";
+                                                         little -> "BIN.Little" end
+                                             }
+                                  , #expr_var{name = case Sign of
+                                                         signed -> "BIN.Signed";
+                                                         unsigned -> "BIN.Unsigned"
+                                                     end
+                                             }
+                                  ]
+                             }
+                          );
+                    binary ->
+                        ?BinCall(
+                           P, RestBinVar,
+                           #expr_app{
+                              function = #expr_var{name = "BIN.chop_bin"},
+                              args =
+                                  [ #expr_var{name = UnboxedVar}
+                                  , #expr_var{name = SizeVar}
+                                  , #expr_num{value = Unit}
+                                  ]
+                             }
+                          )
+                end,
+
             transpile_binary_pattern_segments(
-              UnboxedVar, Rest, Offset + 1,
-              [ #guard_assg{
-                   lvalue = P,
-                   rvalue =
-                       #expr_app{
-                          function = #expr_var{name = "ErlangNum"},
-                          args = [#expr_app{
-                                     function = #expr_var{name = "BIN.unboxed_byte_at"},
-                                     args = [#expr_var{name = UnboxedVar}, #expr_num{value = Offset}]
-                                    }]
-                         }
-                  }
-              | G ++ Guards],
-              V ++ VarUni, Env);
-        {{var, _, _}, default, binary}
-          when Rest =:= [] ->
-            {P, G, V} = transpile_pattern(Element, Env),
-            transpile_binary_pattern_segments(
-              UnboxedVar, [], no_offset,
-              [ #guard_assg{
-                   lvalue = P,
-                   rvalue =
-                       #expr_app{
-                          function = #expr_var{name = "ErlangBinary"},
-                          args = [#expr_app{
-                                     function = #expr_var{name = "BIN.unboxed_suffix_from"},
-                                     args = [#expr_var{name = UnboxedVar}, #expr_num{value = Offset}]
-                                    }]
-                         }
-                  }
-              | G ++ Guards],
-              V ++ VarUni, Env);
+              RestBinVar, Rest, [GetGuard, SizeGuard | G ++ Guards], V ++ VarUni, Env);
+
         {B, _, _} -> error({unsupported_bin_element, B})
     end.
 
@@ -930,7 +969,7 @@ transpile_expr({string, _, String}, LetDefs, _Env) ->
     };
 
 transpile_expr({bin, _, Bin}, LetDefs, Env) ->
-    construct_bin(Bin, LetDefs, Env);
+    transpile_binary_expression_segments(Bin, LetDefs, Env);
 transpile_expr({block, _, Body}, LetDefs, Env) ->
     transpile_body(Body, LetDefs, Env);
 transpile_expr({match, _, {var, _, [$_ | _]}, Expr}, LetDefs, Env) ->
@@ -1522,55 +1561,99 @@ transpile_expr({'catch', Ann, Expr}, LetDefs, Env) ->
 transpile_expr(X, _LetDefs, _Env) ->
     error({unimplemented_expr, X}).
 
-mod(X, Y) when X > 0 -> X rem Y;
-mod(X, Y) when X < 0 -> Y + X rem Y;
-mod(0, Y) -> 0.
 
-construct_bin(Bin, LetDefs, Env) ->
-    construct_bin(Bin, [], [], LetDefs, Env).
-construct_bin([], SmallAcc, BigAcc, LetDefs, _) ->
-    { #expr_app{
+transpile_binary_expression_segments(Bin, LetDefs, Env) ->
+    transpile_binary_expression_segments(Bin, [], LetDefs, Env).
+transpile_binary_expression_segments([], Acc, LetDefs, _) ->
+    { ?make_expr_bin(#expr_app{
          function = #expr_var{name = "BIN.concat"},
-         args =
-             [#expr_array{
-                 value =
-                     lists:reverse([ #expr_app{
-                                        function = #expr_var{name = "BIN.fromFoldable"},
-                                        args = [#expr_array{value = lists:reverse(SmallAcc)}]
-                                       }
-                                   | BigAcc
-                                   ])}
-             ]
-        }
+         args = [#expr_array{ value = lists:reverse(Acc)}]
+        })
     , LetDefs};
-construct_bin([{bin_element, _, {integer, _, I}, default, Type}|Rest],
-              SmallAcc, BigAcc, LetDefs, Env)
-  when Type =:= default orelse Type =:= [integer] ->
-    construct_bin(Rest, [#expr_num{value = mod(I, 256)}|SmallAcc], BigAcc, LetDefs, Env);
-construct_bin([{bin_element, _, {integer, _, I}, {integer, _, Size}, Type}|Rest],
-              SmallAcc, BigAcc, LetDefs, Env)
-  when (Type =:= default orelse Type =:= [integer]) andalso Size > 0 andalso Size rem 8 == 0 ->
-    Split = fun Split(S, N, Acc) ->
-                    if S =< 0 -> lists:reverse(Acc);
-                       true -> Split(S - 8, floor(N / 256), [#expr_num{value = N rem 256}|Acc])
-                    end
-            end,
-    construct_bin(Rest, Split(Size, I, []) ++ SmallAcc, BigAcc, LetDefs, Env);
-construct_bin([{bin_element, _, Bin, default, [binary]}|Rest],
-              SmallAcc, BigAcc, LetDefs0, Env) ->
-    {PSBin, LetDefs1} = transpile_expr(Bin, LetDefs0, Env),
-    construct_bin(Rest, [],
-                  [ PSBin
-                  , #expr_app{
-                       function = #expr_var{name = "BIN.fromFoldable"},
-                       args = [#expr_array{value = lists:reverse(SmallAcc)}]
-                      }
-                  | BigAcc],
-                  LetDefs1, Env);
-construct_bin([{bin_element, _, {string, _, S}, default, default}|Rest],
-              SmallAcc, BigAcc, LetDefs, Env) ->
-    construct_bin(Rest, lists:reverse([#expr_num{value = I} || I <- S], SmallAcc), BigAcc, LetDefs, Env);
-construct_bin([B|_], _, _, _, _) ->
+transpile_binary_expression_segments(
+  [{bin_element, Ann, Element, Size, Spec}|Rest], Acc, LetDefs0, Env) ->
+    case {Element, Size, parse_bin_segment_spec(Element, Spec)} of
+
+        {{string, AnnS, S}, _, _} ->
+            transpile_binary_expression_segments(
+              [{bin_element, Ann, {integer, AnnS, I}, Size, Spec} || I <- S] ++ Rest,
+              Acc, LetDefs0, Env);
+
+        {_, _, #{type := Type, unit := Unit, sign := Sign, endian := Endian}} ->
+            {ExprVar, LetDefs1} = bind_expr("bin_el", Element, LetDefs0, Env),
+            {SizeExpr, LetDefs2} =
+                case Size of
+                    default ->
+                        case Type of
+                            integer -> {?make_expr_int(8), LetDefs1};
+                            binary -> {#expr_app{function = #expr_var{name = "BIN.size"},
+                                                 args = [#expr_var{name = ExprVar}]
+                                                },
+                                       LetDefs1}
+                        end;
+                    _ -> transpile_expr(Size, LetDefs1, Env)
+                end,
+            Chunk =
+                case Type of
+                    integer ->
+                        #expr_app{
+                           function = #expr_var{name = "BIN.from_int"},
+                           args =
+                               [ #expr_var{name = ExprVar}
+                               , SizeExpr
+                               , #expr_num{value = Unit}
+                               , #expr_var{name = case Endian of
+                                                      big -> "BIN.Big";
+                                                      little -> "BIN.Little" end
+                                          }
+                               , #expr_var{name = case Sign of
+                                                      signed -> "BIN.Signed";
+                                                      unsigned -> "BIN.Unsigned"
+                                                  end
+                                          }
+                                  ]
+                          };
+                    binary ->
+                        #expr_app{
+                           function = #expr_var{name = "BIN.format_bin"},
+                           args =
+                               [ #expr_var{name = ExprVar}
+                               , #expr_var{name = SizeExpr}
+                               , #expr_num{value = Unit}
+                               ]
+                          }
+                end,
+            transpile_binary_expression_segments(Rest, [Chunk|Acc], LetDefs2, Env)
+    end;
+
+%% transpile_binary_expression_segments([{bin_element, _, {integer, _, I}, default, Type}|Rest],
+%%               SmallAcc, BigAcc, LetDefs, Env)
+%%   when Type =:= default orelse Type =:= [integer] ->
+%%     transpile_binary_expression_segments(Rest, [#expr_num{value = mod(I, 256)}|SmallAcc], BigAcc, LetDefs, Env);
+%% transpile_binary_expression_segments([{bin_element, _, {integer, _, I}, {integer, _, Size}, Type}|Rest],
+%%               SmallAcc, BigAcc, LetDefs, Env)
+%%   when (Type =:= default orelse Type =:= [integer]) andalso Size > 0 andalso Size rem 8 == 0 ->
+%%     Split = fun Split(S, N, Acc) ->
+%%                     if S =< 0 -> lists:reverse(Acc);
+%%                        true -> Split(S - 8, floor(N / 256), [#expr_num{value = N rem 256}|Acc])
+%%                     end
+%%             end,
+%%     transpile_binary_expression_segments(Rest, Split(Size, I, []) ++ SmallAcc, BigAcc, LetDefs, Env);
+%% transpile_binary_expression_segments([{bin_element, _, Bin, default, [binary]}|Rest],
+%%               SmallAcc, BigAcc, LetDefs0, Env) ->
+%%     {PSBin, LetDefs1} = transpile_expr(Bin, LetDefs0, Env),
+%%     transpile_binary_expression_segments(Rest, [],
+%%                   [ PSBin
+%%                   , #expr_app{
+%%                        function = #expr_var{name = "BIN.fromFoldable"},
+%%                        args = [#expr_array{value = lists:reverse(SmallAcc)}]
+%%                       }
+%%                   | BigAcc],
+%%                   LetDefs1, Env);
+%% transpile_binary_expression_segments([{bin_element, _, {string, _, S}, default, default}|Rest],
+%%               SmallAcc, BigAcc, LetDefs, Env) ->
+%%     transpile_binary_expression_segments(Rest, lists:reverse([#expr_num{value = I} || I <- S], SmallAcc), BigAcc, LetDefs, Env);
+transpile_binary_expression_segments([B|_], _, _, _) ->
     error({unsupported_bin_element, B}).
 
 

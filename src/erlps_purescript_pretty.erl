@@ -250,9 +250,8 @@ pp_guard(#guard_assg{lvalue = LV, rvalue = RV}) ->
 
 -spec pp_guards([purs_guard()]) -> doc().
 pp_guards([]) -> empty();
-pp_guards(Guards) ->
-    hsep(text("|"),
-          par(punctuate(text(","), lists:map(fun pp_guard/1, Guards)))).
+pp_guards([G1|Guards]) ->
+    above([hsep(text("|"), pp_guard(G1)) | lists:map(fun (G) -> hsep(text(","), pp_guard(G)) end, Guards)]).
 
 -spec pp_clause(Name :: string(), purs_clause()) -> doc().
 pp_clause(Name, #clause{

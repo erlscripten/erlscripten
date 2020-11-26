@@ -3,6 +3,8 @@ module Erlang.Binary where
 import Prelude
 import Erlang.Type (ErlangTerm(ErlangBinary, ErlangNum, ErlangTuple))
 import Node.Buffer as Buffer
+-- import Node.Buffer.Unsafe as Buffer
+import Node.Buffer(Buffer)
 import Node.Encoding
 import Data.Num (class Num, fromBigInt)
 import Data.BigInt as BI
@@ -20,13 +22,15 @@ import Data.Foldable
 error :: forall a. String -> a
 error = unsafePerformEffect <<< throw
 
+data Endian = Big | Little
+data Sign   = Signed | Unsigned
+data BinResult = Nah | Ok ErlangTerm Buffer.Buffer
 
-fromFoldable :: forall f. Foldable f => f Int -> ErlangTerm
-fromFoldable f = ErlangBinary (unsafePerformEffect (Buffer.fromArray (DA.fromFoldable f)))
+fromFoldable :: forall f. Foldable f => f Int -> Buffer
+fromFoldable f = unsafePerformEffect (Buffer.fromArray (DA.fromFoldable f))
 
-concat :: Array ErlangTerm -> ErlangTerm
-concat args =
-  ErlangBinary (unsafePerformEffect $ Buffer.concat (map buffer args))
+concat :: Array Buffer -> Buffer
+concat args = unsafePerformEffect $ Buffer.concat args
 
 buffer (ErlangBinary x) = x
 buffer _ = error "buffer – not a binary"
@@ -37,32 +41,68 @@ length _ = error "length – not a binary"
 unboxed_byte_size :: Buffer.Buffer -> Int
 unboxed_byte_size b = unsafePerformEffect $ Buffer.size b
 
--- at (ErlangBinary a) n = unsafePartial $ fromJust $ unsafePerformEffect $ (Buffer.getAtOffset n a)
--- at _ _ = error "at – not a binary"
+empty :: Buffer.Buffer -> Boolean
+empty buf = unsafePerformEffect $ map (_ == 0) (Buffer.size buf)
 
--- empty :: ErlangTerm
--- empty = ErlangBinary $ unsafePerformEffect $ Buffer.create 0
+size :: Buffer -> ErlangTerm
+size = ErlangNum <<< unsafePerformEffect <<< Buffer.size
 
--- firstN (ErlangBinary a) num =
---     ErlangTuple [ErlangBinary $ Buffer.slice 0 num a, ErlangBinary $ Buffer.slice num (unsafePerformEffect $ Buffer.size a) a]
--- firstN _ = error "firstN – not a binary"
+chop_int :: Buffer.Buffer -> Int -> Int -> Endian -> Sign -> BinResult
+chop_int buf size unit endian sign = unsafePerformEffect $ do
+  let chopSize = size * unit `div` 8
+  size <- Buffer.size buf
+  if size < chopSize
+    then pure Nah
+    else do
+    let chop = Buffer.slice 0 chopSize buf
+        rest = Buffer.slice chopSize size buf
+    pure $ Ok (
+      case endian of
+        Big    -> ErlangNum (decode_unsigned_big chop)
+        Little -> ErlangNum (decode_unsigned_little chop)
+      ) rest
 
--- firstNNum a@(ErlangBinary _) num =
---     let
---         ErlangTuple [b@(ErlangBinary _), rest] = firstN a num
---     in
---         ErlangTuple [decode_unsigned b, rest]
--- firstNNum _ = error "firstNNum – not a binary"
+chop_bin :: Buffer.Buffer -> Int -> Int -> BinResult
+chop_bin buf size unit = unsafePerformEffect $ do
+  let chopSize = size * unit `div` 8
+  size <- Buffer.size buf
+  if size < chopSize
+    then pure Nah
+    else do
+    let chop = Buffer.slice 0 chopSize buf
+        rest = Buffer.slice chopSize size buf
+    pure $ Ok (ErlangBinary chop) rest
 
--- decode_unsigned :: ErlangTerm -> ErlangTerm
--- decode_unsigned (ErlangBinary a) | (unsafePerformEffect $ Buffer.size a) == 0 =
---     ErlangNum 0
--- decode_unsigned a@(ErlangBinary _) =
---     let
---         ErlangNum n = decode_unsigned ErlangBinary $ Buffer.slice num (unsafePerformEffect $ Buffer.size a) a
---     in
---         ErlangNum $ at (ErlangBinary $ Buffer.slice 0 num a) 0 + 256 * n
--- decode_unsigned _ = error "decode_unsigned – not a binary"
+unsafe_at :: Buffer -> Int -> Int
+unsafe_at buf n = unsafePartial $ fromJust $ unsafePerformEffect $ (Buffer.getAtOffset n buf)
+
+decode_unsigned_big :: Buffer -> Int
+decode_unsigned_big buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) where
+  go :: Buffer -> Int -> Int -> Effect Int
+  go buf acc size = do
+    case size of
+      0 -> pure acc
+      _ -> go
+           (Buffer.slice 1 size buf)
+           (256 * acc + unsafe_at buf 0)
+           (size - 1)
+
+decode_unsigned_little :: Buffer -> Int
+decode_unsigned_little buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) where
+  go :: Buffer -> Int -> Int -> Effect Int
+  go buf acc size = do
+    case size of
+      0 -> pure acc
+      _ -> go
+           (Buffer.slice 0 (size - 1) buf)
+           (256 * acc + unsafe_at buf (size - 1))
+           (size - 1)
+
+from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Sign -> Buffer
+from_int n size unit endian sign = fromFoldable []  -- TODO
+
+format_bin :: ErlangTerm -> ErlangTerm -> Int -> Buffer
+format_bin buf size unit = fromFoldable []  -- TODO
 
 -- toArray :: ErlangTerm -> Effect (Array Int)
 -- toArray (ErlangBinary a) = do
