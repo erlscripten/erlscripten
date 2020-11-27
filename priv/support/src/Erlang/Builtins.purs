@@ -8,6 +8,7 @@ import Data.Maybe as DM
 import Data.Array as DA
 import Data.List as DL
 import Data.Int as DI
+import Math
 import Control.Monad
 import Effect.Exception (throw)
 import Effect
@@ -18,6 +19,66 @@ unimplemented name = unsafePerformEffect (throw $ "unimplemented BIF: " <> name)
 
 purs_tco_sucks :: ErlangFun
 purs_tco_sucks _ = ErlangAtom "purs_tco_sucks"
+
+--------------------------------------------------------------------------------
+
+math__pi__0 :: ErlangFun
+math__pi__0 [] = ErlangFloat pi
+math__pi__0 args = EXC.badarity (ErlangFun 0 purs_tco_sucks {-math__pi__0-}) args
+
+math_arr1 :: Array ErlangTerm -> (Number -> Number) -> ErlangTerm
+math_arr1 [ErlangNum num] f = math_arr1 [ErlangFloat $ DI.toNumber num] f
+math_arr1 [ErlangFloat arg] f = ErlangFloat (f arg)
+math_arr1 [_] _ = EXC.badarg unit
+math_arr1 args _ = EXC.badarity (ErlangFun 1 purs_tco_sucks {-math_arr1_1-}) args
+
+math_arr2 :: Array ErlangTerm -> (Number -> Number -> Number) -> ErlangTerm
+math_arr2 [ErlangNum num, arg2] f = math_arr2 [ErlangFloat $ DI.toNumber num, arg2] f
+math_arr2 [arg1, ErlangNum num] f = math_arr2 [arg1, ErlangFloat $ DI.toNumber num] f
+math_arr2 [ErlangFloat arg1, ErlangFloat arg2] f = ErlangFloat (f arg1 arg2)
+math_arr2 [_] _ = EXC.badarg unit
+math_arr2 args _ = EXC.badarity (ErlangFun 2 purs_tco_sucks {-math_arr2_1-}) args
+
+math__sin__1 args = math_arr1 args sin
+math__cos__1 args = math_arr1 args cos
+math__tan__1 args = math_arr1 args tan
+math__asin__1 args = math_arr1 args asin
+math__acos__1 args = math_arr1 args acos
+math__atan__1 args = math_arr1 args atan
+math__sinh__1 args = math_arr1 args sinh
+math__cosh__1 args = math_arr1 args cosh
+math__tanh__1 args = math_arr1 args tanh
+math__asinh__1 args = math_arr1 args asinh
+math__acosh__1 args = math_arr1 args acosh
+math__atanh__1 args = math_arr1 args atanh
+math__exp__1 args = math_arr1 args exp
+math__log__1 args = math_arr1 args log
+math__log2__1 args = math_arr1 args log2
+math__log10__1 args = math_arr1 args log10
+math__sqrt__1 args = math_arr1 args sqrt
+-- FIXME: erf(X) = 2/sqrt(pi)*integral from 0 to X of exp(-t*t) dt.
+-- TODO: display middle finger when someone calls this xD
+math__erf__1 args = unimplemented "math__erf__1"
+-- FIXME: erfc(X) = 1 - erf(X)
+math__erfc__1 args = unimplemented "math__erfc__1"
+math__ceil__1 args = math_arr1 args ceil
+math__floor__1 args = math_arr1 args floor
+
+math__atan2__2 args = math_arr2 args atan2
+math__pow__2 args = math_arr2 args pow
+math__fmod__2 args = math_arr2 args (%)
+
+erlang__abs__1 :: ErlangFun
+erlang__abs__1 [ErlangNum a] | a >= 0 = ErlangNum a
+erlang__abs__1 [ErlangNum a] = ErlangNum (-a)
+erlang__abs__1 [ErlangFloat a] = ErlangFloat (abs a)
+erlang__abs__1 [_] = EXC.badarg unit
+erlang__abs__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__abs__1-}) args
+
+--------------------------------------------------------------------------------
+
+erts_internal__map_next__3 :: ErlangFun
+erts_internal__map_next__3 _ = unimplemented "erts_internal__map_next__3"
 
 --------------------------------------------------------------------------------
 
@@ -687,11 +748,6 @@ erlang__spawn_link__3 :: ErlangFun
 erlang__spawn_link__3 args = unimplemented "erlang__spawn_link__3"
 erlang__spawn_link__3 [_,_,_] = EXC.badarg unit
 erlang__spawn_link__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__spawn_link__3-}) args
-
-erlang__abs__1 :: ErlangFun
-erlang__abs__1 args = unimplemented "erlang__abs__1"
-erlang__abs__1 [_] = EXC.badarg unit
-erlang__abs__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__abs__1-}) args
 
 erlang__binary_to_list__3 :: ErlangFun
 erlang__binary_to_list__3 args = unimplemented "erlang__binary_to_list__3"

@@ -201,7 +201,35 @@ builtins_calc() ->
            lists:flatten(io_lib:format("~s__~s__~p", [Module, Fun, Arity]))}
           || {Module, Fun, Arity} <-
                  lists:concat(
-                   [ [ {"prim_eval", "receive", 2} ]
+                   [ [ {"math", "pi", 0}
+                     , {"math", "sin", 1}
+                     , {"math", "cos", 1}
+                     , {"math", "tan", 1}
+                     , {"math", "asin", 1}
+                     , {"math", "acos", 1}
+                     , {"math", "atan", 1}
+                     , {"math", "atan2", 2}
+                     , {"math", "sinh", 1}
+                     , {"math", "cosh", 1}
+                     , {"math", "tanh", 1}
+                     , {"math", "asinh", 1}
+                     , {"math", "acosh", 1}
+                     , {"math", "atanh", 1}
+                     , {"math", "exp", 1}
+                     , {"math", "log", 1}
+                     , {"math", "log2", 1}
+                     , {"math", "log10", 1}
+                     , {"math", "pow", 2}
+                     , {"math", "sqrt", 1}
+                     , {"math", "erf", 1}
+                     , {"math", "erfc", 1}
+                     , {"math", "ceil", 1}
+                     , {"math", "floor", 1}
+                     , {"math", "fmod", 2}
+                     ]
+                   , [ {"erts_internal", "map_next", 3} ]
+                   , [ {"erts_debug", "same", 2} ]
+                   , [ {"prim_eval", "receive", 2} ]
                    , [ {"lists", "keyfind", 3}
                      , {"lists", "keymember", 3}
                      , {"lists", "keysearch", 3}
@@ -1740,7 +1768,10 @@ state_clear_import_requests() ->
 state_add_import_request(Module, Env) when is_atom(Module) ->
     state_add_import_request(atom_to_list(Module), Env);
 state_add_import_request("erlang", _) -> ok;
+state_add_import_request("math", _) -> ok;
 state_add_import_request("prim_eval", _) -> ok;
+state_add_import_request("erts_debug", _) -> ok;
+state_add_import_request("erts_internal", _) -> ok;
 state_add_import_request(Module, #env{current_module = Module}) -> ok;
 state_add_import_request(Module, _Env) ->
     put(?IMPORT_REQUESTS, sets:add_element(Module, get(?IMPORT_REQUESTS))).

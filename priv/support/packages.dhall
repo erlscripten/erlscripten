@@ -125,3 +125,5 @@ in  upstream
         , version =
           "v0.0.3"
         }
+    with math.repo = "https://github.com/minoki/purescript-math/"
+    with math.version = "es6-functions"
