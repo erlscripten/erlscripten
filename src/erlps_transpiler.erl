@@ -616,50 +616,19 @@ pattern_vars(#pat_record{fields = Fields}, Acc) ->
 
 parse_bin_segment_spec(Element, default) ->
     parse_bin_segment_spec(Element, []);
-parse_bin_segment_spec(Element, Spec) ->
+parse_bin_segment_spec(_Element, Spec) ->
     % welcome in erlang
-    Type = case lists:member(integer, Spec) of
-               true -> integer;
-               false ->
-                   case lists:member(float, Spec) of
-                       true -> float;
-                       false ->
-                           case lists:member(binary, Spec) of
-                               true -> binary;
-                               false ->
-                                   case Element of
-                                       {integer, _, _} -> integer;
-                                       {binary, _, _} -> binary;
-                                       _ -> integer
-                                   end
-                           end
-                   end
-           end,
-    Sign = case lists:member(unsigned, Spec) of
-               true -> unsigned;
-               false ->
-                   case lists:member(signed, Spec) of
-                       true -> signed;
-                       false -> unsigned
-                   end
-           end,
-    Endian = case lists:member(little, Spec) of
-               true -> little;
-               false ->
-                   case lists:member(big, Spec) of
-                       true -> big;
-                       false ->
-                           case lists:member(native, Spec) of
-                               true -> big; % native;
-                               false -> big
-                           end
-                   end
-           end,
+    F = fun(Keys, Default) -> [Res|_] = [Y || X <- Spec, Y <- Keys, X =:= Y] ++ [Default], Res end,
+    Type = F([integer, float, binary, bitstrings], integer),
+    Sign = F([unsigned, signed], unsigned),
+    Endian = F([little, big], big), %% native :P
     Unit = proplists:get_value(
              unit, Spec, case Type of
                              integer -> 1;
+                             float -> 1;
+                             bitstring -> 1;
                              binary -> 8;
-                             _ -> error({todo, i_was_to_lazy_to_check_this_case})
+                             _ -> error({todo, Type, i_was_to_lazy_to_check_this_case})
                          end),
 
     #{type => Type, sign => Sign, endian => Endian, unit => Unit}.
@@ -704,6 +673,7 @@ transpile_binary_pattern_segments(
                            default ->
                                case Type of
                                    integer -> ?make_expr_int(8);
+                                   float -> ?make_expr_int(64);
                                    binary -> #expr_app{function = #expr_var{name = "BIN.size"},
                                                        args = [#expr_var{name = UnboxedVar}]
                                                       }
@@ -739,6 +709,14 @@ transpile_binary_pattern_segments(
                                                      end
                                              }
                                   ]
+                             }
+                          );
+                    float ->
+                        ?BinCall(
+                           P, RestBinVar,
+                           #expr_app{
+                              function = #expr_var{name = "BIN.RADEK_FIX_ME"},
+                              args = []
                              }
                           );
                     binary ->
@@ -1586,6 +1564,7 @@ transpile_binary_expression_segments(
                     default ->
                         case Type of
                             integer -> {?make_expr_int(8), LetDefs1};
+                            float -> {?make_expr_int(64), LetDefs1};
                             binary -> {#expr_app{function = #expr_var{name = "BIN.size"},
                                                  args = [#expr_var{name = ExprVar}]
                                                 },
@@ -1612,6 +1591,11 @@ transpile_binary_expression_segments(
                                                   end
                                           }
                                   ]
+                          };
+                    float ->
+                        #expr_app{
+                           function = #expr_var{name = "BIN.RADEK_FIX_ME_EVEN_MORE!!!"},
+                           args = []
                           };
                     binary ->
                         #expr_app{
