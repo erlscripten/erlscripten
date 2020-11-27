@@ -1642,7 +1642,7 @@ transpile_binary_expression_segments(
                            function = #expr_var{name = "BIN.format_bin"},
                            args =
                                [ #expr_var{name = ExprVar}
-                               , #expr_var{name = SizeExpr}
+                               , SizeExpr
                                , #expr_num{value = Unit}
                                ]
                           }
