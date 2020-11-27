@@ -16,6 +16,7 @@ import Data.Array.NonEmpty as NonEmpty
 import Partial.Unsafe (unsafePartial)
 import Data.Base58 as B58
 import Data.Array as DA
+import Data.List as DL
 import Data.Maybe(Maybe, fromJust)
 import Data.Foldable
 
@@ -73,6 +74,26 @@ chop_bin buf size unit = unsafePerformEffect $ do
         rest = Buffer.slice chopSize size buf
     pure $ Ok (ErlangBinary chop) rest
 
+foreign import bytesToFloat64 :: Array Int -> Number
+chop_float :: Buffer.Buffer -> Int -> Int -> Endian -> BinResult
+chop_float buf size unit endian = unsafePerformEffect $ do
+  bufSize <- Buffer.size buf
+  let chopSize = size * unit / 8
+  if chopSize == 8 || chopSize == 4
+    then do
+      let chop = Buffer.split 0 chopSize buf
+          rest = Buffer.split chopSize bufSize buf
+      trueChop <- case endian of
+        Big -> pure chop
+        Little -> do
+          asArr <- Buffer.toArray chop
+          Buffer.fromArray (DA.reverse asArr)
+      pure $ Ok (if chopSize == 8
+                 then ErlangFloat (arrayToFloat64 trueChop)
+                 else ErlangFloat (arrayToFloat32 trueChop)
+                ) rest
+    else pure Nah
+
 unsafe_at :: Buffer -> Int -> Int
 unsafe_at buf n = unsafePartial $ fromJust $ unsafePerformEffect $ (Buffer.getAtOffset n buf)
 
@@ -98,17 +119,43 @@ decode_unsigned_little buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) 
            (256 * acc + unsafe_at buf (size - 1))
            (size - 1)
 
-from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Sign -> Buffer
-from_int n size unit endian sign = fromFoldable []  -- TODO
+from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
+from_int (ErlangNum n) (ErlangNum size) unit endian = unsafePerformEffect $ do
+  let bufSize = size * unit / 8
+      build 0 _ acc = acc
+      build x num acc = build (x - 1) (num / 256) (DL.Cons (num `mod` 256) acc)
+      little = build bufSize n DL.Nil
+  pure $ Buffer.fromArray $ DA.fromFoldable $
+    case endian of
+      Big -> DL.reverse little
+      Little -> little
+from_int _ _ _ _ = EXC.badarg unit
+
+foreign import float32ToArray :: Number -> Array Int
+foreign import float64ToArray :: Number -> Array Int
+from_float :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
+from_float (ErlangFloat f) (ErlangNum size) unit endian = unsafePerformEffect $ do
+  let bufSize = size * unit / 8
+  big <- case bufSize of
+    64 -> float64ToArray f
+    32 -> float32ToArray f
+    _ -> EXC.badarg unit
+  pure $ Buffer.fromArray $ case endian of
+    Big -> big
+    Little -> DA.reverse big
 
 format_bin :: ErlangTerm -> ErlangTerm -> Int -> Buffer
-format_bin buf size unit = fromFoldable []  -- TODO
+format_bin (ErlangBinary buf) (ErlangNum size) unit =
+  let bufSize = size * unit / 8
+  in Buffer.split 0 bufSize buf
+format_bin _ _ _ = EXC.badarg unit
+
+
 
 -- toArray :: ErlangTerm -> Effect (Array Int)
 -- toArray (ErlangBinary a) = do
 --     Buffer.toArray a
 -- toArray _ = error "toArray – not a binary"
-
 
 -- toB64 :: ErlangTerm -> String
 -- toB64 (ErlangBinary a) =
@@ -128,41 +175,3 @@ format_bin buf size unit = fromFoldable []  -- TODO
 -- fromB58 str = do
 --     s <- B58.decode str
 --     pure $ ErlangBinary $ unsafePerformEffect $ Buffer.fromArray s
-
--- class BinaryEncoder a where
---     encode_unsigned :: a -> Effect ErlangTerm
---     fromArray :: Array a -> Effect ErlangTerm
-
--- instance bigIntBinaryEncoder :: BinaryEncoder BI.BigInt where
---     encode_unsigned x =
---         case BI.digitsInBase 256 x of
---             {isNegative: true} ->
---                 throwException $ error "Unable to encode negative number as binary"
---             {value: digits} -> do
---                 a <- Buffer.fromArray $ NonEmpty.toArray digits
---                 pure $ ErlangBinary a
-
---     fromArray a = fromArray $ ((map fromBigInt a) :: Array Int)
-
--- instance erlangTermBinaryEncoder :: BinaryEncoder ErlangTerm where
---     encode_unsigned (ErlangNum x) =
---         encode_unsigned x
---     encode_unsigned term =
---         throwException $ error $ "Unable to encode " <> (show term)
-
---     fromArray term =
---         throwException $ error $ "Unable to encode " <> (show term)
-
--- instance uIntBinaryEncoder :: BinaryEncoder UInt where
---     encode_unsigned x =
---         encode_unsigned $ toInt $ x
-
---     fromArray a = do
---         arr <- Buffer.fromArray $ map toInt a
---         pure $ ErlangBinary arr
-
--- instance intBinaryEncoder :: BinaryEncoder Int where
---     encode_unsigned x =
---         encode_unsigned (BI.fromInt x)
-
---     fromArray a = fromArray (map fromInt a)
