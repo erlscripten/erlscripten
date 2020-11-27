@@ -259,25 +259,58 @@ erlang__op_orelse args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_o
 
 -- /
 erlang__op_div :: ErlangFun
-erlang__op_div [ErlangNum a, ErlangNum b] = ErlangNum (a `div` b)
+erlang__op_div [ErlangNum a, ErlangNum b] = ErlangNum (a / b)
+erlang__op_div [ErlangNum a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) / b)
+erlang__op_div [ErlangFloat a, ErlangNum b] = ErlangFloat (a / (DI.toNumber b))
+erlang__op_div [ErlangFloat a, ErlangFloat b] = ErlangFloat (a / b)
 erlang__op_div [_, _] = EXC.badarg unit
 erlang__op_div args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_div-}) args
+
+-- 'div'
+erlang__op_div_strict :: ErlangFun
+erlang__op_div_strict [ErlangNum a, ErlangNum b] = ErlangNum (a `div` b)
+erlang__op_div_strict [_, _] = EXC.badarg unit
+erlang__op_div_strict args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_div-}) args
+
+-- %
+erlang__op_rem :: ErlangFun
+erlang__op_rem [ErlangNum left, ErlangNum right] = ErlangNum (mod left right)
+--erlang__op_rem [ErlangNum a, ErlangFloat b] = ErlangNum ((DI.toNumber a) / b) -- FIXME
+--erlang__op_rem [ErlangFloat a, ErlangNum b] = ErlangFloat (a / (DI.toNumber b)) -- FIXME
+erlang__op_rem [ErlangFloat a, ErlangFloat b] = ErlangFloat (a % b)
+erlang__op_rem [_,_] = EXC.badarg unit
+erlang__op_rem args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__rem__2-}) args
+
+-- 'rem'
+erlang__op_rem_strict :: ErlangFun
+erlang__op_rem_strict [ErlangNum left, ErlangNum right] = ErlangNum (mod left right)
+erlang__op_rem_strict [_,_] = EXC.badarg unit
+erlang__op_rem_strict args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__rem__2-}) args
 
 -- *
 erlang__op_mult :: ErlangFun
 erlang__op_mult [ErlangNum a, ErlangNum b] = ErlangNum (a * b)
+erlang__op_mult [ErlangNum a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) * b)
+erlang__op_mult [ErlangFloat a, ErlangNum b] = ErlangFloat (a * (DI.toNumber b))
+erlang__op_mult [ErlangFloat a, ErlangFloat b] = ErlangFloat (a * b)
 erlang__op_mult [_, _] = EXC.badarg unit
 erlang__op_mult args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_mult-}) args
 
 -- -
 erlang__op_minus :: ErlangFun
 erlang__op_minus [ErlangNum a, ErlangNum b] = ErlangNum (a - b)
+erlang__op_minus [ErlangNum a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) - b)
+erlang__op_minus [ErlangFloat a, ErlangNum b] = ErlangFloat (a - (DI.toNumber b))
+erlang__op_minus [ErlangFloat a, ErlangFloat b] = ErlangFloat (a - b)
 erlang__op_minus [_, _] = EXC.badarg unit
 erlang__op_minus args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_minus-}) args
 
 -- +
 erlang__op_plus :: ErlangFun
 erlang__op_plus [ErlangNum a, ErlangNum b] = ErlangNum (a + b)
+erlang__op_plus [ErlangNum a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) + b)
+erlang__op_plus [ErlangFloat a, ErlangNum b] = ErlangFloat (a + (DI.toNumber b))
+erlang__op_plus [ErlangFloat a, ErlangFloat b] = ErlangFloat (a + b)
 erlang__op_plus [_, _] = EXC.badarg unit
 erlang__op_plus args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_plus-}) args
 
@@ -328,6 +361,7 @@ erlang__op_append args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_a
 -- -
 erlang__op_neg :: ErlangFun
 erlang__op_neg [ErlangNum n] = ErlangNum (-n)
+erlang__op_neg [ErlangFloat n] = ErlangFloat (-n)
 erlang__op_neg [_] = EXC.badarg unit
 erlang__op_neg args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__op_neg-}) args
 
@@ -1094,11 +1128,6 @@ erlang__resume_process__1 :: ErlangFun
 erlang__resume_process__1 args = unimplemented "erlang__resume_process__1"
 erlang__resume_process__1 [_] = EXC.badarg unit
 erlang__resume_process__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__resume_process__1-}) args
-
-erlang__rem__2 :: ErlangFun
-erlang__rem__2 [ErlangNum left, ErlangNum right] = ErlangNum (mod left right)
-erlang__rem__2 [_,_] = EXC.badarg unit
-erlang__rem__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__rem__2-}) args
 
 erlang__port_close__1 :: ErlangFun
 erlang__port_close__1 args = unimplemented "erlang__port_close__1"

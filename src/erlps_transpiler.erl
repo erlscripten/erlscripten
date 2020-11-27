@@ -174,7 +174,9 @@ builtins_calc() ->
                 , {"-",   "op_minus"}
                 , {"*",   "op_mult"}
                 , {"/",   "op_div"}
-                , {"div", "op_div"}
+                , {"div", "op_div_strict"}
+                , {"%", "op_rem"}
+                , {"rem", "op_rem_strict"}
                 , {"/=",  "op_neq"}
                 , {"=/=", "op_exactNeq"}
                 , {"==",  "op_eq"}
