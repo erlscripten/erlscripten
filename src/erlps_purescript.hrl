@@ -93,7 +93,7 @@
 | #expr_lambda{}
 | #expr_do{}
 | #expr_record{}
- | #expr_let{}
+| #expr_let{}
 .
 -export_type([purs_expr/0]).
 
@@ -107,6 +107,7 @@
 .
 
 -record(pat_num, {value :: number()}).
+-record(pat_float, {value :: float()}).
 -record(pat_string, {value :: string()}).
 -record(pat_var, {name :: string()}).
 -record(pat_array, {value :: [purs_pat()]}).
@@ -116,6 +117,7 @@
 -type purs_pat()
 :: pat_wildcard
 | #pat_num{}
+| #pat_float{}
 | #pat_string{}
 | #pat_var{}
 | #pat_array{}
