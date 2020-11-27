@@ -23,7 +23,7 @@ buildException exType exPayload exStack = ErlangTuple
   , make_string exStack
   ]
 
-foreign import raise :: ErlangTerm -> ErlangTerm
+foreign import raise :: forall a. ErlangTerm -> a
 
 foreign import getStack :: Unit -> String
 
@@ -52,15 +52,15 @@ foreign import tryOfCatch
   -> (ErlangTerm -> ErlangTerm)
   -> ErlangTerm
 
-throw :: ErlangTerm -> ErlangTerm
+throw :: forall a. ErlangTerm -> a
 throw term =
   raise $ buildException "throw" term (getStack unit)
 
-error :: ErlangTerm -> ErlangTerm
+error :: forall a. ErlangTerm -> a
 error term =
   raise $ buildException "error" term (getStack unit)
 
-exit :: ErlangTerm -> ErlangTerm
+exit :: forall a. ErlangTerm -> a
 exit term =
   raise $ buildException "exit" term (getStack unit)
 
@@ -80,7 +80,7 @@ try_clause term = error (ErlangTuple [ErlangAtom "try_clause", term])
 badmatch :: ErlangTerm -> ErlangTerm
 badmatch term = error (ErlangTuple [ErlangAtom "badmatch", term])
 
-badarg :: Unit -> ErlangTerm
+badarg :: forall a. Unit -> a
 badarg _ = error (ErlangAtom "badarg")
 
 badarity :: ErlangTerm -> Array ErlangTerm -> ErlangTerm

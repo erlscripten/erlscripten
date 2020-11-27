@@ -1,7 +1,8 @@
 module Erlang.Binary where
 
 import Prelude
-import Erlang.Type (ErlangTerm(ErlangBinary, ErlangNum, ErlangTuple))
+import Erlang.Type (ErlangTerm(ErlangBinary, ErlangNum, ErlangFloat))
+import Erlang.Exception as EXC
 import Node.Buffer as Buffer
 -- import Node.Buffer.Unsafe as Buffer
 import Node.Buffer(Buffer)
@@ -74,20 +75,21 @@ chop_bin buf size unit = unsafePerformEffect $ do
         rest = Buffer.slice chopSize size buf
     pure $ Ok (ErlangBinary chop) rest
 
-foreign import bytesToFloat64 :: Array Int -> Number
+foreign import arrayToFloat32 :: Array Int -> Number
+foreign import arrayToFloat64 :: Array Int -> Number
 chop_float :: Buffer.Buffer -> Int -> Int -> Endian -> BinResult
 chop_float buf size unit endian = unsafePerformEffect $ do
   bufSize <- Buffer.size buf
   let chopSize = size * unit / 8
   if chopSize == 8 || chopSize == 4
     then do
-      let chop = Buffer.split 0 chopSize buf
-          rest = Buffer.split chopSize bufSize buf
+      let chop = Buffer.slice 0 chopSize buf
+          rest = Buffer.slice chopSize bufSize buf
       trueChop <- case endian of
-        Big -> pure chop
+        Big -> Buffer.toArray chop
         Little -> do
           asArr <- Buffer.toArray chop
-          Buffer.fromArray (DA.reverse asArr)
+          pure (DA.reverse asArr)
       pure $ Ok (if chopSize == 8
                  then ErlangFloat (arrayToFloat64 trueChop)
                  else ErlangFloat (arrayToFloat32 trueChop)
@@ -120,12 +122,12 @@ decode_unsigned_little buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) 
            (size - 1)
 
 from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
-from_int (ErlangNum n) (ErlangNum size) unit endian = unsafePerformEffect $ do
+from_int (ErlangNum n) (ErlangNum size) unit endian =
   let bufSize = size * unit / 8
       build 0 _ acc = acc
       build x num acc = build (x - 1) (num / 256) (DL.Cons (num `mod` 256) acc)
       little = build bufSize n DL.Nil
-  pure $ Buffer.fromArray $ DA.fromFoldable $
+  in fromFoldable $
     case endian of
       Big -> DL.reverse little
       Little -> little
@@ -134,20 +136,21 @@ from_int _ _ _ _ = EXC.badarg unit
 foreign import float32ToArray :: Number -> Array Int
 foreign import float64ToArray :: Number -> Array Int
 from_float :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
-from_float (ErlangFloat f) (ErlangNum size) unit endian = unsafePerformEffect $ do
-  let bufSize = size * unit / 8
-  big <- case bufSize of
-    64 -> float64ToArray f
-    32 -> float32ToArray f
-    _ -> EXC.badarg unit
-  pure $ Buffer.fromArray $ case endian of
-    Big -> big
+from_float _ (ErlangNum size) unit_ _ | size * unit_ /= 32 && size * unit_ /= 64 = EXC.badarg unit
+from_float (ErlangFloat f) (ErlangNum size) unit_ endian =
+  let big = case size * unit_ of
+        32 -> float32ToArray f
+        64 -> float64ToArray f
+        _  -> error "shouldn't happen"
+  in fromFoldable $ case endian of
     Little -> DA.reverse big
+    Big -> big
+from_float _ _ _ _ = EXC.badarg unit
 
 format_bin :: ErlangTerm -> ErlangTerm -> Int -> Buffer
 format_bin (ErlangBinary buf) (ErlangNum size) unit =
   let bufSize = size * unit / 8
-  in Buffer.split 0 bufSize buf
+  in Buffer.slice 0 bufSize buf
 format_bin _ _ _ = EXC.badarg unit
 
 
