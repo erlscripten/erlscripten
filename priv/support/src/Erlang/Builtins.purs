@@ -1056,6 +1056,7 @@ erlang__universaltime_to_localtime__1 [_] = EXC.badarg unit
 erlang__universaltime_to_localtime__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__universaltime_to_localtime__1-}) args
 
 erlang__whereis__1 :: ErlangFun
+erlang__whereis__1 [ErlangAtom "user"] = erlang__group_leader__0 []
 erlang__whereis__1 args = unimplemented "erlang__whereis__1"
 erlang__whereis__1 [_] = EXC.badarg unit
 erlang__whereis__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__whereis__1-}) args
@@ -1068,8 +1069,9 @@ erlang__port_call__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__p
 erlang__date__0 :: ErlangFun
 erlang__date__0 args = unimplemented "erlang__date__0"
 
+foreign import do_make_ref_0 :: (Int -> ErlangTerm) -> ErlangTerm
 erlang__make_ref__0 :: ErlangFun
-erlang__make_ref__0 args = unimplemented "erlang__make_ref__0"
+erlang__make_ref__0 _ = do_make_ref_0 ErlangReference
 
 erlang__port_control__3 :: ErlangFun
 erlang__port_control__3 args = unimplemented "erlang__port_control__3"
@@ -1694,7 +1696,7 @@ erlang__spawn_opt__4 [_,_,_,_] = EXC.badarg unit
 erlang__spawn_opt__4 args = EXC.badarity (ErlangFun 4 purs_tco_sucks {-erlang__spawn_opt__4-}) args
 
 erlang__group_leader__0 :: ErlangFun
-erlang__group_leader__0 args = unimplemented "erlang__group_leader__0"
+erlang__group_leader__0 args = erlang__self__0 [] -- FIXME
 
 erlang__dt_put_tag__1 :: ErlangFun
 erlang__dt_put_tag__1 args = unimplemented "erlang__dt_put_tag__1"

@@ -40,6 +40,7 @@ import Scoping
 import Ordering
 import Test.Array
 import Array.SUITE
+import Cancer
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -558,6 +559,12 @@ main =
       it "test_scope_2" do
         r <- exec_may_throw erlps__test_scope_2__0 []
         ok `shouldEqualOk` r
+
+    describe "Cancer..." do
+      it "IO works :O" do
+        r <- exec_may_throw erlps__test_wtf__0 []
+        ok `shouldEqualOk` r
+
     describe "Processes OwO" do
       it "can spawn" do
         r <- exec_may_throw erlps__test_spawn__0 []
@@ -571,4 +578,3 @@ main =
       it "receive primop - simple case" do
           (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_simple_receive_primop__0 [])
           ok `shouldEqualOk` r
-

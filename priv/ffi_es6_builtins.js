@@ -917,7 +917,12 @@ function do_receive_2(match_fun) {
     }
 }
 
+function do_make_ref_0(ref_ctr) {
+    return ref_ctr(system.make_ref().id);
+}
+
     return {
+        do_make_ref_0: do_make_ref_0,
         do_receive_2: do_receive_2,
         do_send_2: do_send_2,
         do_self_0: do_self_0,
@@ -930,6 +935,7 @@ function do_receive_2(match_fun) {
 }();
 
 exports.system = RUNTIME.system;
+exports.do_make_ref_0 = RUNTIME.do_make_ref_0;
 exports.do_receive_2 = RUNTIME.do_receive_2;
 exports.do_send_2 = RUNTIME.do_send_2;
 exports.do_self_0 = RUNTIME.do_self_0;

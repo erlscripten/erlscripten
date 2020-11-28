@@ -1093,11 +1093,17 @@ transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
          args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
     , LetDefs1
     };
-transpile_expr({call, _, {remote, _, {atom, _, Module}, {atom, _, Fun}}, Args},
+transpile_expr({call, _, {remote, _, {atom, _, Module0}, {atom, _, Fun}}, Args},
                LetDefs0, Env) ->
-    state_add_import_request(Module, Env),
+    state_add_import_request(Module0, Env),
+    Module1 = case Module0 of
+                'io' -> "erlang_io";
+                'io_lib' -> "erlang_iolib";
+                'unicode' -> "erlang_unicode";
+                _ -> Module0
+              end,
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
-    PSFun = transpile_fun_ref(Module, Fun, length(Args), Env),
+    PSFun = transpile_fun_ref(Module1, Fun, length(Args), Env),
     { #expr_app{
          function = PSFun,
          args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
@@ -1756,6 +1762,9 @@ state_add_import_request("math", _) -> ok;
 state_add_import_request("prim_eval", _) -> ok;
 state_add_import_request("erts_debug", _) -> ok;
 state_add_import_request("erts_internal", _) -> ok;
+state_add_import_request("io", Env) -> state_add_import_request("erlang_io", Env);
+state_add_import_request("io_lib", Env) -> state_add_import_request("erlang_iolib", Env);
+state_add_import_request("unicode", Env) -> state_add_import_request("erlang_unicode", Env);
 state_add_import_request(Module, #env{current_module = Module}) -> ok;
 state_add_import_request(Module, _Env) ->
     put(?IMPORT_REQUESTS, sets:add_element(Module, get(?IMPORT_REQUESTS))).
