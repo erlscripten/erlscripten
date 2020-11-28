@@ -4,7 +4,7 @@
 -define(make_pat_int(Int),
     #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Int}]}).
 -define(make_pat_float(Float),
-    #pat_constr{constr = "ErlangFloat", args = [#expr_float{value = Float}]}).
+    #pat_constr{constr = "ErlangFloat", args = [#pat_float{value = Float}]}).
 -define(make_pat_atom(Atom),
     #pat_constr{constr = "ErlangAtom", args = [#pat_string{value = atom_to_list(Atom)}]}).
 -define(make_pat_tuple(Stuff),
