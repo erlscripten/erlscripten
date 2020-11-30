@@ -529,7 +529,8 @@ erlang__is_float__1 [_] = EXC.badarg unit
 erlang__is_float__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_float__1-}) args
 
 erlang__is_binary__1 :: ErlangFun
-erlang__is_binary__1 args = unimplemented "erlang__is_binary__1"
+erlang__is_binary__1 [ErlangBinary _] = ErlangAtom "true" --FIXME: should return false for bitstrings
+erlang__is_binary__1 [_] = ErlangAtom "false"
 erlang__is_binary__1 [_] = EXC.badarg unit
 erlang__is_binary__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_binary__1-}) args
 
