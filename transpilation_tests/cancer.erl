@@ -9,7 +9,7 @@
 -export([]).
 
 test_wtf() ->
-  io:format("Hello World!"),
-  io:format(user, "Hello from Erlang!"),
-  io:format(user, "Term from erlang; ~p", [{1,33,7}]),
+  io:format("Hello World!\n"),
+  io:format(user, "Hello from Erlang!\n"),
+  io:format(user, "Term from erlang: ~p\n", [{1,33,7}]),
   ok.

@@ -10,7 +10,7 @@
 -on_load(thonk/0).
 
 thonk() ->
-  io:format("Hello from onload callback"),
+  io:format("Hello from onload callback!\n"),
   ok.
 
 get_hehe() ->
