@@ -50,7 +50,7 @@ empty :: Buffer.Buffer -> Boolean
 empty buf = unsafePerformEffect $ map (_ == 0) (Buffer.size buf)
 
 size :: Buffer -> ErlangTerm
-size = ErlangNum <<< unsafePerformEffect <<< Buffer.size
+size = ErlangInt <<< unsafePerformEffect <<< Buffer.size
 
 packed_size :: ErlangTerm -> ErlangTerm
 packed_size (ErlangBinary b) = size b
@@ -67,8 +67,8 @@ chop_int buf size unit endian sign = unsafePerformEffect $ do
         rest = Buffer.slice chopSize size buf
     pure $ Ok (
       case endian of
-        Big    -> ErlangNum (decode_unsigned_big chop)
-        Little -> ErlangNum (decode_unsigned_little chop)
+        Big    -> ErlangInt (decode_unsigned_big chop)
+        Little -> ErlangInt (decode_unsigned_little chop)
       ) rest
 
 chop_bin :: Buffer.Buffer -> Int -> Int -> BinResult
@@ -129,7 +129,7 @@ decode_unsigned_little buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) 
            (size - 1)
 
 from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
-from_int (ErlangNum n) (ErlangNum size) unit endian =
+from_int (ErlangInt n) (ErlangInt size) unit endian =
   let bufSize = size * unit / 8
       build 0 _ acc = acc
       build x num acc = build (x - 1) (num / 256) (DL.Cons (num `mod` 256) acc)
@@ -143,10 +143,10 @@ from_int _ _ _ _ = EXC.badarg unit
 foreign import float32ToArray :: Number -> Array Int
 foreign import float64ToArray :: Number -> Array Int
 from_float :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
-from_float _ (ErlangNum size) unit_ _ | size * unit_ /= 32 && size * unit_ /= 64 = EXC.badarg unit
-from_float (ErlangNum i) s u e =
+from_float _ (ErlangInt size) unit_ _ | size * unit_ /= 32 && size * unit_ /= 64 = EXC.badarg unit
+from_float (ErlangInt i) s u e =
   from_float (ErlangFloat (Int.toNumber i)) s u e
-from_float (ErlangFloat f) (ErlangNum size) unit_ endian =
+from_float (ErlangFloat f) (ErlangInt size) unit_ endian =
   let big = case size * unit_ of
         32 -> float32ToArray f
         64 -> float64ToArray f
@@ -157,7 +157,7 @@ from_float (ErlangFloat f) (ErlangNum size) unit_ endian =
 from_float _ _ _ _ = EXC.badarg unit
 
 format_bin :: ErlangTerm -> ErlangTerm -> Int -> Buffer
-format_bin (ErlangBinary buf) (ErlangNum size) unit =
+format_bin (ErlangBinary buf) (ErlangInt size) unit =
   let bufSize = size * unit / 8
   in Buffer.slice 0 bufSize buf
 format_bin _ _ _ = EXC.badarg unit

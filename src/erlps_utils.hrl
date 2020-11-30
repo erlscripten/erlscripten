@@ -2,7 +2,7 @@
 -define(make_pat_var(Var),
     #pat_var{name = Var}).
 -define(make_pat_int(Int),
-    #pat_constr{constr = "ErlangNum", args = [#pat_num{value = Int}]}).
+    #pat_constr{constr = "ErlangInt", args = [#pat_num{value = Int}]}).
 -define(make_pat_float(Float),
     #pat_constr{constr = "ErlangFloat", args = [#pat_float{value = Float}]}).
 -define(make_pat_atom(Atom),
@@ -24,7 +24,7 @@ make_pat_list([H|T]) ->
 -define(make_expr_var(Var),
     #expr_var{name = Var}).
 -define(make_expr_int(Int),
-    #expr_app{function = ?make_expr_var("ErlangNum"), args = [#expr_num{value = Int}]}).
+    #expr_app{function = ?make_expr_var("ErlangInt"), args = [#expr_num{value = Int}]}).
 -define(make_expr_float(Float),
     #expr_app{function = ?make_expr_var("ErlangFloat"), args = [#expr_float{value = Float}]}).
 -define(make_expr_atom(Atom),

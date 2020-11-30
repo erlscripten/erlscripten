@@ -414,7 +414,7 @@ inlineable(Expr) ->
         #expr_string{} -> true;
         #expr_app{function = Fun} ->
             case Fun of
-                #expr_var{name = "ErlangNum"} -> true;
+                #expr_var{name = "ErlangInt"} -> true;
                 #expr_var{name = "ErlangAtom"} -> true;
                 #expr_var{name = "ErlangCons"} -> true;
                 #expr_var{name = "applyTerm"} -> true;

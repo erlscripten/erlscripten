@@ -16,7 +16,7 @@ import Effect.Exception (throw)
 type ErlangFun = Array ErlangTerm -> ErlangTerm
 
 data ErlangTerm
-    = ErlangNum       Int
+    = ErlangInt       Int
     | ErlangFloat     Number
     | ErlangAtom      String
     | ErlangCons      ErlangTerm ErlangTerm
@@ -29,7 +29,7 @@ data ErlangTerm
     | ErlangPID       Int
 
 instance showErlangTerm :: Show ErlangTerm where
-    show (ErlangNum a) =
+    show (ErlangInt a) =
         show a
     show (ErlangFloat a) =
         show a
@@ -56,7 +56,7 @@ instance showErlangTerm :: Show ErlangTerm where
 
 eqErlangTermImpl :: ErlangTerm -> ErlangTerm -> Boolean
 eqErlangTermImpl (ErlangAtom a) (ErlangAtom b) = a == b
-eqErlangTermImpl (ErlangNum a) (ErlangNum b) = a == b
+eqErlangTermImpl (ErlangInt a) (ErlangInt b) = a == b
 eqErlangTermImpl (ErlangFloat a) (ErlangFloat b) = a == b
 eqErlangTermImpl (ErlangReference a) (ErlangReference b) = a == b
 eqErlangTermImpl (ErlangPID a) (ErlangPID b) = a == b
@@ -74,7 +74,7 @@ instance eqErlangTerm :: Eq ErlangTerm where
     eq = eqErlangTermImpl
 
 compareErlangTermImpl :: ErlangTerm -> ErlangTerm -> Ordering
-compareErlangTermImpl (ErlangNum a) (ErlangNum b) = compare a b
+compareErlangTermImpl (ErlangInt a) (ErlangInt b) = compare a b
 compareErlangTermImpl (ErlangFloat a) (ErlangFloat b) = compare a b
 compareErlangTermImpl (ErlangReference a) (ErlangReference b) = compare a b
 compareErlangTermImpl (ErlangPID a) (ErlangPID b) = compare a b
@@ -105,9 +105,9 @@ compareErlangTermImpl   (ErlangMap _)     _ = GT
 compareErlangTermImpl   (ErlangTuple _)   _ = GT
 compareErlangTermImpl   (ErlangFun _ _)   _ = GT
 compareErlangTermImpl   (ErlangAtom _)    _ = GT
-compareErlangTermImpl   (ErlangNum _)     _ = GT
+compareErlangTermImpl   (ErlangInt _)     _ = GT
 
-compareErlangTermImpl _ (ErlangNum _)       = LT
+compareErlangTermImpl _ (ErlangInt _)       = LT
 compareErlangTermImpl _ (ErlangFloat _)       = LT
 compareErlangTermImpl _ (ErlangReference _)       = LT
 compareErlangTermImpl _ (ErlangPID _)       = LT

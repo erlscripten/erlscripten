@@ -26,7 +26,7 @@ isEList (ErlangCons _ _) = true
 isEList _ = false
 
 isENum :: ErlangTerm -> Boolean
-isENum (ErlangNum _) = true
+isENum (ErlangInt _) = true
 isENum _ = false
 
 isEAtom :: ErlangTerm -> Boolean
@@ -46,7 +46,7 @@ isEFun (ErlangFun _ _) = true
 isEFun _ = false
 
 isEFunA :: ErlangTerm -> ErlangTerm -> Boolean
-isEFunA (ErlangFun a0 _) (ErlangNum a1) = a0 == a1
+isEFunA (ErlangFun a0 _) (ErlangInt a1) = a0 == a1
 isEFunA _ _ = false
 
 isEMap :: ErlangTerm -> Boolean
@@ -54,7 +54,7 @@ isEMap (ErlangMap _) = true
 isEMap _ = false
 
 erlToInt :: ErlangTerm -> Int
-erlToInt (ErlangNum x) = x
+erlToInt (ErlangInt x) = x
 erlToInt _ = error "bad int"
 
 -- They removed support of it. CodePoint is just a newtype for Int.
@@ -62,7 +62,7 @@ codePointToInt :: StrCP.CodePoint -> Int
 codePointToInt = unsafeCoerce
 
 make_string :: String -> ErlangTerm
-make_string str = arrayToErlangList (map (ErlangNum <<< codePointToInt) (Str.toCodePointArray str))
+make_string str = arrayToErlangList (map (ErlangInt <<< codePointToInt) (Str.toCodePointArray str))
 
 flmap :: (Partial => ErlangTerm -> ErlangTerm) -> ErlangTerm -> ErlangTerm
 flmap f list = unsafePartial $ erflat (ermap list ErlangEmptyList) ErlangEmptyList where

@@ -714,7 +714,7 @@ transpile_binary_pattern_segments(
 
             SizeGuard =
                 #guard_assg{
-                   lvalue = #pat_constr{constr = "ErlangNum", args = [#pat_var{name = SizeVar}]},
+                   lvalue = #pat_constr{constr = "ErlangInt", args = [#pat_var{name = SizeVar}]},
                    rvalue = SizeExpr
                   },
 
