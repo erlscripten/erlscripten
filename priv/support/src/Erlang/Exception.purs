@@ -6,7 +6,7 @@ module Erlang.Exception
   , raise
   , throw, error, exit
   , function_clause, case_clause, try_clause, if_clause
-  , badarity, badmatch, badarg, badrecord
+  , badarity, badmatch, badarg, badrecord, bad_generator
   ) where
 
 import Prelude
@@ -89,3 +89,6 @@ badarity fun args =
 
 badrecord :: ErlangTerm -> ErlangTerm
 badrecord _ = error (ErlangAtom "TODO: PROPER BADRECORD ERROR")
+
+bad_generator :: ErlangTerm -> ErlangTerm
+bad_generator term = error (ErlangTuple [ErlangAtom "bad_generator", term])

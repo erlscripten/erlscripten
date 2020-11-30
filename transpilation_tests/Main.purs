@@ -30,6 +30,7 @@ import Erlang.Type
 import Erlang.Exception
 import Erlang.Builtins as BIF
 import Erlang.Invoke
+import Node.Buffer as Buf
 
 import Processes
 import Lists
@@ -38,6 +39,7 @@ import Records
 import Exceptions
 import Scoping
 import Ordering
+import Binaries
 import Test.Array
 import Array.SUITE
 import Cancer
@@ -167,13 +169,21 @@ shouldEqualOk a b = make_ok a `shouldEqual` b
 main :: Effect Unit
 main =
     launchAff_ $ runSpec [consoleReporter] do
-    describe "Sanity check" do
+
+    let whitelist = case unit of
+          _ -> M.Nothing  -- comment for whitelist :)
+          _ -> M.Just ["Binaries"]
+    let describe_ s = case whitelist of
+          M.Nothing -> describe s
+          M.Just l ->
+            if A.elemIndex s l == M.Nothing then \_ -> pure unit else describe s
+    describe_ "Sanity check" do
         it "one should equal one" do
             1 `shouldEqual` 1
         it "two should equal two" do
             2 `shouldEqual` 2
 
-    describe "STDLIB Lists" do
+    describe_ "STDLIB Lists" do
         it "reverse/1" do
             test_reverse [1,2,3,4,5,6,7,8,9,10]
             test_reverse [1]
@@ -198,7 +208,7 @@ main =
             test_seq 1 0 []
             test_seq 1 10 [1,2,3,4,5,6,7,8,9,10]
 
-    describe "STDLIB Array" do
+    describe_ "STDLIB Array" do
         it "can create zero size array" do
             r <- exec_may_throw erlps__test_create_0__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
@@ -209,7 +219,7 @@ main =
             r <- exec_may_throw erlps__test_functionality__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
 
-    describe "Real Array tests taken from OTP - array_SUITE.erl" do
+    describe_ "Real Array tests taken from OTP - array_SUITE.erl" do
         it "new_test" do
             r <- exec_may_throw erlps__new_test__1 [ErlangEmptyList]
             make_ok (ErlangAtom "ok") `shouldEqual` r
@@ -262,7 +272,7 @@ main =
             r <- exec_may_throw erlps__sparse_foldr_test__1 [ErlangEmptyList]
             make_ok (ErlangAtom "ok") `shouldEqual` r
 
-    describe "Lambdas" do
+    describe_ "Lambdas" do
         it "can be called" do
             r <- exec_may_throw erlps__test_can_be_called__0 []
             make_ok (ErlangAtom "ok") `shouldEqual` r
@@ -328,7 +338,7 @@ main =
             make_ok (ErlangAtom "ok") `shouldEqual` r
 
     let atomTup ats = ErlangTuple (map ErlangAtom ats)
-    describe "Records" do
+    describe_ "Records" do
       it "Build empty" do
         r <- exec_may_throw erlps__test_build_1__0 []
         atomTup ["empty"] `shouldEqualOk` r
@@ -408,7 +418,7 @@ main =
 
     let dropStack (ErlangTuple [t, p, _]) = ErlangTuple [t, p]
         dropStack _ = ErlangAtom "bad_exception"
-    describe "Exception library" do
+    describe_ "Exception library" do
       it "no exception" do
         let r = tryCatchFinally
                 (\_ -> ErlangAtom "hey")
@@ -469,7 +479,7 @@ main =
         ErlangAtom "ok_e" `shouldEqual` r
 
     let ok = ErlangAtom "ok"
-    describe "Exception transpilation" do
+    describe_ "Exception transpilation" do
       it "try/catch" do
         r <- exec_may_throw erlps__test_try_catch__0 []
         ok `shouldEqualOk` r
@@ -560,12 +570,12 @@ main =
         r <- exec_may_throw erlps__test_scope_2__0 []
         ok `shouldEqualOk` r
 
-    describe "Cancer..." do
+    describe_ "Cancer..." do
       it "IO works :O" do
         r <- exec_may_throw erlps__test_wtf__0 []
         ok `shouldEqualOk` r
 
-    describe "Processes OwO" do
+    describe_ "Processes OwO" do
       it "can spawn" do
         r <- exec_may_throw erlps__test_spawn__0 []
         ok `shouldEqualOk` r
@@ -578,3 +588,30 @@ main =
       it "receive primop - simple case" do
           (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_simple_receive_primop__0 [])
           ok `shouldEqualOk` r
+
+    describe_ "Binaries" do
+      let bin b = ErlangBinary (unsafePerformEffect $ Buf.fromArray b)
+      it "Build empty" do
+        r <- exec_may_throw erlps__test_build_empty__0 []
+        bin [] `shouldEqualOk` r
+      it "Build single" do
+        r <- exec_may_throw erlps__test_build_single__0 []
+        bin [1] `shouldEqualOk` r
+      it "Build multi" do
+        r <- exec_may_throw erlps__test_build_multi__0 []
+        bin [1,2,3] `shouldEqualOk` r
+      it "Build string" do
+        r <- exec_may_throw erlps__test_build_string__0 []
+        bin [88,68] `shouldEqualOk` r
+      it "Build subbinary" do
+        r <- exec_may_throw erlps__test_build_sub__0 []
+        bin [1,2,3] `shouldEqualOk` r
+      it "Build float" do
+        r <- exec_may_throw erlps__test_build_float__0 []
+        bin [63,240,0,0,0,0,0,0] `shouldEqualOk` r
+      it "Build mixed" do
+        r <- exec_may_throw erlps__test_build_mixed__0 []
+        bin [88,68,1,2,3,4,64,20,0,0,0,0,0,0] `shouldEqualOk` r
+      it "Build single" do
+        r <- exec_may_throw erlps__test_build_single__0 []
+        bin [1] `shouldEqualOk` r

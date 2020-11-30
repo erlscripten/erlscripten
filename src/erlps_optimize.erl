@@ -10,15 +10,25 @@
 -author("radrow").
 
 
--export([optimize_expr/1]).
+-export([optimize_expr/1, optimize_clause/1]).
 
 -include("erlps_purescript.hrl").
 -include("erlps_utils.hrl").
 
 -type(peepholable()) :: purs_expr() | purs_guard() | purs_do_statement() | [peepholable()].
 
+optimize_clause(Clause = #clause{guards = Guards0, value = Expr0}) ->
+    PropagationState0 = #{},
+    Guards1 = peephole(Guards0),
+    {Guards2, PropagationState1} = constant_propagation_guards(Guards1, PropagationState0),
+    Expr1 = peephole(Expr0),
+    Expr2 = constant_propagation(Expr1, PropagationState1),
+    Clause#clause{
+      guards = Guards2,
+      value = Expr2
+     }.
+
 optimize_expr(Expr0) ->
-    %% Expr0.
     Expr1 = peephole(Expr0),
     _Expr2 = constant_propagation(Expr1).
 
@@ -363,8 +373,38 @@ constant_propagation_letdefs([#letfun{body = B, guards = G} = Lefdef|Rest], Acc,
                                                       guards = G1
                                                      }|Acc], State1).
 
-constant_propagation_guards(G0, S) ->
-    {constant_propagation(G0, S), S}. %% TODO: include guard_assign
+constant_propagation_guards(Guards, State) ->
+    constant_propagation_guards(Guards, [], State).
+constant_propagation_guards([], Acc, State) ->
+    {lists:reverse(Acc), State};
+constant_propagation_guards([#guard_expr{guard = G}|Rest], Acc, State) ->
+    constant_propagation_guards(Rest, [#guard_expr{guard = constant_propagation(G, State)}|Acc], State);
+constant_propagation_guards([#guard_assg{lvalue = #pat_var{name = Var} = LV, rvalue = RV}|Rest], Acc, State) ->
+    RV1 = constant_propagation(RV, State),
+    case inlineable(RV1) of
+        true ->
+            constant_propagation_guards(Rest, Acc, State#{Var => RV1});
+        false ->
+            constant_propagation_guards(Rest, [#guard_assg{lvalue = LV, rvalue = RV1}|Acc], State)
+    end;
+constant_propagation_guards(
+  [#guard_assg{lvalue = #pat_constr{constr = Constr, args = [#pat_var{name = Var}]},
+               rvalue = #expr_app{function = #expr_var{name = Constr}, args = [RVArg]}}
+  |Rest], Acc, State) ->
+    RVArg1 = constant_propagation(RVArg, State),
+    case inlineable(RVArg1) of
+        true ->
+            constant_propagation_guards(Rest, Acc, State#{Var => RVArg1});
+        false ->
+            constant_propagation_guards(
+              Rest, [#guard_assg{lvalue = #pat_var{name = var}, rvalue = RVArg1}|Acc], State)
+    end;
+
+constant_propagation_guards([#guard_assg{lvalue = LV, rvalue = RV}|Rest], Acc, State) ->
+    RV1 = constant_propagation(RV, State),
+    constant_propagation_guards(Rest, [#guard_assg{lvalue = LV, rvalue = RV1}|Acc], State).
+
+
 
 
 inlineable(Expr) ->
@@ -377,7 +417,6 @@ inlineable(Expr) ->
                 #expr_var{name = "ErlangNum"} -> true;
                 #expr_var{name = "ErlangAtom"} -> true;
                 #expr_var{name = "ErlangCons"} -> true;
-                #expr_var{name = "ErlangBinary"} -> true;
                 #expr_var{name = "applyTerm"} -> true;
                 #expr_var{name = "isEL"} -> true;
                 #expr_var{name = "unsafePerformEffect"} -> true;

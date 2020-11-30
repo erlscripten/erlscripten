@@ -340,12 +340,13 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
     state_clear_vars(),
     state_clear_var_stack(),
     {PsArgs, PsGuards} = transpile_pattern_sequence(Args, Env),
-    PSBody = erlps_optimize:optimize_expr(transpile_body(Body, Env)),
-    #clause{
+    PSBody = (transpile_body(Body, Env)),
+    Clause = #clause{
        args = [#pat_array{value = PsArgs}],
-       guards = erlps_optimize:optimize_expr(PsGuards ++ transpile_boolean_guards(Guards, Env)),
+       guards = PsGuards ++ transpile_boolean_guards(Guards, Env),
        value = PSBody
-    }.
+    },
+    erlps_optimize:optimize_clause(Clause).
 
 combine_guards([#guard_expr{guard = First}|Guards]) ->
     combine_guards(Guards, First, Guards);
@@ -879,25 +880,27 @@ catch_partial_lets_in_statements(
       Rest, [#do_bind{lvalue = pat_wildcard, rvalue = catch_partial_lets(Expr)}|Acc], Ret).
 
 catch_partial_lets_in_letdefs(Stmts, Ret) ->
-        catch_partial_lets_in_letdefs(Stmts, [], Ret).
+    catch_partial_lets_in_letdefs(Stmts, [], Ret).
 catch_partial_lets_in_letdefs([], Acc, Ret) ->
-        #expr_let{letdefs = lists:reverse(Acc), in = Ret};
+    #expr_let{letdefs = lists:reverse(Acc), in = Ret};
 catch_partial_lets_in_letdefs(
-       [#letval{lvalue = LV, guards = Guards, rvalue = RV}|Rest], Acc, Ret)
-      when (element(1, LV) =/= pat_var andalso LV =/= pat_wildcard) orelse Guards =/= [] ->
-        FixedRV = catch_partial_lets(RV),
-        #expr_let{
-           letdefs =
-               lists:reverse(Acc),
-           in =
-               #expr_case{
-                  expr = FixedRV,
-                  cases =
-                      [ {LV, catch_partial_lets(Guards), catch_partial_lets_in_letdefs(Rest, Ret)}
-                      , {pat_wildcard, [], ?badmatch(FixedRV)}
-                      ]
-                 }
-          };
+  [#letval{lvalue = LV, guards = Guards, rvalue = RV}|Rest], Acc, Ret)
+  when (element(1, LV) =/= pat_var andalso LV =/= pat_wildcard) orelse Guards =/= [] ->
+    FixedRV = catch_partial_lets(RV),
+    Cont = #expr_case{
+              expr = FixedRV,
+              cases =
+                  [ {LV, catch_partial_lets(Guards), catch_partial_lets_in_letdefs(Rest, Ret)}
+                  , {pat_wildcard, [], ?badmatch(FixedRV)}
+                  ]
+             },
+    case Acc of
+        [] -> Cont;
+        _ -> #expr_let{
+                letdefs = lists:reverse(Acc),
+                in = Cont
+               }
+    end;
 catch_partial_lets_in_letdefs(
   [LV = #letval{rvalue = RV}|Rest], Acc, Ret) ->
     catch_partial_lets_in_letdefs(
@@ -1449,6 +1452,14 @@ transpile_expr({lc, Ann, Ret, [Expr|Rest]}, LetDefs0, Env) ->
      LetDefs1
     };
 
+transpile_expr({bc, Ann, Ret, Generators}, LetDefs0, Env) ->
+    {LCExpr, LetDefs1} = transpile_expr({lc, Ann, Ret, Generators}, LetDefs0, Env),
+    { #expr_app{function = #expr_var{name = "BIN.concat_erl"},
+                args = [LCExpr]
+               }
+    , LetDefs1
+    };
+
 transpile_expr({map, _, Associations}, LetDefs0, Env) ->
     {Keys, Vals} = lists:unzip([{Key, Val} || {map_field_assoc, _, Key, Val} <- Associations]),
     {KeysVars, LetDefs1} = bind_exprs("key", Keys, LetDefs0, Env),
@@ -1600,7 +1611,7 @@ transpile_binary_expression_segments(
               [{bin_element, Ann, {integer, AnnS, I}, Size, Spec} || I <- S] ++ Rest,
               Acc, LetDefs0, Env);
 
-        {_, _, #{type := Type, unit := Unit, sign := Sign, endian := Endian}} ->
+        {_, _, #{type := Type, unit := Unit, endian := Endian}} ->
             {ExprVar, LetDefs1} = bind_expr("bin_el", Element, LetDefs0, Env),
             {SizeExpr, LetDefs2} =
                 case Size of
@@ -1608,7 +1619,7 @@ transpile_binary_expression_segments(
                         case Type of
                             integer -> {?make_expr_int(8), LetDefs1};
                             float -> {?make_expr_int(64), LetDefs1};
-                            binary -> {#expr_app{function = #expr_var{name = "BIN.size"},
+                            binary -> {#expr_app{function = #expr_var{name = "BIN.packed_size"},
                                                  args = [#expr_var{name = ExprVar}]
                                                 },
                                        LetDefs1}

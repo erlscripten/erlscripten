@@ -1,7 +1,7 @@
 module Erlang.Binary where
 
 import Prelude
-import Erlang.Type (ErlangTerm(ErlangBinary, ErlangNum, ErlangFloat))
+import Erlang.Type
 import Erlang.Exception as EXC
 import Node.Buffer as Buffer
 -- import Node.Buffer.Unsafe as Buffer
@@ -17,7 +17,9 @@ import Data.Array.NonEmpty as NonEmpty
 import Partial.Unsafe (unsafePartial)
 import Data.Base58 as B58
 import Data.Array as DA
+import Data.Maybe as DM
 import Data.List as DL
+import Data.Int as Int
 import Data.Maybe(Maybe, fromJust)
 import Data.Foldable
 
@@ -31,23 +33,28 @@ data BinResult = Nah | Ok ErlangTerm Buffer.Buffer
 fromFoldable :: forall f. Foldable f => f Int -> Buffer
 fromFoldable f = unsafePerformEffect (Buffer.fromArray (DA.fromFoldable f))
 
+buffer :: ErlangTerm -> Buffer
+buffer (ErlangBinary buf) = buf
+buffer _ = error "buffer: not a binary"
+
 concat :: Array Buffer -> Buffer
 concat args = unsafePerformEffect $ Buffer.concat args
 
-buffer (ErlangBinary x) = x
-buffer _ = error "buffer – not a binary"
-
-length (ErlangBinary x) = unsafePerformEffect $ Buffer.size x
-length _ = error "length – not a binary"
-
-unboxed_byte_size :: Buffer.Buffer -> Int
-unboxed_byte_size b = unsafePerformEffect $ Buffer.size b
+concat_erl :: ErlangTerm -> ErlangTerm
+concat_erl listTerm =
+  case erlangListToList listTerm of
+    DM.Nothing -> EXC.bad_generator listTerm
+    DM.Just l -> ErlangBinary $ concat (DA.fromFoldable $ map buffer l)
 
 empty :: Buffer.Buffer -> Boolean
 empty buf = unsafePerformEffect $ map (_ == 0) (Buffer.size buf)
 
 size :: Buffer -> ErlangTerm
 size = ErlangNum <<< unsafePerformEffect <<< Buffer.size
+
+packed_size :: ErlangTerm -> ErlangTerm
+packed_size (ErlangBinary b) = size b
+packed_size _ = EXC.badarg unit
 
 chop_int :: Buffer.Buffer -> Int -> Int -> Endian -> Sign -> BinResult
 chop_int buf size unit endian sign = unsafePerformEffect $ do
@@ -137,6 +144,8 @@ foreign import float32ToArray :: Number -> Array Int
 foreign import float64ToArray :: Number -> Array Int
 from_float :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
 from_float _ (ErlangNum size) unit_ _ | size * unit_ /= 32 && size * unit_ /= 64 = EXC.badarg unit
+from_float (ErlangNum i) s u e =
+  from_float (ErlangFloat (Int.toNumber i)) s u e
 from_float (ErlangFloat f) (ErlangNum size) unit_ endian =
   let big = case size * unit_ of
         32 -> float32ToArray f
