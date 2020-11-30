@@ -277,12 +277,12 @@ check_builtin(Module, Name, Arity) ->
         _ -> local
     end.
 
--spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> purs_expr().
+-spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> {direct, purs_expr()} | {code_server, string(), string()}.
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
     transpile_fun_ref(Module, Name, Arity, false, Env).
 transpile_fun_ref(Module, Name, Arity, Env) ->
     transpile_fun_ref(Module, Name, Arity, true, Env).
--spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), boolean(), #env{}) -> purs_expr().
+-spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), boolean(), #env{}) -> {direct, purs_expr()} | {code_server, string(), string()}.
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Name) ->
     transpile_fun_ref(Module, atom_to_list(Name), Arity, IsRemote, Env);
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
@@ -290,11 +290,11 @@ transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
 transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule, local_imports = Imported} = Env) ->
     case check_builtin(Module, Name, Arity) of
         {builtin, Builtin} ->
-            #expr_var{name = "BIF." ++ Builtin};
+          {direct, #expr_var{name = "BIF." ++ Builtin}};
         local ->
             case check_builtin("erlang", Name, Arity) of
                 {builtin, BuiltinAnyway} when IsRemote =:= false ->
-                    #expr_var{name = "BIF." ++ BuiltinAnyway};
+                  {direct, #expr_var{name = "BIF." ++ BuiltinAnyway}};
                 _ -> if CurModule == Module ->
                             %% Check if the local module call is in fact a call to an imported function
                             Key = {list_to_atom(Name), Arity},
@@ -302,11 +302,10 @@ transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule
                                 #{Key := M} ->
                                     transpile_fun_ref(M, Name, Arity, Env);
                                 _ ->
-                                    #expr_var{name = transpile_fun_name(Name, Arity)}
+                                  {direct, #expr_var{name = transpile_fun_name(Name, Arity)}}
                             end;
                         true ->
-                            #expr_var{name = erlang_module_to_purs_module(Module) ++ "."
-                                          ++ transpile_fun_name(Name, Arity)}
+                          {code_server, erlang_module_to_purs_module(Module), transpile_fun_name(Name, Arity)}
                      end
             end
     end.
@@ -1067,7 +1066,7 @@ transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
 
 
 transpile_expr({op, _, Op, L, R}, LetDefs0, Env) ->
-    OpFun = transpile_fun_ref("erlang", Op, 2, Env),
+  {direct, OpFun} = transpile_fun_ref("erlang", Op, 2, Env),
     {LVar, LetDefs1} = bind_expr("lop", L, LetDefs0, Env),
     {RVar, LetDefs2} = bind_expr("rop", R, LetDefs1, Env),
     {#expr_app{
@@ -1080,7 +1079,7 @@ transpile_expr({op, _, Op, L, R}, LetDefs0, Env) ->
      LetDefs2
     };
 transpile_expr({op, _, Op, Arg}, LetDefs0, Env) ->
-    OpFun = transpile_fun_ref("erlang", Op, 1, Env),
+  {direct, OpFun} = transpile_fun_ref("erlang", Op, 1, Env),
     {ArgVar, LetDefs1} = bind_expr("op_arg", Arg, LetDefs0, Env),
     {#expr_app{
         function = OpFun,
@@ -1090,15 +1089,26 @@ transpile_expr({op, _, Op, Arg}, LetDefs0, Env) ->
 
 transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
-    PSFun = transpile_fun_ref(Fun, length(Args), Env),
-    { #expr_app{
-         function = PSFun,
-         args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
-    , LetDefs1
-    };
+    case transpile_fun_ref(Fun, length(Args), Env) of
+      {direct, PSFun} ->
+        { #expr_app{
+             function = PSFun,
+             args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+        , LetDefs1
+        };
+      {code_server, MName, FName} ->
+        { #expr_app{
+               function = #expr_var{name = "BIF.do_remote_fun_call"},
+               args = [ #expr_string{value = MName}
+                      , #expr_string{value = FName}
+                      , #expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}
+                      ]}
+          , LetDefs1
+          }
+      end;
 transpile_expr({call, _, {remote, _, {atom, _, Module0}, {atom, _, Fun}}, Args},
                LetDefs0, Env) ->
-    state_add_import_request(Module0, Env),
+    %%state_add_import_request(Module0, Env),
     Module1 = case Module0 of
                 'io' -> "erlang_io";
                 'io_lib' -> "erlang_iolib";
@@ -1106,12 +1116,23 @@ transpile_expr({call, _, {remote, _, {atom, _, Module0}, {atom, _, Fun}}, Args},
                 _ -> Module0
               end,
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
-    PSFun = transpile_fun_ref(Module1, Fun, length(Args), Env),
-    { #expr_app{
-         function = PSFun,
-         args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
-    , LetDefs1
-    };
+    case transpile_fun_ref(Module1, Fun, length(Args), Env) of
+      {direct, PSFun} ->
+          { #expr_app{
+               function = PSFun,
+               args = [#expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}]}
+          , LetDefs1
+          };
+      {code_server, MName, FName} ->
+          { #expr_app{
+               function = #expr_var{name = "BIF.do_remote_fun_call"},
+               args = [ #expr_string{value = MName}
+                      , #expr_string{value = FName}
+                      , #expr_array{value = [#expr_var{name = ArgVar} || ArgVar <- ArgsVars]}
+                      ]}
+          , LetDefs1
+          }
+    end;
 transpile_expr({call, Ann, {remote, _, MVar, FVar}, Args0},
                LetDefs, Env) ->
     Args1 = lists:foldr(fun (Arg, Acc) -> {cons, Ann, Arg, Acc}
@@ -1155,18 +1176,19 @@ transpile_expr({cons, _, H, T}, LetDefs0, Env) ->
     };
 
 transpile_expr({'fun', _, {function, Fun, Arity}}, LetDefs, Env) when is_atom(Fun) ->
+    {direct, FRef} = transpile_fun_ref(Fun, Arity, Env),
     {#expr_app{function = #expr_var{name = "ErlangFun"},
                args = [#expr_num{value = Arity},
-                       transpile_fun_ref(Fun, Arity, Env)]},
+                       FRef]},
      LetDefs
     };
-transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer, _, Arity}}},
-               LetDefs, Env) when is_atom(Fun) ->
-    {#expr_app{function = #expr_var{name = "ErlangFun"},
-               args = [#expr_num{value = Arity},
-                            transpile_fun_ref(Module, Fun, Arity, Env)]},
-     LetDefs
-    };
+%%transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer, _, Arity}}},
+%%               LetDefs, Env) when is_atom(Fun) ->
+%%    {#expr_app{function = #expr_var{name = "ErlangFun"},
+%%               args = [#expr_num{value = Arity},
+%%                            transpile_fun_ref(Module, Fun, Arity, Env)]},
+%%     LetDefs
+%%    };
 transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
                LetDefs, Env) ->
     transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]}, LetDefs, Env);
@@ -1484,8 +1506,9 @@ transpile_expr({map, Ann, Map, Associations}, LetDefs0, Env) ->
     {MapVar, LetDefs1} = bind_expr("map", Map, LetDefs0, Env),
     {Ext, LetDefs2} = transpile_expr({map, Ann, Associations}, LetDefs1, Env),
     ExtVar = state_create_fresh_var("map_ext"),
+    {direct, FRef} = transpile_fun_ref(maps, merge, 2, Env),
     {#expr_app{
-        function = transpile_fun_ref(maps, merge, 2, Env),
+        function = FRef,
         args = [#expr_array{value = [#expr_var{name = MapVar}, #expr_var{name = ExtVar}]}]},
      [ #letval{lvalue = #pat_var{name = ExtVar}, rvalue = Ext}
      | LetDefs2]

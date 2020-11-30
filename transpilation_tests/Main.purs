@@ -43,6 +43,9 @@ import Binaries
 import Test.Array
 import Array.SUITE
 import Cancer
+import Circular.One as C1
+import Circular.Two as C2
+import Test.Onload as C3
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR
@@ -645,3 +648,20 @@ main =
       it "Build float reg. little end" do
         r <- exec_may_throw erlps__test_build_float_little__0 []
         bin [0,0,0,0,0,0,240,63] `shouldEqualOk` r
+
+    describe "Code server" do
+      it "Circular dependencies - One -> One local call" do
+        r <- exec_may_throw C1.erlps__one__0 []
+        (ErlangAtom "hello_from_module_one") `shouldEqualOk` r
+      it "Circular dependencies - One -> Two remote call" do
+        r <- exec_may_throw C1.erlps__two__0 []
+        (ErlangAtom "hello_from_module_two") `shouldEqualOk` r
+      it "Circular dependencies - Two -> One local call" do
+        r <- exec_may_throw C2.erlps__one__0 []
+        (ErlangAtom "hello_from_module_one") `shouldEqualOk` r
+      it "Circular dependencies - Two -> Two remote call" do
+        r <- exec_may_throw C2.erlps__two__0 []
+        (ErlangAtom "hello_from_module_two") `shouldEqualOk` r
+      it "Onload" do
+        r <- exec_may_throw C3.erlps__test_onload__0 []
+        (ErlangAtom "hehe") `shouldEqualOk` r

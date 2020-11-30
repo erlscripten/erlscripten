@@ -21,6 +21,37 @@ purs_tco_sucks :: ErlangFun
 purs_tco_sucks _ = ErlangAtom "purs_tco_sucks"
 
 --------------------------------------------------------------------------------
+--- Code server OwO
+foreign import do_ffi_remote_fun_call :: String -> String -> Array ErlangTerm -> (Unit -> ErlangTerm) -> ErlangTerm
+do_remote_fun_call :: String -> String -> Array ErlangTerm -> ErlangTerm
+do_remote_fun_call mName fName args =
+    do_ffi_remote_fun_call mName fName args (\_ -> EXC.error $ ErlangAtom "undef")
+
+erlang__apply__2 :: ErlangFun
+erlang__apply__2 [ft@(ErlangFun arity f), args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
+    case (DA.length args1) == arity of
+        true ->
+            f args1
+        false ->
+            EXC.error $ ErlangTuple [ErlangAtom "badarity", ft]
+erlang__apply__2 [_,_] = EXC.badarg unit
+erlang__apply__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__apply__2-}) args
+
+foreign import do_apply_4 :: String -> String -> Array ErlangTerm -> (Unit -> ErlangTerm) -> ErlangTerm
+erlang__apply__3 :: ErlangFun
+erlang__apply__3 [ErlangAtom m, ErlangAtom f, args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
+    do_apply_4 m f args1 (\_ -> EXC.error $ ErlangAtom "undef")
+erlang__apply__3 [_,_,_] = EXC.badarg unit
+erlang__apply__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__apply__3-}) args
+
+erlang__make_fun__3 :: ErlangFun
+erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangInt arity] =
+    ErlangFun arity
+        (\ args -> erlang__apply__3 [m, f, arrayToErlangList args] )
+erlang__make_fun__3 [_,_,_] = EXC.badarg unit
+erlang__make_fun__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__make_fun__3-}) args
+
+--------------------------------------------------------------------------------
 --- FLOAT BIFS
 
 math__pi__0 :: ErlangFun
@@ -1225,30 +1256,6 @@ erlang__statistics__1 :: ErlangFun
 erlang__statistics__1 args = unimplemented "erlang__statistics__1"
 erlang__statistics__1 [_] = EXC.badarg unit
 erlang__statistics__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__statistics__1-}) args
-
-erlang__apply__2 :: ErlangFun
-erlang__apply__2 [ft@(ErlangFun arity f), args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
-    case (DA.length args1) == arity of
-        true ->
-            f args1
-        false ->
-            EXC.error $ ErlangTuple [ErlangAtom "badarity", ft]
-erlang__apply__2 [_,_] = EXC.badarg unit
-erlang__apply__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__apply__2-}) args
-
-foreign import do_apply_4 :: String -> String -> Array ErlangTerm -> (Unit -> ErlangTerm) -> ErlangTerm
-erlang__apply__3 :: ErlangFun
-erlang__apply__3 [ErlangAtom m, ErlangAtom f, args0] | ErlangTuple args1 <- erlang__list_to_tuple__1 [args0] =
-    do_apply_4 m f args1 (\_ -> EXC.error $ ErlangAtom "undef")
-erlang__apply__3 [_,_,_] = EXC.badarg unit
-erlang__apply__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__apply__3-}) args
-
-erlang__make_fun__3 :: ErlangFun
-erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangInt arity] =
-    ErlangFun arity
-        (\ args -> erlang__apply__3 [m, f, arrayToErlangList args] )
-erlang__make_fun__3 [_,_,_] = EXC.badarg unit
-erlang__make_fun__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__make_fun__3-}) args
 
 erlang__nodes__0 :: ErlangFun
 erlang__nodes__0 args = unimplemented "erlang__nodes__0"

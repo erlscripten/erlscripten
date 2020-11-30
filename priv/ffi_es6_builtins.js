@@ -834,35 +834,62 @@ class ProcessSystem {
 }
 
 var system = new ProcessSystem();
+var loaded_code = new Map();
 
 /* FFI CODE */
 function do_apply_4(moduleName) {
         return function(functionName) {
             return function(argumentArray) {
                 return function(failCallback) {
-                    var module = undefined;
-                    var f = undefined;
-                    try {
-                        let name = moduleName.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
-                        try {
-                            module = PS[name];
-                        } catch(e) {
-                            module = require("../"+name+"/index.js");
-                        }
-                        f = module["erlps__" + functionName + "__" + argumentArray.length];
-                    } catch(e) {
-                        module = undefined;
-                        f = undefined;
-                    }
-                    if (module !== undefined && f !== undefined) {
-                        return f(argumentArray);
-                    } else {
-                        return failCallback();
-                    }
+                    var mName = moduleName.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+                    var fName = "erlps__" + functionName + "__" + argumentArray.length;
+                    return do_ffi_remote_fun_call(mName)(fName)(argumentArray)(failCallback);
                 };
             };
         };
     };
+
+function do_onload(module) {
+    var f = module["onload"];
+    if (f) {
+        f();
+    }
+}
+
+function do_ffi_remote_fun_call(moduleName) {
+    return function(functionName) {
+        return function(argumentArray) {
+            return function(undefCallback) {
+                var module = loaded_code.get(moduleName);
+                if (module === undefined) {
+                    try {
+                        module = PS[moduleName];
+                    } catch(e) {
+                        try {
+                            module = require("../"+moduleName+"/index.js");
+                        } catch(e) {
+                            module = undefined
+                        }
+                    }
+                    if(module) {
+                        do_onload(module);
+                        loaded_code.set(moduleName, module);
+                    } else {
+                        return undefCallback();
+                    }
+                }
+                if (module) {
+                    var f = module[functionName];
+                    if (f) {
+                        return f(argumentArray);
+                    } else {
+                        return undefCallback();
+                    }
+                }
+            }
+        }
+    }
+}
 
 function do_spawn_1(action) {
     return function(pid_ctr) {
@@ -922,6 +949,7 @@ function do_make_ref_0(ref_ctr) {
 }
 
     return {
+        do_ffi_remote_fun_call: do_ffi_remote_fun_call,
         do_make_ref_0: do_make_ref_0,
         do_receive_2: do_receive_2,
         do_send_2: do_send_2,
@@ -934,6 +962,7 @@ function do_make_ref_0(ref_ctr) {
 
 }();
 
+exports.do_ffi_remote_fun_call = RUNTIME.do_ffi_remote_fun_call;
 exports.system = RUNTIME.system;
 exports.do_make_ref_0 = RUNTIME.do_make_ref_0;
 exports.do_receive_2 = RUNTIME.do_receive_2;
