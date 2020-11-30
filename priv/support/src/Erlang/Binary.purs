@@ -4,7 +4,6 @@ import Prelude
 import Erlang.Type
 import Erlang.Exception as EXC
 import Node.Buffer as Buffer
--- import Node.Buffer.Unsafe as Buffer
 import Node.Buffer(Buffer)
 import Node.Encoding
 import Data.Num (class Num, fromBigInt)
@@ -58,22 +57,26 @@ packed_size _ = EXC.badarg unit
 
 chop_int :: Buffer.Buffer -> Int -> Int -> Endian -> Sign -> BinResult
 chop_int buf size unit endian sign = unsafePerformEffect $ do
-  let chopSize = size * unit `div` 8
+  let chopSize = (size * unit) / 8
   size <- Buffer.size buf
   if size < chopSize
     then pure Nah
     else do
     let chop = Buffer.slice 0 chopSize buf
         rest = Buffer.slice chopSize size buf
-    pure $ Ok (
-      case endian of
-        Big    -> ErlangInt (decode_unsigned_big chop)
-        Little -> ErlangInt (decode_unsigned_little chop)
-      ) rest
+        nonSign = case endian of
+          Big    ->  (decode_unsigned_big chop)
+          Little ->  (decode_unsigned_little chop)
+        regSign = case sign of
+          Unsigned -> nonSign
+          Signed ->
+            let p = Int.pow 2 (chopSize * 8 - 1)
+            in if nonSign < p then nonSign else nonSign - p * 2
+    pure $ Ok (ErlangInt regSign) rest
 
 chop_bin :: Buffer.Buffer -> Int -> Int -> BinResult
 chop_bin buf size unit = unsafePerformEffect $ do
-  let chopSize = size * unit `div` 8
+  let chopSize = (size * unit) / 8
   size <- Buffer.size buf
   if size < chopSize
     then pure Nah
@@ -87,7 +90,7 @@ foreign import arrayToFloat64 :: Array Int -> Number
 chop_float :: Buffer.Buffer -> Int -> Int -> Endian -> BinResult
 chop_float buf size unit endian = unsafePerformEffect $ do
   bufSize <- Buffer.size buf
-  let chopSize = size * unit / 8
+  let chopSize = (size * unit) / 8
   if chopSize == 8 || chopSize == 4
     then do
       let chop = Buffer.slice 0 chopSize buf
@@ -130,7 +133,7 @@ decode_unsigned_little buf = unsafePerformEffect (Buffer.size buf >>= go buf 0) 
 
 from_int :: ErlangTerm -> ErlangTerm -> Int -> Endian -> Buffer
 from_int (ErlangInt n) (ErlangInt size) unit endian =
-  let bufSize = size * unit / 8
+  let bufSize = (size * unit) / 8
       build 0 _ acc = acc
       build x num acc = build (x - 1) (num / 256) (DL.Cons (num `mod` 256) acc)
       big = build bufSize n DL.Nil

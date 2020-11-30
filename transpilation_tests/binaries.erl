@@ -12,7 +12,7 @@ test_build_multi() ->
     <<1,2,3>>.
 test_build_string() ->
     <<"XD">>.
-test_build_sub() ->
+test_build_bin() ->
     <<<<1,2,3>>/binary>>.
 test_build_float() ->
     <<1.0/float>>.
@@ -45,4 +45,88 @@ test_build_float_32_unit() ->
 test_build_float_little() ->
     <<1/float-little>>.
 
+%% test_build_comprehension() ->
+%%     << <<X, Y:16>>
+%%        || L <- [[1], [2,3]], X <- L, Y <- [4] >>.
 
+add_two_numbers(A, B) ->
+    A + B.
+
+test_match_empty() ->
+    <<>> = <<>>,
+    ok.
+
+test_match_single() ->
+    <<1>> = <<1>>,
+    ok.
+
+test_match_single_var() ->
+    <<X>> = <<1>>,
+    X = 1,
+    ok.
+
+test_match_many() ->
+    <<X,2,Y,4>> = <<1,2,3,4>>,
+    X = 1,
+    Y = 3,
+    ok.
+
+test_match_int_size() ->
+    S = add_two_numbers(8, 16),
+    <<X:S>> = <<1,2,3>>,
+    X = 66051,
+    ok.
+
+test_match_int_size_unit() ->
+    S = add_two_numbers(1, 2),
+    <<X:S/unit:8>> = <<1,2,3>>,
+    X = 66051,
+    ok.
+
+test_match_int_little() ->
+    <<X:16/little>> = <<1:16>>,
+    X = 256,
+    ok.
+
+test_match_int_signed() ->
+    <<X/signed>> = <<128>>,
+    X = -128,
+    ok.
+
+test_match_int_mix() ->
+    <<X:3/unit:8-signed-little, Y, 9775:16/big, Z/unsigned>> =
+        <<735859:4/unit:8, 2502467:3/unit:8>>,
+    X = 3803904,
+    Y = 115,
+    Z = 67,
+    ok.
+
+test_match_string() ->
+    <<X, "XD", Y>> = <<1, 88, 68, 2>>,
+    X = 1,
+    Y = 2,
+    ok.
+
+test_match_bin() ->
+    <<B1:3/binary, X, B2:4/binary>> =
+        <<28666836:4/unit:8, 356327667:4/unit:8>>,
+    B1 = <<1,181,107>>,
+    X = 212,
+    B2 = <<21,61,32,243>>,
+    ok.
+
+test_match_bin_end() ->
+    <<1,2,X, B/binary>> = <<1,2,3,4,5,6,7,8>>,
+    X = 3,
+    B = <<4,5,6,7,8>>,
+    ok.
+
+test_match_float_64() ->
+    <<F/float>> = <<123/float>>,
+    F = 123.0,
+    ok.
+
+test_match_float_32() ->
+    <<F:32/float>> = <<123:32/float>>,
+    F = 123.0,
+    ok.

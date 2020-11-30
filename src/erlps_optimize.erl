@@ -158,7 +158,7 @@ peephole(_,
                 function = #expr_var{name = "Map.singleton"},
                 args = [K, V]
                });
-%% Map.fromFoldable [] -> Map.empty
+%% Map.fromFoldable [] --> Map.empty
 peephole(
   _,
   #expr_app{
@@ -166,6 +166,14 @@ peephole(
      args = [#expr_array{value = []}]
     }) ->
     #expr_var{name = "Map.empty"};
+%% BIN.concat [X] --> X
+peephole(
+  _,
+  #expr_app{
+     function = #expr_var{name = "BIN.concat"},
+     args = [#expr_array{value = [X]}]
+    }) ->
+    peephole(first, X);
 
 peephole(first, #expr_binop{name = Op, lop = Lop, rop = Rop}) ->
     peephole(second,
@@ -204,6 +212,23 @@ peephole(first, #do_let{lvalue = Pat, rvalue = Expr, guards = Guards}) ->
 peephole(first, #do_expr{expr = Expr}) ->
     peephole(second,
              #do_expr{expr = peephole(first, Expr)});
+peephole(first, #letval{lvalue = LV, rvalue = RV, guards = Guards}) ->
+    peephole(second,
+             #letval{
+                lvalue = LV,
+                rvalue = peephole(first, RV),
+                guards = peephole(first, Guards)
+               }
+            );
+peephole(first, #letfun{name = Name, args = Args, body = Body, guards = Guards}) ->
+    peephole(second,
+             #letfun{
+                name = Name,
+                args = Args,
+                body = peephole(first, Body),
+                guards = peephole(first, Guards)
+               }
+            );
 peephole(first, #guard_expr{guard = Expr}) ->
     peephole(second,
              #guard_expr{guard = peephole(first, Expr)});
@@ -270,9 +295,15 @@ constant_propagation(#expr_app{function = Fun, args = Args}, State) ->
     #expr_app{function = constant_propagation(Fun, State), args = constant_propagation(Args, State)};
 constant_propagation(#expr_array{value = Arr}, State) ->
     #expr_array{value = constant_propagation(Arr, State)};
-constant_propagation(#expr_case{expr = Expr, cases = Cases}, State) ->
-    #expr_case{expr = constant_propagation(Expr, State),
-               cases = [ {Pat, constant_propagation(Guards, State), constant_propagation(Cont, State)}
+constant_propagation(#expr_case{expr = Expr, cases = Cases}, State0) ->
+    #expr_case{expr = constant_propagation(Expr, State0),
+               cases = [ begin
+                             {Guards1, State1} = constant_propagation_guards(Guards, State0),
+                             { Pat
+                             , Guards1
+                             , constant_propagation(Cont, State1)
+                             }
+                         end
                          || {Pat, Guards, Cont} <- Cases
                        ]
               };

@@ -485,10 +485,9 @@ transpile_pattern({bin, _, []}, _) ->
     Var = state_create_fresh_var("bin_e"),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, [
         #guard_expr{guard =
-        #expr_binop{
-            name = "==",
-            lop = #expr_num{value = 0},
-            rop = #expr_app{function = #expr_var{name = "BIN.unboxed_byte_size"}, args = [#expr_var{name = Var}]}}}
+        #expr_app{
+            function = #expr_var{name = "BIN.empty"},
+            args = [#expr_var{name = Var}]}}
     ], []};
 transpile_pattern({bin, _, Segments}, Env) ->
     %% Ok the general hard part...

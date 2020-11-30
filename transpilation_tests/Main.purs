@@ -607,7 +607,7 @@ main =
         r <- exec_may_throw erlps__test_build_string__0 []
         bin [88,68] `shouldEqualOk` r
       it "Build subbinary" do
-        r <- exec_may_throw erlps__test_build_sub__0 []
+        r <- exec_may_throw erlps__test_build_bin__0 []
         bin [1,2,3] `shouldEqualOk` r
       it "Build float" do
         r <- exec_may_throw erlps__test_build_float__0 []
@@ -649,7 +649,54 @@ main =
         r <- exec_may_throw erlps__test_build_float_little__0 []
         bin [0,0,0,0,0,0,240,63] `shouldEqualOk` r
 
-    describe "Code server" do
+      -- it "Build comprehension" do
+      --   r <- exec_may_throw erlps__test_build_comprehension__0 []
+      --   bin [1,0,4,2,0,4,3,0,4] `shouldEqualOk` r
+
+      it "Match empty" do
+        r <- exec_may_throw erlps__test_match_empty__0 []
+        ok `shouldEqualOk` r
+      it "Match single" do
+        r <- exec_may_throw erlps__test_match_single__0 []
+        ok `shouldEqualOk` r
+      it "Match single var" do
+        r <- exec_may_throw erlps__test_match_single_var__0 []
+        ok `shouldEqualOk` r
+      it "Match many" do
+        r <- exec_may_throw erlps__test_match_many__0 []
+        ok `shouldEqualOk` r
+      it "Match int size" do
+        r <- exec_may_throw erlps__test_match_int_size__0 []
+        ok `shouldEqualOk` r
+      it "Match int size&unit" do
+        r <- exec_may_throw erlps__test_match_int_size_unit__0 []
+        ok `shouldEqualOk` r
+      it "Match int little" do
+        r <- exec_may_throw erlps__test_match_int_little__0 []
+        ok `shouldEqualOk` r
+      it "Match int signed" do
+        r <- exec_may_throw erlps__test_match_int_signed__0 []
+        ok `shouldEqualOk` r
+      it "Match int mix" do
+        r <- exec_may_throw erlps__test_match_int_mix__0 []
+        ok `shouldEqualOk` r
+      it "Match string" do
+        r <- exec_may_throw erlps__test_match_string__0 []
+        ok `shouldEqualOk` r
+      it "Match bin" do
+        r <- exec_may_throw erlps__test_match_bin__0 []
+        ok `shouldEqualOk` r
+      it "Match bin at the end" do
+        r <- exec_may_throw erlps__test_match_bin_end__0 []
+        ok `shouldEqualOk` r
+      it "Match float64" do
+        r <- exec_may_throw erlps__test_match_float_64__0 []
+        ok `shouldEqualOk` r
+      it "Match float32" do
+        r <- exec_may_throw erlps__test_match_float_32__0 []
+        ok `shouldEqualOk` r
+
+    describe_ "Code server" do
       it "Circular dependencies - One -> One local call" do
         r <- exec_may_throw C1.erlps__one__0 []
         (ErlangAtom "hello_from_module_one") `shouldEqualOk` r
