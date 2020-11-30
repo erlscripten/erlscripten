@@ -85,14 +85,31 @@ transpile_erlang_module(Forms) ->
                           {Export, Arity} <- ExportList
                       ]
               end,
-
+    OnLoad = [R || {on_load, R} <- Attributes],
+    ExtraDecl = case OnLoad of
+                  [{Callback, 0}] ->
+                    [#valdecl{name = "onload", type = #type_var{name = "ErlangFun"}, clauses = [#clause{args = [pat_wildcard], value = #expr_app{function = #expr_var{name = transpile_fun_name(Callback, 0)}, args = [#expr_array{value = []}]}}]}];
+                  _ ->
+                    []
+                end,
+    Exports1 = case Exports of
+      all ->
+        all;
+      _ ->
+        case ExtraDecl of
+          [_] ->
+            ["onload"|Exports];
+          _ ->
+            Exports
+        end
+    end,
     %% Dispatchers = [#top_clause{clause = Disp}
     %% || Disp <- make_dispatchers(FunctionForms)],
     #module{
        name = erlang_module_to_purs_module(ModuleName),
-       exports = Exports,
+       exports = Exports1,
        imports = DefaultImports ++ Imports,
-       decls = Decls %++ Dispatchers
+       decls = ExtraDecl ++ Decls %++ Dispatchers
       }.
 
 filter_module_attributes(Forms) ->
