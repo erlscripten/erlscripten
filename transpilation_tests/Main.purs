@@ -615,3 +615,33 @@ main =
       it "Build single" do
         r <- exec_may_throw erlps__test_build_single__0 []
         bin [1] `shouldEqualOk` r
+
+      it "Build int reg. size" do
+        r <- exec_may_throw erlps__test_build_int_size__0 []
+        bin [0,0,0,1] `shouldEqualOk` r
+      it "Build int reg. size&unit" do
+        r <- exec_may_throw erlps__test_build_int_size_unit__0 []
+        bin [0,0,0,1] `shouldEqualOk` r
+      it "Build int reg. little end" do
+        r <- exec_may_throw erlps__test_build_int_endian_little__0 []
+        bin [1,0,0,0] `shouldEqualOk` r
+      it "Build int reg. underflow" do
+        r <- exec_may_throw erlps__test_build_int_underflow__0 []
+        bin [255] `shouldEqualOk` r
+      it "Build int reg. overflow" do
+        r <- exec_may_throw erlps__test_build_int_overflow__0 []
+        bin [0] `shouldEqualOk` r
+
+      it "Build string reg. size&unit" do
+        r <- exec_may_throw erlps__test_build_string_size_unit__0 []
+        bin [0,88,0,68] `shouldEqualOk` r
+
+      it "Build float reg. size" do
+        r <- exec_may_throw erlps__test_build_float_32__0 []
+        bin [63,128,0,0] `shouldEqualOk` r
+      it "Build float reg. size&unit" do
+        r <- exec_may_throw erlps__test_build_float_32_unit__0 []
+        bin [63,128,0,0] `shouldEqualOk` r
+      it "Build float reg. little end" do
+        r <- exec_may_throw erlps__test_build_float_little__0 []
+        bin [0,0,0,0,0,0,240,63] `shouldEqualOk` r

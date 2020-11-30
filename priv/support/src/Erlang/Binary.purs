@@ -133,11 +133,11 @@ from_int (ErlangInt n) (ErlangInt size) unit endian =
   let bufSize = size * unit / 8
       build 0 _ acc = acc
       build x num acc = build (x - 1) (num / 256) (DL.Cons (num `mod` 256) acc)
-      little = build bufSize n DL.Nil
+      big = build bufSize n DL.Nil
   in fromFoldable $
     case endian of
-      Big -> DL.reverse little
-      Little -> little
+      Big -> big
+      Little -> DL.reverse big
 from_int _ _ _ _ = EXC.badarg unit
 
 foreign import float32ToArray :: Number -> Array Int

@@ -24,7 +24,7 @@ test_build_int_size() ->
 test_build_int_size_unit() ->
     <<1:4/unit:8>>.
 test_build_int_endian_little() ->
-    <<1:16/little>>.
+    <<1:32/little>>.
 test_build_int_underflow() ->
     <<-1>>.
 test_build_int_overflow() ->
