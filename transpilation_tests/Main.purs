@@ -649,9 +649,9 @@ main =
         r <- exec_may_throw erlps__test_build_float_little__0 []
         bin [0,0,0,0,0,0,240,63] `shouldEqualOk` r
 
-      -- it "Build comprehension" do
-      --   r <- exec_may_throw erlps__test_build_comprehension__0 []
-      --   bin [1,0,4,2,0,4,3,0,4] `shouldEqualOk` r
+      it "Build comprehension" do
+        r <- exec_may_throw erlps__test_build_comprehension__0 []
+        bin [1,0,4,2,0,4,3,0,4] `shouldEqualOk` r
 
       it "Match empty" do
         r <- exec_may_throw erlps__test_match_empty__0 []

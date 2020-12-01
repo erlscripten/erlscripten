@@ -45,9 +45,8 @@ test_build_float_32_unit() ->
 test_build_float_little() ->
     <<1/float-little>>.
 
-%% test_build_comprehension() ->
-%%     << <<X, Y:16>>
-%%        || L <- [[1], [2,3]], X <- L, Y <- [4] >>.
+test_build_comprehension() ->
+    << <<X, Y:16>> || X <- [1,2,3], Y <- [4] >>.
 
 add_two_numbers(A, B) ->
     A + B.
