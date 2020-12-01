@@ -664,14 +664,14 @@ parse_bin_segment_spec(Element, default) ->
     parse_bin_segment_spec(Element, []);
 parse_bin_segment_spec(_Element, Spec) ->
     F = fun(Keys, Default) -> [Res|_] = [Y || X <- Spec, Y <- Keys, X =:= Y] ++ [Default], Res end,
-    Type = F([integer, float, binary, bitstrings], integer),
+    Type = F([integer, float, binary, bits], integer),
     Sign = F([unsigned, signed], unsigned),
     Endian = F([little, big], big), %% native :P
     Unit = proplists:get_value(
              unit, Spec, case Type of
                              integer -> 1;
                              float -> 1;
-                             bitstring -> 1;
+                             bits -> 1;
                              binary -> 8;
                              _ -> error({todo, Type, i_was_to_lazy_to_check_this_case})
                          end),

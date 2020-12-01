@@ -8,6 +8,7 @@ import Data.Maybe as DM
 import Data.Array as DA
 import Data.List as DL
 import Data.Int as DI
+import Data.Int.Bits as DIB
 import Math
 import Control.Monad
 import Effect.Exception (throw)
@@ -462,17 +463,17 @@ erlang__op_not [_] = EXC.badarg unit
 erlang__op_not args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__op_not-}) args
 
 erlang__bor__2 :: ErlangFun
-erlang__bor__2 args = unimplemented "erlang__bor__2"
+erlang__bor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.or a b
 erlang__bor__2 [_,_] = EXC.badarg unit
 erlang__bor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bor__2-}) args
 
 erlang__bnot__1 :: ErlangFun
-erlang__bnot__1 args = unimplemented "erlang__bnot__1"
+erlang__bnot__1 [ErlangInt a] = ErlangInt $ DIB.complement a
 erlang__bnot__1 [_] = EXC.badarg unit
 erlang__bnot__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__bnot__1-}) args
 
 erlang__bxor__2 :: ErlangFun
-erlang__bxor__2 args = unimplemented "erlang__bxor__2"
+erlang__bxor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.xor a b
 erlang__bxor__2 [_,_] = EXC.badarg unit
 erlang__bxor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bxor__2-}) args
 
@@ -482,7 +483,7 @@ erlang__or__2 [_,_] = EXC.badarg unit
 erlang__or__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__or__2-}) args
 
 erlang__bsr__2 :: ErlangFun
-erlang__bsr__2 args = unimplemented "erlang__bsr__2"
+erlang__bsr__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shr a b
 erlang__bsr__2 [_,_] = EXC.badarg unit
 erlang__bsr__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsr__2-}) args
 
@@ -492,12 +493,12 @@ erlang__xor__2 [_,_] = EXC.badarg unit
 erlang__xor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__xor__2-}) args
 
 erlang__bsl__2 :: ErlangFun
-erlang__bsl__2 args = unimplemented "erlang__bsl__2"
+erlang__bsl__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shl a b
 erlang__bsl__2 [_,_] = EXC.badarg unit
 erlang__bsl__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsl__2-}) args
 
 erlang__band__2 :: ErlangFun
-erlang__band__2 args = unimplemented "erlang__band__2"
+erlang__band__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.and a b
 erlang__band__2 [_,_] = EXC.badarg unit
 erlang__band__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__band__2-}) args
 

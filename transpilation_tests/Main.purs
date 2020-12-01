@@ -42,7 +42,7 @@ import Ordering
 import Binaries
 import Test.Array
 import Array.SUITE
-import Base64.SUITE as B64S
+--import Base64.SUITE as B64S
 import Cancer
 import Circular.One as C1
 import Circular.Two as C2
@@ -87,7 +87,7 @@ print_err (Left e) =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    liftEffect $ log $ print_err res -- Uncomment for logs :)
+    -- liftEffect $ log $ print_err res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
@@ -579,13 +579,13 @@ main =
         r <- exec_may_throw erlps__test_wtf__0 []
         ok `shouldEqualOk` r
 
-    describe "Real b64 tests from OTP" do
-      it "base64_encode" do
-            r <- exec_may_throw B64S.erlps__base64_encode__1 [ErlangEmptyList]
-            make_ok (ErlangAtom "ok") `shouldEqual` r
-      it "base64_decode" do
-            r <- exec_may_throw B64S.erlps__base64_decode__1 [ErlangEmptyList]
-            make_ok (ErlangAtom "ok") `shouldEqual` r
+    --describe "Real b64 tests from OTP" do
+    --  it "base64_encode" do
+    --        r <- exec_may_throw B64S.erlps__base64_encode__1 [ErlangEmptyList]
+    --        make_ok (ErlangAtom "ok") `shouldEqual` r
+    --  it "base64_decode" do
+    --        r <- exec_may_throw B64S.erlps__base64_decode__1 [ErlangEmptyList]
+    --        make_ok (ErlangAtom "ok") `shouldEqual` r
 
     describe_ "Processes OwO" do
       it "can spawn" do
