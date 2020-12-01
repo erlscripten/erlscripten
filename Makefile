@@ -1,12 +1,6 @@
 
-build_ffi: priv/ffi_es6_builtins.js
-	npm run babel
-
-build_parse_transform: src/*.erl src/*.hrl build_ffi
+build_parse_transform: src/*.erl src/*.hrl
 	./rebar3 compile
-	# Ok now it's time to bootstrap IO
-	./rebar3 escriptize
-	./erlscripten -s _build/default/lib/erlscripten/ebin/erlang_io.beam -o priv/support/src/Erlang/IO.purs
 
 build_transpilation_tests: build_parse_transform transpilation_tests/*.erl
 	echo "Building transpilation_tests"

@@ -13,9 +13,9 @@ You can edit this file as you like.
   , "lists"
   , "node-buffer"
   , "psci-support"
-  , "purescript-numerics"
   , "rationals"
   , "spec"
+  , "purescript-erlps-core"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

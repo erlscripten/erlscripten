@@ -1,29 +1,20 @@
 {
-  "name": "erlscripten-ffi-builder",
+  "name": "erlscripten",
   "version": "1.0.0",
-  "description": "![](images/demo1.gif)",
-  "main": "index.js",
+  "description": "ERTS emulation in purescript",
   "dependencies": {
-    "@babel/cli": "^7.12.7",
-    "babel-cli": "^6.26.0",
-    "core-js": "^3.7.0"
+    "core-js": "^3.7.0",
+    "regenerator-runtime": "^0.13.7"
   },
-  "devDependencies": {
-    "@babel/core": "^7.12.7",
-    "@babel/preset-env": "^7.12.7"
-  },
-  "scripts": {
-    "babel": "babel priv/ffi_es6_builtins.js > priv/support/src/Erlang/Builtins.js; babel priv/ffi_es6_invoke.js > priv/support/src/Erlang/Invoke.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "scripts": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gorbak25/erlscripten.git"
+    "url": "git+https://github.com/erlscripten/erlscripten.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/gorbak25/erlscripten/issues"
+    "url": "https://github.com/erlscripten/erlscripten/issues"
   },
-  "homepage": "https://github.com/gorbak25/erlscripten#readme"
+  "homepage": "https://github.com/erlscripten/erlscripten#readme"
 }
