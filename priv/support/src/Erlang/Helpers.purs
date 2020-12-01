@@ -6,6 +6,8 @@ import Data.Maybe as DM
 import Data.List as DL
 import Data.Array as DA
 import Data.String as Str
+import Data.BigInt as DBI
+import Data.Int as DI
 import Data.String.CodePoints as StrCP
 import Data.Foldable
 
@@ -46,19 +48,19 @@ isEFun (ErlangFun _ _) = true
 isEFun _ = false
 
 isEFunA :: ErlangTerm -> ErlangTerm -> Boolean
-isEFunA (ErlangFun a0 _) (ErlangInt a1) = a0 == a1
+isEFunA (ErlangFun a0 _) (ErlangInt a1) = DBI.fromInt a0 == a1
 isEFunA _ _ = false
 
 isEMap :: ErlangTerm -> Boolean
 isEMap (ErlangMap _) = true
 isEMap _ = false
 
-erlToInt :: ErlangTerm -> Int
+erlToInt :: ErlangTerm -> DBI.BigInt
 erlToInt (ErlangInt x) = x
 erlToInt _ = error "bad int"
 
 -- They removed support of it. CodePoint is just a newtype for Int.
-codePointToInt :: StrCP.CodePoint -> Int
+codePointToInt :: StrCP.CodePoint -> DBI.BigInt
 codePointToInt = unsafeCoerce
 
 make_string :: String -> ErlangTerm
@@ -74,3 +76,6 @@ flmap f list = unsafePartial $ erflat (ermap list ErlangEmptyList) ErlangEmptyLi
   erflat ErlangEmptyList acc = acc
   erflat (ErlangCons ErlangEmptyList rest) acc = erflat rest acc
   erflat (ErlangCons (ErlangCons h t) rest) acc = erflat (ErlangCons t rest) (ErlangCons h acc)
+
+bigIntToInt :: DBI.BigInt -> DM.Maybe Int
+bigIntToInt = DBI.toNumber >>> DI.fromNumber

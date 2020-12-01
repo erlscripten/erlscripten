@@ -428,7 +428,7 @@ constant_propagation_guards(
             constant_propagation_guards(Rest, Acc, State#{Var => RVArg1});
         false ->
             constant_propagation_guards(
-              Rest, [#guard_assg{lvalue = #pat_var{name = var}, rvalue = RVArg1}|Acc], State)
+              Rest, [#guard_assg{lvalue = #pat_var{name = Var}, rvalue = RVArg1}|Acc], State)
     end;
 
 constant_propagation_guards([#guard_assg{lvalue = LV, rvalue = RV}|Rest], Acc, State) ->

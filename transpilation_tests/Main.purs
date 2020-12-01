@@ -25,6 +25,7 @@ import Data.Either
 import Data.Tuple as T
 import Data.Array as A
 import Data.Maybe as M
+import Data.BigInt as DBI
 import Partial.Unsafe
 import Erlang.Type
 import Erlang.Exception
@@ -43,6 +44,7 @@ import Binaries
 import Test.Array
 import Array.SUITE
 import Cancer
+import Basics
 import Circular.One as C1
 import Circular.Two as C2
 import Test.Onload as C3
@@ -106,7 +108,7 @@ lift_aff_to_erlang_process calc = do
                             AVar.put res res_channel
                         )
                     in
-                       ErlangInt 1))]
+                       ErlangInt (DBI.fromInt 1)))]
             -- At this point we never yielded so the process MUST be alive
             pid <- unpack_ok packed_pid
             AVar.put pid pid_channel
@@ -131,40 +133,43 @@ unpack_ok _ = do
     1 `shouldEqual` 0
     pure ErlangEmptyList
 
+mkInt :: Int -> ErlangTerm
+mkInt = DBI.fromInt >>> ErlangInt
+
 test_reverse a = do
-    let input = arrayToErlangList $ map ErlangInt a
-    let output = make_ok $ arrayToErlangList $ map ErlangInt (A.reverse a)
+    let input = arrayToErlangList $ map mkInt a
+    let output = make_ok $ arrayToErlangList $ map mkInt (A.reverse a)
     res <- exec_may_throw erlps__reverse__1 [input]
     output `shouldEqual` res
 
 test_sort a = do
-    let input = arrayToErlangList $ map ErlangInt a
-    let output = make_ok $ arrayToErlangList $ map ErlangInt (A.sort a)
+    let input = arrayToErlangList $ map mkInt a
+    let output = make_ok $ arrayToErlangList $ map mkInt (A.sort a)
     res <- exec_may_throw erlps__sort__1 [input]
     output `shouldEqual` res
 
 test_map a ef pf = do
-    let input = arrayToErlangList $ map ErlangInt a
-    let output = make_ok $ arrayToErlangList $ map ErlangInt (map pf a)
+    let input = arrayToErlangList $ map mkInt a
+    let output = make_ok $ arrayToErlangList $ map mkInt (map pf a)
     res <- exec_may_throw erlps__map__2 [ef, input]
     output `shouldEqual` res
 
 test_zip_ok a b = do
-    let input_a = arrayToErlangList $ map ErlangInt a
-    let input_b = arrayToErlangList $ map ErlangInt b
-    let output = make_ok $ arrayToErlangList $ map (\(T.Tuple x y) -> ErlangTuple [x,y]) (A.zip (map ErlangInt a) (map ErlangInt b))
+    let input_a = arrayToErlangList $ map mkInt a
+    let input_b = arrayToErlangList $ map mkInt b
+    let output = make_ok $ arrayToErlangList $ map (\(T.Tuple x y) -> ErlangTuple [x,y]) (A.zip (map mkInt a) (map mkInt b))
     res <- exec_may_throw erlps__zip__2 [input_a, input_b]
     output `shouldEqual` res
 
 test_zip_fail a b = do
-    let input_a = arrayToErlangList $ map ErlangInt a
-    let input_b = arrayToErlangList $ map ErlangInt b
+    let input_a = arrayToErlangList $ map mkInt a
+    let input_b = arrayToErlangList $ map mkInt b
     res <- exec_may_throw erlps__zip__2 [input_a, input_b]
     make_err `shouldEqual` res
 
 test_seq from to expected = do
-    calc <- exec_may_throw erlps__seq__2 [ErlangInt from, ErlangInt to]
-    let out = make_ok $ arrayToErlangList $ map ErlangInt expected
+    calc <- exec_may_throw erlps__seq__2 [mkInt from, mkInt to]
+    let out = make_ok $ arrayToErlangList $ map mkInt expected
     out `shouldEqual` calc
 
 shouldEqualOk a b = make_ok a `shouldEqual` b
@@ -186,6 +191,14 @@ main =
         it "two should equal two" do
             2 `shouldEqual` 2
 
+    describe_ "Basics" do
+        it "2 + 2" do
+            r <- exec_may_throw erlps__test_two_plus_two__0 []
+            mkInt 4 `shouldEqualOk` r
+        it "Factorial" do
+            r <- exec_may_throw erlps__test_factorial__1 [mkInt 6]
+            mkInt 720 `shouldEqualOk` r
+
     describe_ "STDLIB Lists" do
         it "reverse/1" do
             test_reverse [1,2,3,4,5,6,7,8,9,10]
@@ -198,7 +211,8 @@ main =
             test_sort [5,3,34,6,2,5,7565,4,3,7,8,5,3]
         it "map/1" do
             test_map [1,2,3,4,5]
-              (ErlangFun 1 (unsafePartial $ \ [ErlangInt a] -> ErlangInt (a*20))) (\x -> x*20)
+              (ErlangFun 1 (unsafePartial $ \ [ErlangInt a] -> ErlangInt (a * DBI.fromInt 20)))
+              (\x -> x * 20)
             test_map [1,2,3,4,5]
               (ErlangFun 1 (unsafePartial $ \ [ErlangInt a] -> ErlangInt (-a))) (\x -> -x)
         it "zip/2" do
@@ -411,13 +425,13 @@ main =
 
       it "Test index 1" do
         r <- exec_may_throw erlps__test_index_1__0 []
-        ErlangInt 3 `shouldEqualOk` r
+        mkInt 3 `shouldEqualOk` r
       it "Test index 2" do
         r <- exec_may_throw erlps__test_index_2__0 []
-        ErlangInt 2 `shouldEqualOk` r
+        mkInt 2 `shouldEqualOk` r
       it "Test index 3" do
         r <- exec_may_throw erlps__test_index_3__0 []
-        ErlangInt 3 `shouldEqualOk` r
+        mkInt 3 `shouldEqualOk` r
 
     let dropStack (ErlangTuple [t, p, _]) = ErlangTuple [t, p]
         dropStack _ = ErlangAtom "bad_exception"
@@ -526,25 +540,25 @@ main =
         r <- exec_may_throw erlps__test_nasty_nest__0 []
         ok `shouldEqualOk` r
       it "Factorial on exceptions" do
-        r1 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangInt 1]
-        ErlangInt 1 `shouldEqualOk` r1
-        r2 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangInt 4]
-        ErlangInt 24 `shouldEqualOk` r2
-        r3 <- exec_may_throw erlps__test_sick_factorial__1 [ErlangInt 6]
-        ErlangInt 720 `shouldEqualOk` r3
+        r1 <- exec_may_throw erlps__test_sick_factorial__1 [mkInt 1]
+        mkInt 1 `shouldEqualOk` r1
+        r2 <- exec_may_throw erlps__test_sick_factorial__1 [mkInt 4]
+        mkInt 24 `shouldEqualOk` r2
+        r3 <- exec_may_throw erlps__test_sick_factorial__1 [mkInt 6]
+        mkInt 720 `shouldEqualOk` r3
       it "Continuational fold left on exceptions" do
         r1 <- exec_may_throw erlps__test_completely_casual_foldl__3
              [ ErlangFun 2 BIF.erlang__op_plus
-             , ErlangInt 0
-             , arrayToErlangList (map ErlangInt [1,2,3,4])
+             , mkInt 0
+             , arrayToErlangList (map mkInt [1,2,3,4])
              ]
-        ErlangInt 10 `shouldEqualOk` r1
+        mkInt 10 `shouldEqualOk` r1
         r2 <- exec_may_throw erlps__test_completely_casual_foldl__3
              [ ErlangFun 2 BIF.erlang__op_div
-             , ErlangInt 210
-             , arrayToErlangList (map ErlangInt [2,3,5,7])
+             , mkInt 210
+             , arrayToErlangList (map mkInt [2,3,5,7])
              ]
-        ErlangInt 1 `shouldEqualOk` r2
+        mkInt 1 `shouldEqualOk` r2
       it "Deprecated catch / throw" do
         r <- exec_may_throw erlps__test_deprecated_catch_throw__0 []
         ok `shouldEqualOk` r

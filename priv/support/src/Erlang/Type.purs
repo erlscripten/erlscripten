@@ -16,7 +16,7 @@ import Effect.Exception (throw)
 type ErlangFun = Array ErlangTerm -> ErlangTerm
 
 data ErlangTerm
-    = ErlangInt       Int
+    = ErlangInt       DBI.BigInt
     | ErlangFloat     Number
     | ErlangAtom      String
     | ErlangCons      ErlangTerm ErlangTerm
@@ -94,38 +94,40 @@ compareErlangTermImpl (ErlangMap m1) (ErlangMap m2) =
     EQ ->
       let l1 :: DL.List (DT.Tuple ErlangTerm ErlangTerm)
           l1 = Map.toUnfoldable m1
-          l2 = Map.toUnfoldable m2 -- FIXME erlang float vs int ordering
+          l2 = Map.toUnfoldable m2
       in compare l1 l2
     _ -> sizeCMP
 
-compareErlangTermImpl   (ErlangBinary _)  _ = GT
-compareErlangTermImpl   (ErlangCons _ _)  _ = GT
-compareErlangTermImpl   (ErlangEmptyList) _ = GT
-compareErlangTermImpl   (ErlangMap _)     _ = GT
-compareErlangTermImpl   (ErlangTuple _)   _ = GT
-compareErlangTermImpl   (ErlangFun _ _)   _ = GT
-compareErlangTermImpl   (ErlangAtom _)    _ = GT
-compareErlangTermImpl   (ErlangInt _)     _ = GT
+compareErlangTermImpl   (ErlangBinary _)    _ = GT
+compareErlangTermImpl   (ErlangCons _ _)    _ = GT
+compareErlangTermImpl   (ErlangEmptyList)   _ = GT
+compareErlangTermImpl   (ErlangMap _)       _ = GT
+compareErlangTermImpl   (ErlangTuple _)     _ = GT
+compareErlangTermImpl   (ErlangFun _ _)     _ = GT
+compareErlangTermImpl   (ErlangAtom _)      _ = GT
+compareErlangTermImpl   (ErlangPID _)       _ = LT
+compareErlangTermImpl   (ErlangReference _) _ = LT
+compareErlangTermImpl   (ErlangFloat _)     _ = LT
+compareErlangTermImpl   (ErlangInt _)       _ = GT
 
-compareErlangTermImpl _ (ErlangInt _)       = LT
+compareErlangTermImpl _ (ErlangInt _)         = LT
 compareErlangTermImpl _ (ErlangFloat _)       = LT
-compareErlangTermImpl _ (ErlangReference _)       = LT
-compareErlangTermImpl _ (ErlangPID _)       = LT
-compareErlangTermImpl _ (ErlangAtom _)      = LT
-compareErlangTermImpl _ (ErlangFun _ _)     = LT
-compareErlangTermImpl _ (ErlangTuple _)     = LT
-compareErlangTermImpl _ (ErlangMap _)       = LT
-compareErlangTermImpl _ (ErlangEmptyList)   = LT
-compareErlangTermImpl _ (ErlangCons _ _)    = LT
-compareErlangTermImpl _ (ErlangBinary _)    = LT
+compareErlangTermImpl _ (ErlangReference _)   = LT
+compareErlangTermImpl _ (ErlangPID _)         = LT
+compareErlangTermImpl _ (ErlangAtom _)        = LT
+compareErlangTermImpl _ (ErlangFun _ _)       = LT
+compareErlangTermImpl _ (ErlangTuple _)       = LT
+compareErlangTermImpl _ (ErlangMap _)         = LT
+compareErlangTermImpl _ (ErlangEmptyList)     = LT
+compareErlangTermImpl _ (ErlangCons _ _)      = LT
+compareErlangTermImpl _ (ErlangBinary _)      = LT
 
 instance ordErlangTerm :: Ord ErlangTerm where
     compare = compareErlangTermImpl
 
 
 concatArrays :: Buffer -> Buffer -> Effect (Buffer)
-concatArrays a b = do
-    concat [a, b]
+concatArrays a b = concat [a, b]
 
 instance semigroupErlangTerm :: Semigroup ErlangTerm where
      append (ErlangBinary a) (ErlangBinary b) = ErlangBinary $ unsafePerformEffect (concatArrays a b)

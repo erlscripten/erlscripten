@@ -11,6 +11,7 @@ import Data.List as DL
 import Data.Int as DI
 import Data.Int.Bits as DIB
 import Data.Map as Map
+import Data.BigInt as DBI
 import Math
 import Control.Monad
 import Effect.Exception (throw)
@@ -94,7 +95,8 @@ erlang__apply__3 [_,_,_] = EXC.badarg unit
 erlang__apply__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__apply__3-}) args
 
 erlang__make_fun__3 :: ErlangFun
-erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangInt arity] =
+erlang__make_fun__3 [m@(ErlangAtom _), f@(ErlangAtom _), ErlangInt barity]
+  | DM.Just arity <- H.bigIntToInt barity =
     ErlangFun arity
         (\ args -> erlang__apply__3 [m, f, arrayToErlangList args] )
 erlang__make_fun__3 [_,_,_] = EXC.badarg unit
@@ -108,14 +110,14 @@ math__pi__0 [] = ErlangFloat pi
 math__pi__0 args = EXC.badarity (ErlangFun 0 purs_tco_sucks {-math__pi__0-}) args
 
 math_arr1 :: Array ErlangTerm -> (Number -> Number) -> ErlangTerm
-math_arr1 [ErlangInt num] f = math_arr1 [ErlangFloat $ DI.toNumber num] f
+math_arr1 [ErlangInt num] f = math_arr1 [ErlangFloat $ DBI.toNumber num] f
 math_arr1 [ErlangFloat arg] f = ErlangFloat (f arg)
 math_arr1 [_] _ = EXC.badarg unit
 math_arr1 args _ = EXC.badarity (ErlangFun 1 purs_tco_sucks {-math_arr1_1-}) args
 
 math_arr2 :: Array ErlangTerm -> (Number -> Number -> Number) -> ErlangTerm
-math_arr2 [ErlangInt num, arg2] f = math_arr2 [ErlangFloat $ DI.toNumber num, arg2] f
-math_arr2 [arg1, ErlangInt num] f = math_arr2 [arg1, ErlangFloat $ DI.toNumber num] f
+math_arr2 [ErlangInt num, arg2] f = math_arr2 [ErlangFloat $ DBI.toNumber num, arg2] f
+math_arr2 [arg1, ErlangInt num] f = math_arr2 [arg1, ErlangFloat $ DBI.toNumber num] f
 math_arr2 [ErlangFloat arg1, ErlangFloat arg2] f = ErlangFloat (f arg1 arg2)
 math_arr2 [_] _ = EXC.badarg unit
 math_arr2 args _ = EXC.badarity (ErlangFun 2 purs_tco_sucks {-math_arr2_1-}) args
@@ -150,8 +152,7 @@ math__pow__2 args = math_arr2 args pow
 math__fmod__2 args = math_arr2 args (%)
 
 erlang__abs__1 :: ErlangFun
-erlang__abs__1 [ErlangInt a] | a >= 0 = ErlangInt a
-erlang__abs__1 [ErlangInt a] = ErlangInt (-a)
+erlang__abs__1 [ErlangInt a] = ErlangInt (DBI.abs a)
 erlang__abs__1 [ErlangFloat a] = ErlangFloat (abs a)
 erlang__abs__1 [_] = EXC.badarg unit
 erlang__abs__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__abs__1-}) args
@@ -176,7 +177,8 @@ erlang__float__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__float
 
 lists__keysearch__3 :: ErlangFun
 lists__keysearch__3 [_, _, ErlangEmptyList] = boolToTerm false
-lists__keysearch__3 [key, idx@(ErlangInt idxNum), ErlangCons el rest] = case el of
+lists__keysearch__3 [key, idx@(ErlangInt bidxNum), ErlangCons el rest]
+  | DM.Just idxNum <- H.bigIntToInt bidxNum = case el of
   ErlangTuple tup | DM.Just x <- DA.index tup idxNum  ->
     case erlang__op_exactEq [x, key] of
       ErlangAtom "true" -> (ErlangTuple [ErlangAtom "value", el])
@@ -187,7 +189,8 @@ lists__keysearch__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-lists__key
 
 lists__keymember__3 :: ErlangFun
 lists__keymember__3 [_, _, ErlangEmptyList] = boolToTerm false
-lists__keymember__3 [key, idx@(ErlangInt idxNum), ErlangCons el rest] = case el of
+lists__keymember__3 [key, idx@(ErlangInt bidxNum), ErlangCons el rest]
+  | DM.Just idxNum <- H.bigIntToInt bidxNum = case el of
   ErlangTuple tup | DM.Just x <- DA.index tup idxNum  ->
     case erlang__op_exactEq [x, key] of
       ErlangAtom "true" -> ErlangAtom "true"
@@ -213,7 +216,8 @@ lists__member__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-lists__member
 
 lists__keyfind__3 :: ErlangFun
 lists__keyfind__3 [_, _, ErlangEmptyList] = boolToTerm false
-lists__keyfind__3 [key, idx@(ErlangInt idxNum), ErlangCons el rest] = case el of
+lists__keyfind__3 [key, idx@(ErlangInt bidxNum), ErlangCons el rest]
+  | DM.Just idxNum <- H.bigIntToInt bidxNum = case el of
   ErlangTuple tup | DM.Just x <- DA.index tup idxNum  ->
     case erlang__op_exactEq [x, key] of
       ErlangAtom "true" -> el
@@ -238,10 +242,10 @@ erlang__append__2 [_,_] = EXC.badarg unit
 erlang__append__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__append__2-}) args
 
 erlang__length__1 :: ErlangFun
-erlang__length__1 [ErlangEmptyList] = ErlangInt 0
+erlang__length__1 [ErlangEmptyList] = ErlangInt (DBI.fromInt 0)
 erlang__length__1 [ErlangCons _ t] =
     case erlang__length__1 [t] of
-      ErlangInt tl -> ErlangInt $ tl+1
+      ErlangInt tl -> ErlangInt $ tl + (DBI.fromInt 1)
       _ -> EXC.badarg unit
 erlang__length__1 [_] = EXC.badarg unit
 erlang__length__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__length__1-}) args
@@ -333,15 +337,16 @@ maps__values__1 [m] = EXC.badmap m
 maps__values__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-maps__values__1-}) args
 
 erts_internal__map_next__3 :: ErlangFun
-erts_internal__map_next__3 [ErlangInt 0, ErlangMap m, ErlangAtom "iterator"] =
+erts_internal__map_next__3 [ErlangInt bi, ErlangMap m, ErlangAtom "iterator"]
+  | DM.Just 0 <- H.bigIntToInt bi =
     case Map.findMin m of
         DM.Nothing -> ErlangAtom "none"
-        DM.Just ({key: k, value: v}) -> ErlangTuple [k, v, ErlangCons (ErlangInt 0) (ErlangMap $ Map.delete k m)]
+        DM.Just ({key: k, value: v}) -> ErlangTuple [k, v, ErlangCons (ErlangInt (DBI.fromInt 0)) (ErlangMap $ Map.delete k m)]
 erts_internal__map_next__3 [_, m, _] = EXC.badmap m
 erts_internal__map_next__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erts_internal__map_next__3-}) args
 
 erlang__map_size__1 :: ErlangFun
-erlang__map_size__1 [ErlangMap m] = ErlangInt $ Map.size m
+erlang__map_size__1 [ErlangMap m] = ErlangInt $ DBI.fromInt $ Map.size m
 erlang__map_size__1 [m] = EXC.badmap m
 erlang__map_size__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__map_size__1-}) args
 
@@ -356,12 +361,16 @@ erlang__map_get__2 args = maps__get__2 args
 
 -- =/=
 erlang__op_exactNeq :: ErlangFun
+erlang__op_exactNeq [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i /= f)
+erlang__op_exactNeq [ErlangFloat f, ErlangInt i] = boolToTerm (DBI.toNumber i /= f)
 erlang__op_exactNeq [a, b] = boolToTerm (a /= b)  -- FIXME (funs)
 erlang__op_exactNeq [_, _] = EXC.badarg unit
 erlang__op_exactNeq args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_exactNeq-}) args
 
 -- =:=
 erlang__op_exactEq :: ErlangFun
+erlang__op_exactEq [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i == f)
+erlang__op_exactEq [ErlangFloat f, ErlangInt i] = boolToTerm (DBI.toNumber i == f)
 erlang__op_exactEq [a, b] = boolToTerm (a == b) -- FIXME (funs)
 erlang__op_exactEq [_, _] = EXC.badarg unit
 erlang__op_exactEq args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_exactEq-}) args
@@ -415,23 +424,23 @@ erlang__op_orelse args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_o
 -- /
 erlang__op_div :: ErlangFun
 erlang__op_div [ErlangInt a, ErlangInt b] = ErlangInt (a / b)
-erlang__op_div [ErlangInt a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) / b)
-erlang__op_div [ErlangFloat a, ErlangInt b] = ErlangFloat (a / (DI.toNumber b))
+erlang__op_div [ErlangInt a, ErlangFloat b] = ErlangFloat ((DBI.toNumber a) / b)
+erlang__op_div [ErlangFloat a, ErlangInt b] = ErlangFloat (a / (DBI.toNumber b))
 erlang__op_div [ErlangFloat a, ErlangFloat b] = ErlangFloat (a / b)
 erlang__op_div [_, _] = EXC.badarg unit
 erlang__op_div args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_div-}) args
 
 -- 'div'
 erlang__op_div_strict :: ErlangFun
-erlang__op_div_strict [ErlangInt a, ErlangInt b] = ErlangInt (a `div` b)
+erlang__op_div_strict [ErlangInt a, ErlangInt b] = ErlangInt (a / b)
 erlang__op_div_strict [_, _] = EXC.badarg unit
 erlang__op_div_strict args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_div-}) args
 
 -- %
 erlang__op_rem :: ErlangFun
 erlang__op_rem [ErlangInt left, ErlangInt right] = ErlangInt (mod left right)
---erlang__op_rem [ErlangInt a, ErlangFloat b] = ErlangInt ((DI.toNumber a) / b) -- FIXME
---erlang__op_rem [ErlangFloat a, ErlangInt b] = ErlangFloat (a / (DI.toNumber b)) -- FIXME
+--erlang__op_rem [ErlangInt a, ErlangFloat b] = ErlangInt ((DBI.toNumber a) / b) -- FIXME
+--erlang__op_rem [ErlangFloat a, ErlangInt b] = ErlangFloat (a / (DBI.toNumber b)) -- FIXME
 erlang__op_rem [ErlangFloat a, ErlangFloat b] = ErlangFloat (a % b)
 erlang__op_rem [_,_] = EXC.badarg unit
 erlang__op_rem args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__rem__2-}) args
@@ -445,8 +454,8 @@ erlang__op_rem_strict args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__
 -- *
 erlang__op_mult :: ErlangFun
 erlang__op_mult [ErlangInt a, ErlangInt b] = ErlangInt (a * b)
-erlang__op_mult [ErlangInt a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) * b)
-erlang__op_mult [ErlangFloat a, ErlangInt b] = ErlangFloat (a * (DI.toNumber b))
+erlang__op_mult [ErlangInt a, ErlangFloat b] = ErlangFloat ((DBI.toNumber a) * b)
+erlang__op_mult [ErlangFloat a, ErlangInt b] = ErlangFloat (a * (DBI.toNumber b))
 erlang__op_mult [ErlangFloat a, ErlangFloat b] = ErlangFloat (a * b)
 erlang__op_mult [_, _] = EXC.badarg unit
 erlang__op_mult args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_mult-}) args
@@ -454,8 +463,8 @@ erlang__op_mult args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_mul
 -- -
 erlang__op_minus :: ErlangFun
 erlang__op_minus [ErlangInt a, ErlangInt b] = ErlangInt (a - b)
-erlang__op_minus [ErlangInt a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) - b)
-erlang__op_minus [ErlangFloat a, ErlangInt b] = ErlangFloat (a - (DI.toNumber b))
+erlang__op_minus [ErlangInt a, ErlangFloat b] = ErlangFloat ((DBI.toNumber a) - b)
+erlang__op_minus [ErlangFloat a, ErlangInt b] = ErlangFloat (a - (DBI.toNumber b))
 erlang__op_minus [ErlangFloat a, ErlangFloat b] = ErlangFloat (a - b)
 erlang__op_minus [_, _] = EXC.badarg unit
 erlang__op_minus args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_minus-}) args
@@ -463,32 +472,40 @@ erlang__op_minus args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_mi
 -- +
 erlang__op_plus :: ErlangFun
 erlang__op_plus [ErlangInt a, ErlangInt b] = ErlangInt (a + b)
-erlang__op_plus [ErlangInt a, ErlangFloat b] = ErlangFloat ((DI.toNumber a) + b)
-erlang__op_plus [ErlangFloat a, ErlangInt b] = ErlangFloat (a + (DI.toNumber b))
+erlang__op_plus [ErlangInt a, ErlangFloat b] = ErlangFloat ((DBI.toNumber a) + b)
+erlang__op_plus [ErlangFloat a, ErlangInt b] = ErlangFloat (a + (DBI.toNumber b))
 erlang__op_plus [ErlangFloat a, ErlangFloat b] = ErlangFloat (a + b)
 erlang__op_plus [_, _] = EXC.badarg unit
 erlang__op_plus args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_plus-}) args
 
 -- >=
 erlang__op_greaterEq :: ErlangFun
+erlang__op_greaterEq [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i >= f)
+erlang__op_greaterEq [ErlangFloat f, ErlangInt i] = boolToTerm (f >= DBI.toNumber i)
 erlang__op_greaterEq [a, b] = boolToTerm (a >= b)
 erlang__op_greaterEq [_, _] = EXC.badarg unit
 erlang__op_greaterEq args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_greaterEq-}) args
 
 -- >
 erlang__op_greater :: ErlangFun
+erlang__op_greater [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i > f)
+erlang__op_greater [ErlangFloat f, ErlangInt i] = boolToTerm (f > DBI.toNumber i)
 erlang__op_greater [a, b] = boolToTerm (a > b)
 erlang__op_greater [_, _] = EXC.badarg unit
 erlang__op_greater args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_greater-}) args
 
 -- =<
 erlang__op_lesserEq :: ErlangFun
+erlang__op_lesserEq [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i <= f)
+erlang__op_lesserEq [ErlangFloat f, ErlangInt i] = boolToTerm (f <= DBI.toNumber i)
 erlang__op_lesserEq [a, b] = boolToTerm (a <= b)
 erlang__op_lesserEq [_, _] = EXC.badarg unit
 erlang__op_lesserEq args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_lesserEq-}) args
 
 -- <
 erlang__op_lesser :: ErlangFun
+erlang__op_lesser [ErlangInt i, ErlangFloat f] = boolToTerm (DBI.toNumber i < f)
+erlang__op_lesser [ErlangFloat f, ErlangInt i] = boolToTerm (f < DBI.toNumber i)
 erlang__op_lesser [a, b] = boolToTerm (a < b)
 erlang__op_lesser [_, _] = EXC.badarg unit
 erlang__op_lesser args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__op_lesser-}) args
@@ -528,17 +545,17 @@ erlang__op_not [_] = EXC.badarg unit
 erlang__op_not args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__op_not-}) args
 
 erlang__bor__2 :: ErlangFun
-erlang__bor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.or a b
+erlang__bor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DBI.or a b
 erlang__bor__2 [_,_] = EXC.badarg unit
 erlang__bor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bor__2-}) args
 
 erlang__bnot__1 :: ErlangFun
-erlang__bnot__1 [ErlangInt a] = ErlangInt $ DIB.complement a
+erlang__bnot__1 [ErlangInt a] = ErlangInt $ DBI.not a
 erlang__bnot__1 [_] = EXC.badarg unit
 erlang__bnot__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__bnot__1-}) args
 
 erlang__bxor__2 :: ErlangFun
-erlang__bxor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.xor a b
+erlang__bxor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DBI.xor a b
 erlang__bxor__2 [_,_] = EXC.badarg unit
 erlang__bxor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bxor__2-}) args
 
@@ -548,7 +565,7 @@ erlang__or__2 [_,_] = EXC.badarg unit
 erlang__or__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__or__2-}) args
 
 erlang__bsr__2 :: ErlangFun
-erlang__bsr__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shr a b
+erlang__bsr__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DBI.shr a (DBI.toNumber b)
 erlang__bsr__2 [_,_] = EXC.badarg unit
 erlang__bsr__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsr__2-}) args
 
@@ -558,12 +575,12 @@ erlang__xor__2 [_,_] = EXC.badarg unit
 erlang__xor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__xor__2-}) args
 
 erlang__bsl__2 :: ErlangFun
-erlang__bsl__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shl a b
+erlang__bsl__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DBI.shl a (DBI.toNumber b)
 erlang__bsl__2 [_,_] = EXC.badarg unit
 erlang__bsl__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsl__2-}) args
 
 erlang__band__2 :: ErlangFun
-erlang__band__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.and a b
+erlang__band__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DBI.and a b
 erlang__band__2 [_,_] = EXC.badarg unit
 erlang__band__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__band__2-}) args
 
@@ -663,7 +680,7 @@ erlang__is_map__1 [_] = boolToTerm false
 erlang__is_map__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_map__1-}) args
 
 erlang__is_function__2 :: ErlangFun
-erlang__is_function__2 [ErlangFun a _, ErlangInt b] | a == b = ErlangAtom "true"
+erlang__is_function__2 [ErlangFun a _, ErlangInt b] | DBI.fromInt a == b = ErlangAtom "true"
 erlang__is_function__2 [_] = ErlangAtom "false"
 erlang__is_function__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__is_function__2-}) args
 
@@ -681,9 +698,9 @@ erlang__integer_to_binary__2 [_,_] = EXC.badarg unit
 erlang__integer_to_binary__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__integer_to_binary__2-}) args
 
 erlang__integer_to_list__2 :: ErlangFun
-erlang__integer_to_list__2 [ErlangInt num, ErlangInt base]
-    | DM.Just radix <- DI.radix base
-    = H.make_string $ DI.toStringAs radix num
+erlang__integer_to_list__2 [ErlangInt num, ErlangInt bbase]
+    | DM.Just base <- H.bigIntToInt bbase
+    = H.make_string $ DBI.toBase base num
 erlang__integer_to_list__2 [_,_] = EXC.badarg unit
 erlang__integer_to_list__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__integer_to_list__2-}) args
 
@@ -849,7 +866,7 @@ erlang__atom_to_list__1 [_] = EXC.badarg unit
 erlang__atom_to_list__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__atom_to_list__1-}) args
 
 erlang__integer_to_list__1 :: ErlangFun
-erlang__integer_to_list__1 [ErlangInt num] = H.make_string $ DI.toStringAs DI.decimal num
+erlang__integer_to_list__1 [ErlangInt num] = H.make_string $ DBI.toString num
 erlang__integer_to_list__1 [_] = EXC.badarg unit
 erlang__integer_to_list__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__integer_to_list__1-}) args
 
@@ -1018,7 +1035,9 @@ erlang__is_alive__0 :: ErlangFun
 erlang__is_alive__0 args = unimplemented "erlang__is_alive__0"
 
 erlang__make_tuple__2 :: ErlangFun
-erlang__make_tuple__2 [ErlangInt arity, what] = ErlangTuple $ DA.replicate arity what
+erlang__make_tuple__2 [ErlangInt barity, what]
+  | DM.Just arity <- H.bigIntToInt barity
+  = ErlangTuple $ DA.replicate arity what
 erlang__make_tuple__2 [_,_] = EXC.badarg unit
 erlang__make_tuple__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__make_tuple__2-}) args
 
@@ -1055,7 +1074,9 @@ erlang__iolist_size__1 [_] = EXC.badarg unit
 erlang__iolist_size__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__iolist_size__1-}) args
 
 erlang__element__2 :: ErlangFun
-erlang__element__2 [ErlangInt pos, ErlangTuple array] | DM.Just res <- DA.index array (pos-1) = res
+erlang__element__2 [ErlangInt bpos, ErlangTuple array]
+  | DM.Just pos <- H.bigIntToInt bpos
+  , DM.Just res <- DA.index array (pos-1) = res
 erlang__element__2 [_,_] = EXC.badarg unit
 erlang__element__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__element__2-}) args
 
@@ -1221,10 +1242,8 @@ erlang__send_nosuspend__3 _ = EXC.badarg unit
 
 erlang__send_nosuspend__2 :: ErlangFun
 erlang__send_nosuspend__2 args =
-    let
-        a = erlang__send__2 args
-    in
-        boolToTerm true
+  let a = erlang__send__2 args
+  in boolToTerm true
 
 erlang__send__3 :: ErlangFun
 erlang__send__3 [arg1, arg2, _] = erlang__send__2 [arg1, arg2]
@@ -1235,11 +1254,12 @@ erlang__send__2 :: ErlangFun
 erlang__send__2 [ErlangPID pid, term] = do_send_2 pid term
 erlang__send__2 _ = EXC.badarg unit
 
-foreign import do_receive_2 :: ErlangFun -> Int -> (String -> ErlangTerm) -> ErlangTerm
+foreign import do_receive_2 :: ErlangFun -> DBI.BigInt -> (String -> ErlangTerm) -> ErlangTerm
 prim_eval__receive__2 :: ErlangFun
-prim_eval__receive__2 [ErlangFun 1 fun, ErlangAtom "infinity"] = do_receive_2 fun (-1) (ErlangAtom)
-prim_eval__receive__2 [ErlangFun 1 fun, ErlangInt timeout] | timeout >= 0 =
-        do_receive_2 fun timeout (ErlangAtom)
+prim_eval__receive__2 [ErlangFun 1 fun, ErlangAtom "infinity"] =
+  do_receive_2 fun (DBI.fromInt (-1)) ErlangAtom
+prim_eval__receive__2 [ErlangFun 1 fun, ErlangInt timeout] | timeout >= DBI.fromInt(0) =
+  do_receive_2 fun timeout ErlangAtom
 prim_eval__receive__2 _ = EXC.badarg unit
 
 erlang__halt__1 :: ErlangFun
@@ -1403,8 +1423,9 @@ erlang__port_connect__2 [_,_] = EXC.badarg unit
 erlang__port_connect__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__port_connect__2-}) args
 
 erlang__setelement__3 :: ErlangFun
-erlang__setelement__3 [ErlangInt pos, ErlangTuple tuple, new_el]
-    | DM.Just new_tuple <- DA.updateAt (pos-1) new_el tuple =
+erlang__setelement__3 [ErlangInt bpos, ErlangTuple tuple, new_el]
+    | DM.Just pos <- H.bigIntToInt bpos
+    , DM.Just new_tuple <- DA.updateAt (pos - 1) new_el tuple =
     ErlangTuple new_tuple
 erlang__setelement__3 [_,_,_] = EXC.badarg unit
 erlang__setelement__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erlang__setelement__3-}) args
@@ -1415,7 +1436,7 @@ erlang__gather_gc_info_result__1 [_] = EXC.badarg unit
 erlang__gather_gc_info_result__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__gather_gc_info_result__1-}) args
 
 erlang__tuple_size__1 :: ErlangFun
-erlang__tuple_size__1 [ErlangTuple a] = ErlangInt $ DA.length a
+erlang__tuple_size__1 [ErlangTuple a] = ErlangInt $ DBI.fromInt $ DA.length a
 erlang__tuple_size__1 [_] = EXC.badarg unit
 erlang__tuple_size__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__tuple_size__1-}) args
 

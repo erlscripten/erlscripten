@@ -1,8 +1,6 @@
 
 -define(make_pat_var(Var),
     #pat_var{name = Var}).
--define(make_pat_int(Int),
-    #pat_constr{constr = "ErlangInt", args = [#pat_num{value = Int}]}).
 -define(make_pat_float(Float),
     #pat_constr{constr = "ErlangFloat", args = [#pat_float{value = Float}]}).
 -define(make_pat_atom(Atom),
@@ -24,7 +22,25 @@ make_pat_list([H|T]) ->
 -define(make_expr_var(Var),
     #expr_var{name = Var}).
 -define(make_expr_int(Int),
-    #expr_app{function = ?make_expr_var("ErlangInt"), args = [#expr_num{value = Int}]}).
+    #expr_app{
+       function = ?make_expr_var("ErlangInt"),
+       args = [ case Int < -2147483648 orelse Int > 2147483647 of
+                    true ->
+                        #expr_app{
+                           function = ?make_expr_var("unsafePartial"),
+                           args = [#expr_app{
+                                      function = ?make_expr_var("DM.fromJust"),
+                                      args = [#expr_app{
+                                                 function = ?make_expr_var("DBI.fromString"),
+                                                 args = [#expr_string{value = integer_to_list(Int)}]
+                                                }]
+                                     }]
+                          };
+                    false ->
+                        #expr_app{function = ?make_expr_var("DBI.fromInt"),
+                                  args = [#expr_num{value = Int}]
+                                 }
+                end ]}).
 -define(make_expr_float(Float),
     #expr_app{function = ?make_expr_var("ErlangFloat"), args = [#expr_float{value = Float}]}).
 -define(make_expr_atom(Atom),
