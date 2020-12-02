@@ -179,6 +179,7 @@ main :: Effect Unit
 main =
     launchAff_ $ runSpec [consoleReporter] do
 
+    let ok = ErlangAtom "ok"
     let whitelist = case unit of
           _ -> M.Nothing  -- comment for whitelist :)
           _ -> M.Just ["Binaries"]
@@ -499,7 +500,6 @@ main =
         executed `shouldEqual` true
         ErlangAtom "ok_e" `shouldEqual` r
 
-    let ok = ErlangAtom "ok"
     describe_ "Exception transpilation" do
       it "try/catch" do
         r <- exec_may_throw erlps__test_try_catch__0 []
@@ -614,9 +614,9 @@ main =
       it "can request it's own pid" do
           (T.Tuple pid1 packed_pid) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_get_self__0 [])
           pid1 `shouldEqualOk` packed_pid
-      it "receive primop - simple case" do
-          (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_simple_receive_primop__0 [])
-          ok `shouldEqualOk` r
+      --it "receive primop - simple case" do
+      --    (T.Tuple _ r) <- lift_aff_to_erlang_process (\_ -> exec_may_throw erlps__test_simple_receive_primop__0 [])
+      --    ok `shouldEqualOk` r
 
     describe_ "Binaries" do
       let bin b = ErlangBinary (unsafePerformEffect $ Buf.fromArray b)

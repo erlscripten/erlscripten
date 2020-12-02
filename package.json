@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "ERTS emulation in purescript",
   "dependencies": {
+    "big-integer": "^1.6.48",
     "core-js": "^3.7.0",
     "regenerator-runtime": "^0.13.7"
   },
