@@ -478,7 +478,7 @@ transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
 transpile_pattern({string, _, String}, _Env) ->
     {lists:foldr(
        fun (Char, Acc) ->
-               ?make_pat_cons(#pat_constr{constr = "DBI.formInt", args = [#pat_num{value = Char}]}, Acc)
+               ?make_pat_cons(#pat_constr{constr = "DBI.fromInt", args = [#pat_num{value = Char}]}, Acc)
        end, ?make_pat_empty_list, String),
      [], []
     };
