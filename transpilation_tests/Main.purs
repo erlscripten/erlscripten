@@ -199,6 +199,9 @@ main =
         it "Factorial" do
             r <- exec_may_throw erlps__test_factorial__1 [mkInt 6]
             mkInt 720 `shouldEqualOk` r
+        it "Match float64" do
+            r <- exec_may_throw erlps__test_too_big_int__0 []
+            ok `shouldEqualOk` r
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do

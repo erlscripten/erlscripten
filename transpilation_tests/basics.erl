@@ -11,3 +11,7 @@ test_factorial(0) ->
     1;
 test_factorial(N) ->
     N * test_factorial(N - 1).
+
+test_too_big_int() ->
+    13580246790987654321 = 12345678900987654321 + 1234567890987654321 div 1234567890 * 1234567890,
+    ok.
