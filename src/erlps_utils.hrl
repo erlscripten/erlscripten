@@ -87,5 +87,6 @@ make_expr_list([H|T]) ->
 -define(badrecord(T), ?common_error(badrecord, [T])).
 -define(badarity(F, Args), ?common_error(badarity, [F, Args])).
 -define(badarg, ?common_error(badarg, [?make_expr_unit])).
+-define(badarg(T), ?common_error(badarg1, [T])).
 -define(badkey(T), ?common_error(badkey, [T])).
 -define(bad_generator(T), ?common_error(bad_generator, [T])).

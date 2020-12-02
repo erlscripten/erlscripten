@@ -194,7 +194,7 @@ builtins_calc() ->
                 , {"*",   "op_mult"}
                 , {"/",   "op_div"}
                 , {"div", "op_div_strict"}
-                , {"%", "op_rem"}
+                , {"%",   "op_rem"}
                 , {"rem", "op_rem_strict"}
                 , {"/=",  "op_neq"}
                 , {"=/=", "op_exactNeq"}
@@ -209,8 +209,6 @@ builtins_calc() ->
                 , {"and", "op_and"}
                 , {"or",  "op_or"}
                 , {"!",   "send__2"}
-                , {"andalso", "op_andalso"}
-                , {"orelse",  "op_orelse"}
                 ],
     maps:from_list(lists:concat([
         [ {{"erlang", "not", 1}, "erlang__op_not"}
@@ -1058,8 +1056,34 @@ transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
     {Case, LetDefs1};
 
 
+transpile_expr({op, _, Andalso, L, R}, LetDefs0, Env)
+  when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
+    {LVar, LetDefs1} = bind_expr("lop", L, LetDefs0, Env),
+    Expr =
+        #expr_case{
+           expr = #expr_var{name = LVar},
+           cases =
+               [ {?make_pat_atom(false), [], ?make_expr_atom(false)}
+               , {?make_pat_atom(true), [], transpile_expr(R, Env)} % TODO SCOPE LEAKING :)))
+               , {pat_wildcard, [], ?badarg(#expr_var{name = LVar})}
+               ]
+          },
+    {Expr, LetDefs1};
+transpile_expr({op, _, Orelse, L, R}, LetDefs0, Env)
+  when Orelse =:= 'orelse'; Orelse =:= "orelse" ->
+    {LVar, LetDefs1} = bind_expr("lop", L, LetDefs0, Env),
+    Expr =
+        #expr_case{
+           expr = #expr_var{name = LVar},
+           cases =
+               [ {?make_pat_atom(true), [], ?make_expr_atom(true)}
+               , {?make_pat_atom(false), [], transpile_expr(R, Env)} % TODO SCOPE LEAKING :)))
+               , {pat_wildcard, [], ?badarg(#expr_var{name = LVar})}
+               ]
+          },
+    {Expr, LetDefs1};
 transpile_expr({op, _, Op, L, R}, LetDefs0, Env) ->
-  {direct, OpFun} = transpile_fun_ref("erlang", Op, 2, Env),
+    {direct, OpFun} = transpile_fun_ref("erlang", Op, 2, Env),
     {LVar, LetDefs1} = bind_expr("lop", L, LetDefs0, Env),
     {RVar, LetDefs2} = bind_expr("rop", R, LetDefs1, Env),
     {#expr_app{

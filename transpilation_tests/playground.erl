@@ -14,6 +14,7 @@
 
 -compile(export_all).
 
-test(Map) ->
-    Map#{a := b}.
+test(X) when is_tuple(X) andalso tuple_size(X) ->
+    is_tuple(X) andalso tuple_size(X).
 
+eq_guard(X, Y, Z) when X==Y; Y==Z -> Y.
