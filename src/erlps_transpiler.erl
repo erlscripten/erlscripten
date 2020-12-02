@@ -1046,8 +1046,8 @@ transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
                     [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}];
               _ ->
                 case lists:last(UserCases) of
-                    {#pat_var{}, [], _} ->
-                        UserCases;
+                    %%{#pat_var{} =V, [], _} ->
+                    %%    UserCases;
                     _ ->
                         UserCases ++
                             [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}]
