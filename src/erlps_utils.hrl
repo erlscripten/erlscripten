@@ -10,7 +10,7 @@
 -define(make_pat_cons(H, T),
     #pat_constr{constr = "ErlangCons", args = [H, T]}).
 -define(make_pat_empty_list,
-    ?make_pat_var("ErlangEmptyList")).
+    #pat_constr{constr = "ErlangEmptyList"}).
 -define(make_pat_map(Map),
         #pat_constr{constr = "ErlangMap", args = [Map]}).
 make_pat_list([]) ->

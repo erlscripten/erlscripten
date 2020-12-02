@@ -14,7 +14,6 @@
 
 -compile(export_all).
 
-test(X) when is_tuple(X) andalso tuple_size(X) ->
-    is_tuple(X) andalso tuple_size(X).
-
-eq_guard(X, Y, Z) when X==Y; Y==Z -> Y.
+test(X)  ->
+    [] = lists:seq(1, 0),
+    ok.
