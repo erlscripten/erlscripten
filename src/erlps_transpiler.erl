@@ -47,6 +47,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Data", "Maybe"], alias = "DM"}
         , #import{path = ["Data", "Map"], alias = "Map"}
         , #import{path = ["Data", "Tuple"], alias = "Tup"}
+        , #import{path = ["Data", "BigInt"], alias = "DBI"}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Binary"], alias = "BIN"}
         , #import{path = ["Erlang", "Helpers"]}
@@ -55,6 +56,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
         , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
+        , #import{path = ["Partial", "Unsafe"], explicit = ["unsafePartial"]}
         ],
     state_clear_import_requests(),
     LocalImports = maps:from_list([ {{Name, Arity}, Module}
@@ -328,30 +330,6 @@ transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule
     end.
 
 transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
-    %% Ok this will be slightly tricky, some patterns commonly used in erlang function clauses
-    %% cannot be expressed as matches in Purescipt BUT we may emulate them in guards!
-    %% Guards in purescript are really powerful - using patten guards we will emulate what we want
-    %% Now we need to determine 2 important things:
-    %% 1) What to match in the function head
-    %% 2) What to assert in the guard
-    %% We also need to emulate erlang's semantics of matching by value
-    %% Important:
-    %% 1) Standalone variables are the simplest case to consider
-    %% 2) Literal atoms/strings/tuples are easy
-    %% 3) Binaries are a PITA
-    %% Keeping track of variable bindings in a pure functional way will be a PITA
-    %% Let's use the process dictionary to emulate a state monad and then gather results at the end
-    %% Only after we emitted the guards which will bring the referenced variables in scope
-    %% we may add the guards from erlang :)
-    %% When matching by value always create a new variable and AFTER all the guards which
-    %% will bring the vars in the proper scope we will assert equality
-    %% What essentially we want to generate:
-    %% fun_name match1 match2 ... matchN | g_match1, g_match2, ..., g_matchN, ERLANG_MATCH_BY_VALUE, user erlang guard expressions
-    %% Some guards which we may emit are in the state monad
-    %% To deal with it just emit "unsafePerformEffect" and add guards which will ensure that
-    %% The effectful computation won't throw an exception
-    %% For instance: when dealing with <<X>> first emit a check for the length and
-    %% only then unsafely access the specified byte in the binary
     state_reset_supply_id(),
     state_clear_vars(),
     state_clear_var_stack(),
@@ -483,22 +461,30 @@ transpile_pattern({char, Ann, Char}, Env) ->
      transpile_pattern({integer, Ann, Char}, Env);
 transpile_pattern({float, _, Float}, _) ->
      {?make_pat_float(Float), [], []};
-%% transpile_pattern({integer, _, Num}, _) when Num =< 9007199254740000, Num >= -9007199254740000 ->
-%%     error({todo, too_big_int}); TODO
 transpile_pattern({integer, _, Num}, _) ->
-    {?make_pat_int(Num), [], []};
+    Var = state_create_fresh_var("num"),
+    {#pat_constr{constr = "ErlangInt",
+                 args = [#pat_var{name = Var}]
+                },
+     [#guard_expr{guard = #expr_binop{
+                             name = "==",
+                             lop = #expr_app{function = #expr_var{name = "ErlangInt"},
+                                             args = [#expr_var{name = Var}]},
+                             rop = ?make_expr_int(Num)
+                            }}],
+     []};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
     transpile_pattern({integer, Ann, -Num}, Env);
 transpile_pattern({string, _, String}, _Env) ->
-    {lists:foldr(fun (Char, Acc) -> ?make_pat_cons(?make_pat_int(Char), Acc)
-                 end, ?make_pat_empty_list, String),
+    {lists:foldr(
+       fun (Char, Acc) ->
+               ?make_pat_cons(#pat_constr{constr = "DBI.formInt", args = [#pat_num{value = Char}]}, Acc)
+       end, ?make_pat_empty_list, String),
      [], []
     };
 
-%% Bitstring pattern
+%% Bitstring pattern TODO: bits
 transpile_pattern({bin, _, []}, _) ->
-    %% The easy case – <<>>
-    %% Empty binary - guard for size eq 0
     Var = state_create_fresh_var("bin_e"),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, [
         #guard_expr{guard =
@@ -507,12 +493,6 @@ transpile_pattern({bin, _, []}, _) ->
             args = [#expr_var{name = Var}]}}
     ], []};
 transpile_pattern({bin, _, Segments}, Env) ->
-    %% Ok the general hard part...
-    %% Unfortunately we need to keep track of bindings created in this match
-    %% Variables in the size guard can only reference variables from the enclosing scope
-    %% present on the variable stack OR variables created during this binding
-    %% Fortunately patterns can only be literals or variables
-    %% Size specs are guard expressions
     Var = state_create_fresh_var("bin_c"),
     {G, V} = transpile_binary_pattern_segments(Var, Segments, Env),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
@@ -687,10 +667,7 @@ parse_bin_segment_spec(_Element, Spec) ->
            rvalue = Expr
           }
        ).
-%% When resolving variables in the size spec look to:
-%% 1) The outer scope on the stack
-%% 2) The newBindings scope
-%% 3) If var is present in both scopes then insert a value guard
+
 transpile_binary_pattern_segments(UnboxedVar, Segments, Env) ->
     transpile_binary_pattern_segments(UnboxedVar, Segments, [], [], Env).
 transpile_binary_pattern_segments(UnboxedVar, [], Guards, VarUni, _Env) ->
@@ -722,7 +699,7 @@ transpile_binary_pattern_segments(
                                    binary -> #expr_app{function = #expr_var{name = "BIN.size"},
                                                        args = [#expr_var{name = UnboxedVar}]
                                                       }
-                                   end;
+                               end;
                            _ -> transpile_expr(Size, Env)
                        end,
             {P, G, V} = transpile_pattern(Element, Env),
@@ -746,7 +723,8 @@ transpile_binary_pattern_segments(
                                   , #expr_num{value = Unit}
                                   , #expr_var{name = case Endian of
                                                          big -> "BIN.Big";
-                                                         little -> "BIN.Little" end
+                                                         little -> "BIN.Little"
+                                                     end
                                              }
                                   , #expr_var{name = case Sign of
                                                          signed -> "BIN.Signed";
@@ -767,7 +745,8 @@ transpile_binary_pattern_segments(
                                   , #expr_num{value = Unit}
                                   , #expr_var{name = case Endian of
                                                          big -> "BIN.Big";
-                                                         little -> "BIN.Little" end
+                                                         little -> "BIN.Little"
+                                                     end
                                              }
                                   ]
                              }
@@ -787,7 +766,7 @@ transpile_binary_pattern_segments(
                 end,
 
             transpile_binary_pattern_segments(
-              RestBinVar, Rest, [GetGuard, SizeGuard | G ++ Guards], V ++ VarUni, Env);
+              RestBinVar, Rest, G ++ [GetGuard, SizeGuard | Guards], V ++ VarUni, Env);
 
         {B, _, _} -> error({unsupported_bin_element, B})
     end.

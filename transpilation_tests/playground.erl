@@ -14,8 +14,6 @@
 
 -compile(export_all).
 
-test(<<1,2,3>>) ->
-    A = test(1),
-    B = test(2),
-    << <<X,X>> || X <- [1,2,3] >>.
+test(<<1>>) ->
+    ok.
 
