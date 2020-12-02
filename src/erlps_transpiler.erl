@@ -56,6 +56,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
         , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
+        , #import{path = ["Partial", "Unsafe"], explicit = ["unsafePartial"]}
         ],
     state_clear_import_requests(),
     LocalImports = maps:from_list([ {{Name, Arity}, Module}

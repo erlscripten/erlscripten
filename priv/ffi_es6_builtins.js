@@ -849,11 +849,68 @@ function do_apply_4(moduleName) {
         };
     };
 
-function do_onload(module) {
+function do_onload(name, module) {
     var f = module["onload"];
     if (f) {
         f();
     }
+    /* Very very very dirty JS hack... */
+    if (name == "Maps") {
+        var bifs = get_erlang_module();
+        module["erlps__get__2"] = bifs["maps__get__2"];
+        module["erlps__find__2"] = bifs["maps__find__2"];
+        module["erlps__from_list__1"] = bifs["maps__from_list__1"];
+        module["erlps__is_key__2"] = bifs["maps__is_key__2"];
+        module["erlps__keys__1"] = bifs["maps__keys__1"];
+        module["erlps__merge__2"] = bifs["maps__merge__2"];
+        module["erlps__put__3"] = bifs["maps__put__3"];
+        module["erlps__remove__2"] = bifs["maps__remove__2"];
+        module["erlps__take__2"] = bifs["maps__take__2"];
+        module["erlps__to_list__1"] = bifs["maps__to_list__1"];
+        module["erlps__update__3"] = bifs["maps__update__3"];
+        module["erlps__values__1"] = bifs["maps__values__1"];
+    }
+    else if (name == "Lists") {
+        var bifs = get_erlang_module();
+        module["erlps__keyfind__3"] = bifs["lists__keyfind__3"];
+        module["erlps__keymember__3"] = bifs["lists__keymember__3"];
+        module["erlps__keysearch__3"] = bifs["lists__keysearch__3"];
+        module["erlps__member__2"] = bifs["lists__member__2"];
+        module["erlps__reverse__2"] = bifs["lists__reverse__2"];
+    }
+    else if (name == "Math") {
+        var bifs = get_erlang_module();
+        // TODO
+    }
+    else if (name == "Prim.Eval") {
+        var bifs = get_erlang_module();
+        module["erlps__prim_eval__3"] = bifs["prim_eval__receive__2"];
+    }
+    else if (name == "Erts.Internal") {
+        var bifs = get_erlang_module();
+        module["erlps__map_next__3"] = bifs["erts_internal__map_next__3"];
+    }
+
+    return module;
+}
+
+function module_resolve(name) {
+    try {
+        return PS[name];
+    } catch(e) {
+        try {
+            return require("../"+name+"/index.js");
+        } catch(e) {
+            return undefined;
+        }
+    }
+}
+
+var bif_module = undefined;
+function get_erlang_module() {
+    if(bif_module === undefined)
+        bif_module = module_resolve("Erlang.Builtins");
+    return bif_module;
 }
 
 function do_ffi_remote_fun_call(moduleName) {
@@ -862,17 +919,9 @@ function do_ffi_remote_fun_call(moduleName) {
             return function(undefCallback) {
                 var module = loaded_code.get(moduleName);
                 if (module === undefined) {
-                    try {
-                        module = PS[moduleName];
-                    } catch(e) {
-                        try {
-                            module = require("../"+moduleName+"/index.js");
-                        } catch(e) {
-                            module = undefined
-                        }
-                    }
+                    module = module_resolve(moduleName);
                     if(module) {
-                        do_onload(module);
+                        module = do_onload(moduleName, module);
                         loaded_code.set(moduleName, module);
                     } else {
                         return undefCallback();
@@ -971,3 +1020,107 @@ exports.do_self_0 = RUNTIME.do_self_0;
 exports.do_is_process_alive_1 = RUNTIME.do_is_process_alive_1;
 exports.do_spawn_1 = RUNTIME.do_spawn_1;
 exports.do_apply_4 = RUNTIME.do_apply_4;
+
+// Missing math functions
+//--------------------------------------------------------------------------------
+exports.acosh = Math.acosh || function (x) {
+  return Math.log(x + Math.sqrt(x * x - 1));
+};
+
+exports.asinh = Math.asinh || function (x) {
+  if (x === -Infinity) {
+    return x;
+  } else {
+    return Math.log(x + Math.sqrt(x * x + 1));
+  }
+};
+
+exports.atanh = Math.atanh || function (x) {
+  return Math.log((1 + x) / (1 - x)) / 2;
+};
+
+exports.cbrt = Math.cbrt || function (x) {
+  if (x === 0) {
+    return x; // +0 or -0
+  } else if (x < 0) {
+    return -Math.pow(-x, 1 / 3);
+  } else {
+    return Math.pow(x, 1 / 3);
+  }
+};
+
+exports.clz32 = Math.clz32 || function (x) {
+  if (x === 0) {
+    return 32;
+  }
+  return 31 - Math.floor(Math.log(x >>> 0) * Math.LOG2E);
+};
+
+exports.cosh = Math.cosh || function (x) {
+  return (Math.exp(x) + Math.exp(-x)) / 2;
+};
+
+exports.expm1 = Math.expm1 || function (x) {
+  return Math.exp(x) - 1;
+};
+
+exports.hypot = Math.hypot ? function (x) {
+  return function (y) {
+    return Math.hypot(x, y);
+  };
+} : function (x) {
+  return function (y) {
+    return Math.sqrt(x * x + y * y);
+  };
+};
+
+exports.hypot3 = Math.hypot ? function (x) {
+  return function (y) {
+    return function (z) {
+      return Math.hypot(x, y, z);
+    };
+  };
+} : function (x) {
+  return function (y) {
+    return function (z) {
+      return Math.sqrt(x * x + y * y + z * z);
+    };
+  };
+};
+
+exports.log1p = Math.log1p || function (x) {
+  return Math.log(x + 1);
+};
+
+exports.log10 = Math.log10 || function (x) {
+  return Math.log(x) * Math.LOG10E;
+};
+
+exports.log2 = Math.log2 || function (x) {
+  return Math.log(x) * Math.LOG2E;
+};
+
+exports.sign = Math.sign || function (x) {
+  if (x > 0) {
+    return 1;
+  } else if (x < 0) {
+    return -1;
+  } else {
+    return +x; // +0 or -0 or NaN
+  }
+};
+
+exports.sinh = Math.sinh || function (x) {
+  return (Math.exp(x) - Math.exp(-x)) / 2;
+};
+
+exports.tanh = Math.tanh || function (x) {
+  var ex = Math.exp(2 * x);
+  if (ex === Infinity) {
+    return 1;
+  } else {
+    return (ex - 1) / (ex + 1);
+  }
+};
+
+
