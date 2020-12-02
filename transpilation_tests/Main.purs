@@ -78,7 +78,7 @@ print_err (Left e) =
                     let
                         m1 = show a
                         m2 = show b
-                        m3 = unsafePartial $ Str.fromCodePointArray $ map wololo_codepoint $ A.fromFoldable $ M.fromJust $ erlangListToList stack
+                        m3 = show stack
                     in
                         "[" <> m1 <> ", " <> m2 <> ", " <> m3 <> "]"
                 r ->
