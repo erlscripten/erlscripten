@@ -6,7 +6,6 @@ import Erlang.Exception as EXC
 import Node.Buffer as Buffer
 import Node.Buffer(Buffer)
 import Node.Encoding
-import Data.Num (class Num, fromBigInt)
 import Data.BigInt as BI
 import Effect (Effect)
 import Effect.Unsafe (unsafePerformEffect)
@@ -14,7 +13,6 @@ import Effect.Exception (throw, throwException)
 import Data.UInt (UInt, toInt, fromInt)
 import Data.Array.NonEmpty as NonEmpty
 import Partial.Unsafe (unsafePartial)
-import Data.Base58 as B58
 import Data.Array as DA
 import Data.Maybe as DM
 import Data.List as DL

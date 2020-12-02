@@ -4,10 +4,13 @@ import Erlang.Type
 import Erlang.Exception as EXC
 import Erlang.Helpers as H
 import Prelude
+import Data.Tuple as DT
 import Data.Maybe as DM
 import Data.Array as DA
 import Data.List as DL
 import Data.Int as DI
+import Data.Int.Bits as DIB
+import Data.Map as Map
 import Math
 import Control.Monad
 import Effect.Exception (throw)
@@ -19,6 +22,52 @@ unimplemented name = unsafePerformEffect (throw $ "unimplemented BIF: " <> name)
 
 purs_tco_sucks :: ErlangFun
 purs_tco_sucks _ = ErlangAtom "purs_tco_sucks"
+
+--------------------------------------------------------------------------------
+-- | Returns the inverse hyperbolic cosine of the argument.
+foreign import acosh :: Number -> Number
+
+-- | Returns the inverse hyperbolic sine of the argument.
+foreign import asinh :: Number -> Number
+
+-- | Returns the inverse hyperbolic tangent of the argument.
+foreign import atanh :: Number -> Number
+
+-- | Returns the cube root of the argument.
+foreign import cbrt :: Number -> Number
+
+-- | Returns the number of leading zeroes of a 32-bit integer.
+foreign import clz32 :: Int -> Int
+
+-- | Returns the hyperbolic cosine of the argument.
+foreign import cosh :: Number -> Number
+
+-- | Returns `exp x - 1` for the argument `x`.
+foreign import expm1 :: Number -> Number
+
+-- | Returns the square root of the sum of squares of the arguments.
+foreign import hypot :: Number -> Number -> Number
+
+-- | Returns the square root of the sum of squares of the arguments.
+foreign import hypot3 :: Number -> Number -> Number -> Number
+
+-- | Returns the natural logarithm of `1 + x` for a number `x`.
+foreign import log1p :: Number -> Number
+
+-- | Returns the base 10 logarithm of a number.
+foreign import log10 :: Number -> Number
+
+-- | Returns the base 2 logarithm of a number.
+foreign import log2 :: Number -> Number
+
+-- | Returns the sign of the argument.
+foreign import sign :: Number -> Number
+
+-- | Returns the hyperbolic sine of the argument.
+foreign import sinh :: Number -> Number
+
+-- | Returns the hyperbolic tangent of the argument.
+foreign import tanh :: Number -> Number
 
 --------------------------------------------------------------------------------
 --- Code server OwO
@@ -206,84 +255,101 @@ erlang__subtract__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__su
 --- MAP BIFS
 
 maps__get__2 :: ErlangFun
-maps__get__2 [] = unimplemented "maps__get__2"
-maps__get__2 [_,_] = EXC.badarg unit
+maps__get__2 [k, ErlangMap m] =
+    case Map.lookup k m of
+        DM.Just v -> v
+        DM.Nothing -> EXC.badkey k
+maps__get__2 [_,m] = EXC.badmap m
 maps__get__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__get__2-}) args
 
 maps__find__2 :: ErlangFun
-maps__find__2 [] = unimplemented "maps__find__2"
-maps__find__2 [_,_] = EXC.badarg unit
+maps__find__2 [k, ErlangMap m] =
+    case Map.lookup k m of
+        DM.Just v -> ErlangTuple [ErlangAtom "ok", v]
+        DM.Nothing -> ErlangAtom "error"
+maps__find__2 [_,m] = EXC.badmap m
 maps__find__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__find__2-}) args
 
 maps__from_list__1 :: ErlangFun
-maps__from_list__1 [] = unimplemented "maps__from_list__1"
+maps__from_list__1 [t] | DM.Just l <- erlangListToList t =
+    ErlangMap (Map.fromFoldable (map (\x ->
+        case x of
+            ErlangTuple [k,v] -> DT.Tuple k v
+            _ -> EXC.badarg unit
+        ) l))
 maps__from_list__1 [_] = EXC.badarg unit
 maps__from_list__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-maps__from_list__1-}) args
 
 maps__is_key__2 :: ErlangFun
-maps__is_key__2 [] = unimplemented "maps__is_key__2"
-maps__is_key__2 [_,_] = EXC.badarg unit
+maps__is_key__2 [k, ErlangMap m] = boolToTerm $ Map.member k m
+maps__is_key__2 [_,m] = EXC.badmap m
 maps__is_key__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__is_key__2-}) args
 
 maps__keys__1 :: ErlangFun
-maps__keys__1 [] = unimplemented "maps__keys__1"
-maps__keys__1 [_] = EXC.badarg unit
+maps__keys__1 [ErlangMap m] = arrayToErlangList $ DA.fromFoldable $ Map.keys m
+maps__keys__1 [m] = EXC.badmap m
 maps__keys__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-maps__keys__1-}) args
 
 maps__merge__2 :: ErlangFun
-maps__merge__2 [] = unimplemented "maps__merge__2"
-maps__merge__2 [_,_] = EXC.badarg unit
-maps__merge__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__merge__2-}) args
-maps__merge__2 [_,_] = EXC.badarg unit
+maps__merge__2 [ErlangMap m1, ErlangMap m2] = ErlangMap $ Map.union m2 m1
+maps__merge__2 [ErlangMap _, m] = EXC.badmap m
+maps__merge__2 [m, _] = EXC.badmap m
 maps__merge__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__merge__2-}) args
 
 maps__put__3 :: ErlangFun
-maps__put__3 [] = unimplemented "maps__put__3"
-maps__put__3 [_,_,_] = EXC.badarg unit
+maps__put__3 [k, v, ErlangMap m] = ErlangMap $ Map.insert k v m
+maps__put__3 [_,_,m] = EXC.badmap m
 maps__put__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-maps__put__3-}) args
 
 maps__remove__2 :: ErlangFun
-maps__remove__2 [] = unimplemented "maps__remove__2"
-maps__remove__2 [_,_] = EXC.badarg unit
+maps__remove__2 [k, ErlangMap m] = ErlangMap $ Map.delete k m
+maps__remove__2 [_,m] = EXC.badmap m
 maps__remove__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__remove__2-}) args
 
 maps__take__2 :: ErlangFun
-maps__take__2 [] = unimplemented "maps__take__2"
-maps__take__2 [_,_] = EXC.badarg unit
+maps__take__2 [k, ErlangMap m1] =
+    case Map.pop k m1 of
+        DM.Just (DT.Tuple v m2) -> ErlangTuple [v, ErlangMap m2]
+        DM.Nothing -> ErlangAtom "error"
+maps__take__2 [_,m] = EXC.badmap m
 maps__take__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-maps__take__2-}) args
 
 maps__to_list__1 :: ErlangFun
-maps__to_list__1 [] = unimplemented "maps__to_list__1"
-maps__to_list__1 [_] = EXC.badarg unit
+maps__to_list__1 [ErlangMap m] = arrayToErlangList $ map (\(DT.Tuple k v) -> ErlangTuple [k, v]) $ Map.toUnfoldable m
+maps__to_list__1 [m] = EXC.badmap m
 maps__to_list__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-maps__to_list__1-}) args
 
 maps__update__3 :: ErlangFun
-maps__update__3 [] = unimplemented "maps__update__3"
-maps__update__3 [_,_,_] = EXC.badarg unit
+maps__update__3 [k, v, ErlangMap m] =
+    case Map.lookup k m of
+        DM.Just v -> ErlangMap $ Map.insert k v m
+        DM.Nothing -> EXC.badkey k
+maps__update__3 [_,_,m] = EXC.badmap m
 maps__update__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-maps__update__3-}) args
 
 maps__values__1 :: ErlangFun
-maps__values__1 [] = unimplemented "maps__values__1"
-maps__values__1 [_] = EXC.badarg unit
+maps__values__1 [ErlangMap m] = arrayToErlangList $ DA.fromFoldable $ Map.values m
+maps__values__1 [m] = EXC.badmap m
 maps__values__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-maps__values__1-}) args
 
 erts_internal__map_next__3 :: ErlangFun
-erts_internal__map_next__3 _ = unimplemented "erts_internal__map_next__3"
+erts_internal__map_next__3 [ErlangInt 0, ErlangMap m, ErlangAtom "iterator"] =
+    case Map.findMin m of
+        DM.Nothing -> ErlangAtom "none"
+        DM.Just ({key: k, value: v}) -> ErlangTuple [k, v, ErlangCons (ErlangInt 0) (ErlangMap $ Map.delete k m)]
+erts_internal__map_next__3 [_, m, _] = EXC.badmap m
+erts_internal__map_next__3 args = EXC.badarity (ErlangFun 3 purs_tco_sucks {-erts_internal__map_next__3-}) args
 
 erlang__map_size__1 :: ErlangFun
-erlang__map_size__1 args = unimplemented "erlang__map_size__1"
-erlang__map_size__1 [_] = EXC.badarg unit
+erlang__map_size__1 [ErlangMap m] = ErlangInt $ Map.size m
+erlang__map_size__1 [m] = EXC.badmap m
 erlang__map_size__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__map_size__1-}) args
 
 erlang__is_map_key__2 :: ErlangFun
-erlang__is_map_key__2 args = unimplemented "erlang__is_map_key__2"
-erlang__is_map_key__2 [_,_] = EXC.badarg unit
-erlang__is_map_key__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__is_map_key__2-}) args
+erlang__is_map_key__2 args = maps__is_key__2 args
 
 erlang__map_get__2 :: ErlangFun
-erlang__map_get__2 args = unimplemented "erlang__map_get__2"
-erlang__map_get__2 [_,_] = EXC.badarg unit
-erlang__map_get__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__map_get__2-}) args
+erlang__map_get__2 args = maps__get__2 args
 
 --------------------------------------------------------------------------------
 --- BINARY AND UNARY OPERATIONS
@@ -462,17 +528,17 @@ erlang__op_not [_] = EXC.badarg unit
 erlang__op_not args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__op_not-}) args
 
 erlang__bor__2 :: ErlangFun
-erlang__bor__2 args = unimplemented "erlang__bor__2"
+erlang__bor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.or a b
 erlang__bor__2 [_,_] = EXC.badarg unit
 erlang__bor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bor__2-}) args
 
 erlang__bnot__1 :: ErlangFun
-erlang__bnot__1 args = unimplemented "erlang__bnot__1"
+erlang__bnot__1 [ErlangInt a] = ErlangInt $ DIB.complement a
 erlang__bnot__1 [_] = EXC.badarg unit
 erlang__bnot__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__bnot__1-}) args
 
 erlang__bxor__2 :: ErlangFun
-erlang__bxor__2 args = unimplemented "erlang__bxor__2"
+erlang__bxor__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.xor a b
 erlang__bxor__2 [_,_] = EXC.badarg unit
 erlang__bxor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bxor__2-}) args
 
@@ -482,7 +548,7 @@ erlang__or__2 [_,_] = EXC.badarg unit
 erlang__or__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__or__2-}) args
 
 erlang__bsr__2 :: ErlangFun
-erlang__bsr__2 args = unimplemented "erlang__bsr__2"
+erlang__bsr__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shr a b
 erlang__bsr__2 [_,_] = EXC.badarg unit
 erlang__bsr__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsr__2-}) args
 
@@ -492,12 +558,12 @@ erlang__xor__2 [_,_] = EXC.badarg unit
 erlang__xor__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__xor__2-}) args
 
 erlang__bsl__2 :: ErlangFun
-erlang__bsl__2 args = unimplemented "erlang__bsl__2"
+erlang__bsl__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.shl a b
 erlang__bsl__2 [_,_] = EXC.badarg unit
 erlang__bsl__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__bsl__2-}) args
 
 erlang__band__2 :: ErlangFun
-erlang__band__2 args = unimplemented "erlang__band__2"
+erlang__band__2 [ErlangInt a, ErlangInt b] = ErlangInt $ DIB.and a b
 erlang__band__2 [_,_] = EXC.badarg unit
 erlang__band__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__band__2-}) args
 
@@ -520,22 +586,21 @@ erlang__max__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__max__2-
 erlang__is_integer__1 :: ErlangFun
 erlang__is_integer__1 [ErlangInt _] = ErlangAtom "true"
 erlang__is_integer__1 [_] = ErlangAtom "false"
-erlang__is_integer__1 [_] = EXC.badarg unit
 erlang__is_integer__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_integer__1-}) args
 
 erlang__is_float__1 :: ErlangFun
-erlang__is_float__1 args = unimplemented "erlang__is_float__1"
-erlang__is_float__1 [_] = EXC.badarg unit
+erlang__is_float__1 [ErlangFloat _] = ErlangAtom "true"
+erlang__is_float__1 [_] = ErlangAtom "false"
 erlang__is_float__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_float__1-}) args
 
 erlang__is_binary__1 :: ErlangFun
-erlang__is_binary__1 args = unimplemented "erlang__is_binary__1"
-erlang__is_binary__1 [_] = EXC.badarg unit
+erlang__is_binary__1 [ErlangBinary _] = ErlangAtom "true" --FIXME: should return false for bitstrings
+erlang__is_binary__1 [_] = ErlangAtom "false"
 erlang__is_binary__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_binary__1-}) args
 
 erlang__is_bitstring__1 :: ErlangFun
-erlang__is_bitstring__1 args = unimplemented "erlang__is_bitstring__1"
-erlang__is_bitstring__1 [_] = EXC.badarg unit
+erlang__is_bitstring__1 [ErlangBinary _] = ErlangAtom "true"
+erlang__is_bitstring__1 [_] = ErlangAtom "false"
 erlang__is_bitstring__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_bitstring__1-}) args
 
 erlang__is_port__1 :: ErlangFun
@@ -556,34 +621,34 @@ erlang__is_record__2 [_,_] = EXC.badarg unit
 erlang__is_record__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__is_record__2-}) args
 
 erlang__is_tuple__1 :: ErlangFun
-erlang__is_tuple__1 args = unimplemented "erlang__is_tuple__1"
-erlang__is_tuple__1 [_] = EXC.badarg unit
+erlang__is_tuple__1 [ErlangTuple _] = ErlangAtom "true"
+erlang__is_tuple__1 [_] = ErlangAtom "false"
 erlang__is_tuple__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_tuple__1-}) args
 
 erlang__is_atom__1 :: ErlangFun
-erlang__is_atom__1 args = unimplemented "erlang__is_atom__1"
-erlang__is_atom__1 [_] = EXC.badarg unit
+erlang__is_atom__1 [ErlangAtom _] = ErlangAtom "true"
+erlang__is_atom__1 [_] = ErlangAtom "false"
 erlang__is_atom__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_atom__1-}) args
 
 erlang__is_number__1 :: ErlangFun
-erlang__is_number__1 args = unimplemented "erlang__is_number__1"
-erlang__is_number__1 [_] = EXC.badarg unit
+erlang__is_number__1 [ErlangInt _] = ErlangAtom "true"
+erlang__is_number__1 [ErlangFloat _] = ErlangAtom "true"
+erlang__is_number__1 [_] = ErlangAtom "false"
 erlang__is_number__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_number__1-}) args
 
 erlang__is_pid__1 :: ErlangFun
 erlang__is_pid__1 [ErlangPID _] = boolToTerm true
 erlang__is_pid__1 [_] = boolToTerm false
-erlang__is_pid__1 [_] = EXC.badarg unit
 erlang__is_pid__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_pid__1-}) args
 
 erlang__is_function__1 :: ErlangFun
-erlang__is_function__1 args = unimplemented "erlang__is_function__1"
-erlang__is_function__1 [_] = EXC.badarg unit
+erlang__is_function__1 [ErlangFun _ _] = ErlangAtom "true"
+erlang__is_function__1 [_] = ErlangAtom "false"
 erlang__is_function__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_function__1-}) args
 
 erlang__is_reference__1 :: ErlangFun
-erlang__is_reference__1 args = unimplemented "erlang__is_reference__1"
-erlang__is_reference__1 [_] = EXC.badarg unit
+erlang__is_reference__1 [ErlangReference _] = ErlangAtom "true"
+erlang__is_reference__1 [_] = ErlangAtom "false"
 erlang__is_reference__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_reference__1-}) args
 
 erlang__is_list__1 :: ErlangFun
@@ -593,13 +658,13 @@ erlang__is_list__1 [_] = boolToTerm false
 erlang__is_list__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_list__1-}) args
 
 erlang__is_map__1 :: ErlangFun
-erlang__is_map__1 args = unimplemented "erlang__is_map__1"
-erlang__is_map__1 [_] = EXC.badarg unit
+erlang__is_map__1 [ErlangMap _] = boolToTerm true
+erlang__is_map__1 [_] = boolToTerm false
 erlang__is_map__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__is_map__1-}) args
 
 erlang__is_function__2 :: ErlangFun
-erlang__is_function__2 args = unimplemented "erlang__is_function__2"
-erlang__is_function__2 [_,_] = EXC.badarg unit
+erlang__is_function__2 [ErlangFun a _, ErlangInt b] | a == b = ErlangAtom "true"
+erlang__is_function__2 [_] = ErlangAtom "false"
 erlang__is_function__2 args = EXC.badarity (ErlangFun 2 purs_tco_sucks {-erlang__is_function__2-}) args
 
 erlang__is_record__3 :: ErlangFun
@@ -1350,7 +1415,7 @@ erlang__gather_gc_info_result__1 [_] = EXC.badarg unit
 erlang__gather_gc_info_result__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__gather_gc_info_result__1-}) args
 
 erlang__tuple_size__1 :: ErlangFun
-erlang__tuple_size__1 args = unimplemented "erlang__tuple_size__1"
+erlang__tuple_size__1 [ErlangTuple a] = ErlangInt $ DA.length a
 erlang__tuple_size__1 [_] = EXC.badarg unit
 erlang__tuple_size__1 args = EXC.badarity (ErlangFun 1 purs_tco_sucks {-erlang__tuple_size__1-}) args
 
