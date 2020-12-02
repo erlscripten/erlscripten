@@ -16,3 +16,7 @@ test_list_deconstruct() ->
 
 test_string_pattern("12345") ->
   ok.
+
+test_empty_list() ->
+  [] = lists:seq(1, 0),
+  ok.
