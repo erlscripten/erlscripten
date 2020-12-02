@@ -1478,7 +1478,7 @@ transpile_expr({bc, Ann, Ret, Generators}, LetDefs0, Env) ->
     };
 
 transpile_expr({map, _, Associations}, LetDefs0, Env) ->
-    {Keys, Vals} = lists:unzip([{Key, Val} || {map_field_assoc, _, Key, Val} <- Associations]),
+    {Keys, Vals} = lists:unzip([{Key, Val} || {_, _, Key, Val} <- Associations]),
     {KeysVars, LetDefs1} = bind_exprs("key", Keys, LetDefs0, Env),
     {ValsVars, LetDefs2} = bind_exprs("val", Vals, LetDefs1, Env),
     Map = #expr_app{
@@ -1501,12 +1501,39 @@ transpile_expr({map, Ann, Map, Associations}, LetDefs0, Env) ->
     {MapVar, LetDefs1} = bind_expr("map", Map, LetDefs0, Env),
     {Ext, LetDefs2} = transpile_expr({map, Ann, Associations}, LetDefs1, Env),
     ExtVar = state_create_fresh_var("map_ext"),
+    Exacts = [Key || {map_field_exact, _, Key, _} <- Associations],
+    {ExactsVars, LetDefs3} = bind_exprs("exact_key", Exacts, LetDefs2, Env),
     {direct, FRef} = transpile_fun_ref(maps, merge, 2, Env),
-    {#expr_app{
-        function = FRef,
-        args = [#expr_array{value = [#expr_var{name = MapVar}, #expr_var{name = ExtVar}]}]},
+    MergeExpr =
+        #expr_app{
+           function = FRef,
+           args = [#expr_array{value = [#expr_var{name = MapVar},
+                                        #expr_var{name = ExtVar}]}]},
+    MissingKeyVar = state_create_fresh_var("missing"),
+    {case ExactsVars of
+         [] -> MergeExpr;
+         _ ->
+             #expr_case{
+                expr =
+                    #expr_app{
+                       function = #expr_var{name = "findMissingKey"},
+                       args = [#expr_var{name = MapVar},
+                               #expr_array{value = [#expr_var{name = V} || V <- ExactsVars]}
+                              ]
+                      },
+                cases =
+                    [ {#pat_constr{constr = "DM.Nothing"}, [],
+                       MergeExpr
+                      }
+                    , {#pat_constr{constr = "DM.Just",
+                                   args = [#pat_var{name = MissingKeyVar}]}, [],
+                       ?badkey(#expr_var{name = MissingKeyVar})
+                      }
+                    ]
+               }
+     end,
      [ #letval{lvalue = #pat_var{name = ExtVar}, rvalue = Ext}
-     | LetDefs2]
+     | LetDefs3]
     };
 
 
