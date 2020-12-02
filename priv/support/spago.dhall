@@ -15,6 +15,7 @@ You can edit this file as you like.
   , "psci-support"
   , "rationals"
   , "spec"
+  , "numbers"
   , "purescript-erlps-core"
   ]
 , packages = ./packages.dhall

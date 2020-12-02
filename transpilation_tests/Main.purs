@@ -33,6 +33,7 @@ import Erlang.Builtins as BIF
 import Erlang.Invoke
 import Node.Buffer as Buf
 
+import Comparator
 import Processes
 import Lists
 import Lambdas
@@ -202,6 +203,9 @@ main =
             mkInt 720 `shouldEqualOk` r
         it "Match float64" do
             r <- exec_may_throw erlps__test_too_big_int__0 []
+            ok `shouldEqualOk` r
+        it "Comparator 1" do
+            r <- exec_may_throw erlps__test_comp1__0 []
             ok `shouldEqualOk` r
 
     describe_ "STDLIB Lists" do
