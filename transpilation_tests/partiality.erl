@@ -13,3 +13,6 @@ test_list_deconstruct() ->
     [] -> hmm
   end,
   ok.
+
+test_string_pattern("12345") ->
+  ok.

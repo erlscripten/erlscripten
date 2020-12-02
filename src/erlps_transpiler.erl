@@ -475,13 +475,11 @@ transpile_pattern({integer, _, Num}, _) ->
      []};
 transpile_pattern({op, _, "-", {integer, Ann, Num}}, Env) ->
     transpile_pattern({integer, Ann, -Num}, Env);
-transpile_pattern({string, _, String}, _Env) ->
-    {lists:foldr(
+transpile_pattern({string, Ann, String}, Env) ->
+    transpile_pattern(lists:foldr(
        fun (Char, Acc) ->
-               ?make_pat_cons(#pat_constr{constr = "DBI.fromInt", args = [#pat_num{value = Char}]}, Acc)
-       end, ?make_pat_empty_list, String),
-     [], []
-    };
+          {cons, Ann, {integer, Ann, Char}, Acc}
+       end, {nil, Ann}, String), Env);
 
 %% Bitstring pattern TODO: bits
 transpile_pattern({bin, _, []}, _) ->
