@@ -277,6 +277,8 @@ builtins_calc() ->
                      , {"maps", "update", 3}
                      , {"maps", "values", 1}
                      ]
+                   , [ {"code", "ensure_loaded", 1}
+                     ]
                    , [ {"erlang", atom_to_list(BIF), Arity}
                       || {BIF, Arity} <- erlang:module_info(exports),
                          proplists:get_value(atom_to_list(BIF), Operators, none) =:= none
@@ -416,20 +418,18 @@ transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
         {_, error} -> error;
         _ ->
             case Op of
-                "==" ->
-                  %% TODO: special case for floats ;P
-                  F("==");
+                %% "==" ->
+                %%   F("==");
                 "=:=" ->
-                  %% TODO: special case for floats ;P
                   F("==");
-                "=<" ->
-                  F("<=");
-                "<" ->
-                  F("<");
-                ">=" ->
-                  F(">=");
-                ">" ->
-                  F(">");
+                %% "=<" ->
+                %%   F("<=");
+                %% "<" ->
+                %%   F("<");
+                %% ">=" ->
+                %%   F(">=");
+                %% ">" ->
+                %%   F(">");
                 _ ->
                   erlps_logger:debug("Unhandled guard op ~p", [Op]),
                   error
