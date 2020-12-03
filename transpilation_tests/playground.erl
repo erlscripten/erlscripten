@@ -14,6 +14,7 @@
 
 -compile(export_all).
 
-test(X)  ->
-    [] = lists:seq(1, 0),
+test() when hd(2) == 0 ->
+    bad;
+test() ->
     ok.

@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "console"
   , "effect"
   , "integers"
+  , "numbers"
   , "lists"
   , "node-buffer"
   , "psci-support"

@@ -23,6 +23,7 @@
         , records :: map()
         , local_imports :: #{{string(), non_neg_integer()} => string()}
         , raw_functions :: #{string() => string()}
+        , in_guard = false :: boolean()
         }).
 
 version() -> "v0.0.2".
@@ -340,6 +341,12 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
     },
     erlps_optimize:optimize_clause(Clause).
 
+falsify_error_guard(Expr) ->
+    #expr_app{
+       function = #expr_var{name = "falsifyErrors"},
+       args = [#expr_lambda{args = [pat_wildcard], body = Expr}]
+      }.
+
 combine_guards([#guard_expr{guard = First}|Guards]) ->
     combine_guards(Guards, First, Guards);
 combine_guards(Guards) ->
@@ -424,7 +431,6 @@ guard_trivial_expr(_Expr, _Env) ->
     error.
 
 transpile_boolean_guards_fallback(Guards, Env) ->
-    %% erlps_logger:info("Erlscripten was unable to remove effects in guard sequence - Falling back to inefficient code in\n~p ", [Guards]),
     Alts = [
       lists:foldl(fun(G, AccConjs) -> {op, any, "andalso", AccConjs, G} end,
         hd(Alt), tl(Alt)) || Alt <- Guards ],
@@ -434,7 +440,7 @@ transpile_boolean_guards_fallback(Guards, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#guard_assg{
        lvalue = TruePat,
-       rvalue = transpile_expr(E, Env)
+       rvalue = falsify_error_guard(transpile_expr(E, Env))
     }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->
