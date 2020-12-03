@@ -120,9 +120,14 @@ comma_brackets(Open, Close, Ds) ->
 pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
     paren(block(hsep(pp_expr(L), text(O)), pp_expr(R)));
 pp_expr(#expr_num{value = Val}) ->
-    text(integer_to_list(Val));
+    if Val >= 0 -> text(integer_to_list(Val));
+       true     -> paren(text(integer_to_list(Val)))
+    end;
 pp_expr(#expr_float{value = Val}) ->
-    text(string:replace(string:replace(float_to_list(Val), "e+0", "e+"), "e-0", "e-"));
+    Doc = text(string:replace(string:replace(float_to_list(Val), "e+0", "e+"), "e-0", "e-")),
+    if Val >= 0 -> Doc;
+       true     -> paren(Doc)
+    end;
 pp_expr(#expr_string{value = Val}) ->
     text(io_lib:format("~p", [lists:flatten(Val)]));
 pp_expr(#expr_app{function = F, args = Args}) ->
@@ -225,9 +230,14 @@ pp_do_statement(#do_expr{expr = Expr}) ->
 pp_pat(pat_wildcard) ->
     text("_");
 pp_pat(#pat_num{value = Val}) ->
-    text(integer_to_list(Val));
+    if Val >= 0 -> text(integer_to_list(Val));
+       true     -> paren(text(integer_to_list(Val)))
+    end;
 pp_pat(#pat_float{value = Val}) ->
-    text(string:replace(string:replace(float_to_list(Val), "e+0", "e+"), "e-0", "e-"));
+    Doc = text(string:replace(string:replace(float_to_list(Val), "e+0", "e+"), "e-0", "e-")),
+    if Val >= 0 -> Doc;
+       true     -> paren(Doc)
+    end;
 pp_pat(#pat_string{value = Val}) ->
     text(io_lib:format("~p", [Val]));
 pp_pat(#pat_var{name = Var}) ->
