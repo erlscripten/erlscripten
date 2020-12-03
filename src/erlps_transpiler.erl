@@ -73,7 +73,7 @@ transpile_erlang_module(Forms) ->
     %% Now do the dirty work - transpile every function OwO
     Decls = [transpile_function(Function, Env) ||
                 Function = {function, _, FunName, Arity, _} <- Forms,
-                case check_builtin(ModuleName, FunName, Arity) of
+                case check_builtin(ModuleName, FunName, Arity, Env) of
                     local -> true;
                     _     -> false
                 end
@@ -188,6 +188,14 @@ transpile_fun_name(Name, Arity) when is_binary(Name) ->
 transpile_fun_name(Name, Arity) ->
     lists:flatten(io_lib:format("erlps__~s__~p", [Name, Arity])).
 
+
+special_guard_bifs() ->
+    maps:from_list(
+      [  {Key, {Module, Fun ++ "__guard", Arity}}
+         || Key = {Module, Fun, Arity} <-
+                [{"erlang", "float", 1}]
+      ]).
+
 -spec builtins_calc() -> #{{string(), string(), non_neg_integer()} => string()}.
 builtins_calc() ->
     Operators = [ {"+",   "op_plus"}
@@ -269,10 +277,11 @@ builtins_calc() ->
                      , {"maps", "update", 3}
                      , {"maps", "values", 1}
                      ]
-                    , [ {"erlang", atom_to_list(BIF), Arity}
-                       || {BIF, Arity} <- erlang:module_info(exports),
-                          proplists:get_value(atom_to_list(BIF), Operators, none) =:= none
+                   , [ {"erlang", atom_to_list(BIF), Arity}
+                      || {BIF, Arity} <- erlang:module_info(exports),
+                         proplists:get_value(atom_to_list(BIF), Operators, none) =:= none
                      ]
+                   , maps:values(special_guard_bifs())
                    ]
                   )
         ]])).
@@ -287,11 +296,15 @@ builtins() ->
           R
     end.
 
--spec check_builtin(string(), string(), non_neg_integer()) -> local | {builtin, string()}.
-check_builtin(Module, Name, Arity) ->
+-spec check_builtin(string(), string(), non_neg_integer(), #env{}) -> local | {builtin, string()}.
+check_builtin(Module, Name, Arity, #env{in_guard = InGuard}) ->
     Key = {Module, Name, Arity},
+    Key1 = case {InGuard, special_guard_bifs()} of
+               {true, #{Key := Key_}} -> Key_;
+               _ -> Key
+           end,
     case builtins() of
-        #{Key := Builtin} -> {builtin, Builtin};
+        #{Key1 := Builtin} -> {builtin, Builtin};
         _ -> local
     end.
 
@@ -305,12 +318,13 @@ transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Name) ->
     transpile_fun_ref(Module, atom_to_list(Name), Arity, IsRemote, Env);
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
     transpile_fun_ref(atom_to_list(Module), Name, Arity, IsRemote, Env);
-transpile_fun_ref(Module, Name, Arity, IsRemote, #env{current_module = CurModule, local_imports = Imported} = Env) ->
-    case check_builtin(Module, Name, Arity) of
+transpile_fun_ref(Module, Name, Arity, IsRemote,
+                  #env{current_module = CurModule, local_imports = Imported} = Env) ->
+    case check_builtin(Module, Name, Arity, Env) of
         {builtin, Builtin} ->
           {direct, #expr_var{name = "BIF." ++ Builtin}};
         local ->
-            case check_builtin("erlang", Name, Arity) of
+            case check_builtin("erlang", Name, Arity, Env) of
                 {builtin, BuiltinAnyway} when IsRemote =:= false ->
                   {direct, #expr_var{name = "BIF." ++ BuiltinAnyway}};
                 _ -> if CurModule == Module ->
@@ -376,8 +390,12 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
+transpile_boolean_guards_singleton({call,_,{atom,_,is_number},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_float},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
@@ -440,7 +458,7 @@ transpile_boolean_guards_fallback(Guards, Env) ->
     {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
     [#guard_assg{
        lvalue = TruePat,
-       rvalue = falsify_error_guard(transpile_expr(E, Env))
+       rvalue = falsify_error_guard(transpile_expr(E, Env#env{in_guard = true}))
     }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->

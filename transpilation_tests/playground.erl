@@ -14,7 +14,7 @@
 
 -compile(export_all).
 
-test() when hd(2) == 0 ->
+test() when float(0) ->
     bad;
 test() ->
     ok.

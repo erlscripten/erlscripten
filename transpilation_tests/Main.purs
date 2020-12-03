@@ -91,7 +91,7 @@ print_err (Left e) =
 exec_may_throw :: ErlangFun -> Array ErlangTerm -> Aff ErlangTerm
 exec_may_throw fun args = do
     res <- attempt $ exec_may_throw_aff fun args
-    liftEffect $ log $ print_err res -- Uncomment for logs :)
+    -- liftEffect $ log $ print_err res -- Uncomment for logs :)
     case res of
         Left _ -> pure make_err
         Right r -> pure $ make_ok r
@@ -183,7 +183,7 @@ main =
 
     let ok = ErlangAtom "ok"
     let whitelist = case unit of
-          -- _ -> M.Nothing  -- comment for whitelist :)
+          _ -> M.Nothing  -- comment for whitelist :)
           _ -> M.Just ["Basics"]
     let describe_ s = case whitelist of
           M.Nothing -> describe s
@@ -208,9 +208,9 @@ main =
         it "Comparator 1" do
             r <- exec_may_throw erlps__test_comp1__0 []
             ok `shouldEqualOk` r
-        it "XDDD" do
-          r <- exec_may_throw Play.erlps__test__0 []
-          ok `shouldEqualOk` r
+        -- it "XDDD" do
+        --   r <- exec_may_throw Play.erlps__test__0 []
+        --   ok `shouldEqualOk` r
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do
