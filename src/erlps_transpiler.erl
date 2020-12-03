@@ -1186,8 +1186,8 @@ transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
 transpile_expr({nil, _}, LetDefs, _) ->
     {?make_expr_empty_list, LetDefs};
 transpile_expr({cons, _, H, T}, LetDefs0, Env) ->
-    {VarH, LetDefs1} = bind_expr("tail", H, LetDefs0, Env),
-    {VarT, LetDefs2} = bind_expr("head", T, LetDefs1, Env),
+    {VarH, LetDefs1} = bind_expr("head", H, LetDefs0, Env),
+    {VarT, LetDefs2} = bind_expr("tail", T, LetDefs1, Env),
     { ?make_expr_cons(#expr_var{name = VarH}, #expr_var{name = VarT})
     , LetDefs2
     };
