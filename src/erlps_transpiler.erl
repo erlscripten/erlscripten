@@ -468,6 +468,8 @@ guard_trivial_expr({atom, _, Atom}, _Env) ->
     ?make_expr_atom(Atom);
 guard_trivial_expr({integer, _, Num}, _Env) ->
     ?make_expr_int(Num);
+guard_trivial_expr({char, Ann, Num}, Env) ->
+    guard_trivial_expr({integer, Ann, Num}, Env);
 guard_trivial_expr(_Expr, _Env) ->
     error.
 
