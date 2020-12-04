@@ -414,6 +414,12 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{in
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFunA"), args = [?make_expr_var(state_get_var(Var)),
                                                                                ?make_expr_int(Arity)
                                                                               ]}}];
+transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env) when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
+  case {transpile_boolean_guards_singleton(L, Env), transpile_boolean_guards_singleton(R, Env)} of
+    {error, _} -> error;
+    {_, error} -> error;
+    {LG, RG} -> [LG, RG]
+  end;
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),
     RE = guard_trivial_expr(Rop, Env),
