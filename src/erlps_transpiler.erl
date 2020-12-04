@@ -55,7 +55,7 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Erlang", "Exception"], alias = "EXC"}
         , #import{path = ["Erlang", "Type"], explicit =
                       [ "ErlangFun", "ErlangTerm(..)"
-                      , "weakCmp", "weakEq", "weakLt", "weakLeq", "weakGeq", "weakGt"
+                      , "weakCmp", "weakEq", "weakNEq", "weakLt", "weakLeq", "weakGeq", "weakGt"
                       ]}
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
@@ -439,6 +439,8 @@ transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
             case Op of
                 "==" ->
                   F("weakEq");
+                "/=" ->
+                  F("weakNEq");
                 "=:=" ->
                   F("(==)");
                 "=/=" ->
