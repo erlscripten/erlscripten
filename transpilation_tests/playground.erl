@@ -15,4 +15,6 @@
 -compile(export_all).
 
 test() ->
-    code:ensure_loaded(lists).
+    {module, lists} = code:ensure_loaded(lists),
+    {error, nofile} = code:ensure_loaded(listssss),
+    ok.

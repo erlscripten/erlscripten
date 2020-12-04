@@ -53,7 +53,10 @@ transpile_erlang_module(Forms) ->
         , #import{path = ["Erlang", "Binary"], alias = "BIN"}
         , #import{path = ["Erlang", "Helpers"]}
         , #import{path = ["Erlang", "Exception"], alias = "EXC"}
-        , #import{path = ["Erlang", "Type"], explicit = ["ErlangFun", "ErlangTerm(..)"]}
+        , #import{path = ["Erlang", "Type"], explicit =
+                      [ "ErlangFun", "ErlangTerm(..)"
+                      , "weakCmp", "weakEq", "weakLt", "weakLeq", "weakGeq", "weakGt"
+                      ]}
         , #import{path = ["Effect"], explicit = ["Effect"]}
         , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
         , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
@@ -388,6 +391,8 @@ transpile_boolean_guards(Guards, Env) ->
     %% Well alternatives are hard and we don't worry about them right now :P
     transpile_boolean_guards_fallback(Guards, Env).
 
+transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
@@ -412,24 +417,33 @@ transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),
     RE = guard_trivial_expr(Rop, Env),
     Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
-    F = fun(N) -> [#guard_expr{guard = #expr_binop{name = N, lop = LE, rop = RE}}] end,
+    F = fun(N) ->
+                [#guard_expr{
+                    guard =
+                        #expr_app{
+                           function = #expr_var{name = N},
+                           args = [LE, RE]
+                          }
+                   }] end,
     case {LE, RE} of
         {error, _} -> error;
         {_, error} -> error;
         _ ->
             case Op of
-                %% "==" ->
-                %%   F("==");
+                "==" ->
+                  F("weakEq");
                 "=:=" ->
-                  F("==");
-                %% "=<" ->
-                %%   F("<=");
-                %% "<" ->
-                %%   F("<");
-                %% ">=" ->
-                %%   F(">=");
-                %% ">" ->
-                %%   F(">");
+                  F("(==)");
+                "=/=" ->
+                  F("(/=)");
+                "=<" ->
+                  F("weakLeq");
+                "<" ->
+                  F("weakLt");
+                ">=" ->
+                  F("weakGeq");
+                ">" ->
+                  F("weakGt");
                 _ ->
                   erlps_logger:debug("Unhandled guard op ~p", [Op]),
                   error
@@ -455,10 +469,13 @@ transpile_boolean_guards_fallback(Guards, Env) ->
     E = lists:foldl(
       fun(Alt, AccAlts) -> {op, any, "orelse", AccAlts, Alt} end,
       hd(Alts), tl(Alts)),
-    {TruePat, [], []} = transpile_pattern({atom, any, true}, Env),
-    [#guard_assg{
-       lvalue = TruePat,
-       rvalue = falsify_error_guard(transpile_expr(E, Env#env{in_guard = true}))
+    [#guard_expr{
+        guard =
+            #expr_binop{
+               name = "==",
+               lop = ?make_expr_atom(true),
+               rop = falsify_error_guard(transpile_expr(E, Env#env{in_guard = true}))
+              }
     }].
 
 transpile_pattern_sequence(PatternSequence, Env) ->
@@ -1044,7 +1061,8 @@ transpile_expr({'if', _, Clauses}, LetDefs, Env) ->
         cases = PSCases ++
             case [found || {#pat_constr{constr = "ErlangAtom",
                                         args = #pat_string{value = "true"}
-                                       }, [], _} <- PSCases ] of
+                                       }
+                           , [], _} <- PSCases ] of
                 [] -> [{pat_wildcard, [], ?if_clause}];
                 _ -> []
             end
