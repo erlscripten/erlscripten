@@ -52,6 +52,7 @@ import Circular.One as C1
 import Circular.Two as C2
 import Test.Onload as C3
 import Autoimport as Auto
+import String.Escape
 
 -- BEWARE - HERE BE DRAGONS - I've lost too many hours debugging alternative helpers
 -- If you think you can make a better wrapper which does not crash the testing infrastructure then please make a PR

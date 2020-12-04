@@ -129,7 +129,7 @@ pp_expr(#expr_float{value = Val}) ->
        true     -> paren(Doc)
     end;
 pp_expr(#expr_string{value = Val}) ->
-    text(io_lib:format("~p", [lists:flatten(Val)]));
+    text(escape_string(Val));
 pp_expr(#expr_app{function = F, args = Args}) ->
     paren(par([pp_expr(F) | lists:map(fun pp_expr/1, Args)]));
 pp_expr(#expr_var{name = Var}) ->
@@ -201,6 +201,42 @@ pp_expr(#expr_record{fields = Fields}) ->
     comma_brackets(
       "{", "}",
       [hsep(beside(text(Name), text(":")), pp_expr(Value))|| {Name, Value} <- Fields]).
+
+escape_string(S) -> escape_string(lists:flatten(S), [$"]).
+
+escape_string([], A) -> lists:reverse([$"|A]);
+escape_string([$\n|S], A) -> escape_string(S, [$n,$\\|A]);
+escape_string([$\r|S], A) -> escape_string(S, [$r,$\\|A]);
+escape_string([$\t|S], A) -> escape_string(S, [$t,$\\|A]);
+escape_string([$\\|S], A) -> escape_string(S, [$\\,$\\|A]);
+escape_string([$"|S], A) -> escape_string(S, [$",$\\|A]);
+escape_string([$'|S], A) -> escape_string(S, [$',$\\|A]);
+escape_string([C|S], A) when C >= $a, C =< $z -> escape_string(S, [C|A]);
+escape_string([C|S], A) when C >= $0, C =< $9 -> escape_string(S, [C|A]);
+escape_string([C|S], A) when C >= $A, C =< $Z -> escape_string(S, [C|A]);
+escape_string([C|S], A) ->
+  %% Last chance before hex escaping...
+  case lists:member(C, "!#$%&\()*+,-./:;<=>?@[\\]^_`{|}~ ") of
+    true -> escape_string(S, [C|A]);
+    false when C < 256 ->
+      %% Normal string
+      escape_string(S, [hexify(C rem 16),hexify(C div 16),$x,$\\|A]);
+    false when C < 65536 ->
+      %% Unicode...
+      A1 = C rem 16, C1 = C div 16,
+      A2 = C1 rem 16, C2 = C1 div 16,
+      A3 = C2 rem 16,
+      A4 = C2 div 16,
+      escape_string(S, [hexify(A1),hexify(A2),hexify(A3),hexify(A4),$x,$\\|A])
+  end.
+
+hexify(X) when X >= 0, X =< 9 -> X + $0;
+hexify(10) -> $A;
+hexify(11) -> $B;
+hexify(12) -> $C;
+hexify(13) -> $D;
+hexify(14) -> $E;
+hexify(15) -> $F.
 
 -spec pp_letdef(purs_letdef()) -> doc().
 pp_letdef(#letval{lvalue = LV, guards = [], rvalue = RV}) ->
