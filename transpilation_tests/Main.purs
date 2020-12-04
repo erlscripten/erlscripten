@@ -448,6 +448,10 @@ main =
         r <- exec_may_throw erlps__test_index_3__0 []
         mkInt 3 `shouldEqualOk` r
 
+      it "is_record tests" do
+        r <- exec_may_throw erlps__test_is_record__0 []
+        ok `shouldEqualOk` r
+
     let dropStack (ErlangTuple [t, p, _]) = ErlangTuple [t, p]
         dropStack _ = ErlangAtom "bad_exception"
     describe_ "Exception library" do

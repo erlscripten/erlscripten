@@ -14,7 +14,21 @@
 
 -compile(export_all).
 
+-record(r, {kek, kok}).
+
 test() ->
-    {module, lists} = code:ensure_loaded(lists),
-    {error, nofile} = code:ensure_loaded(listssss),
+    X = #r{kek = 1, kok = 2},
+    Y = 123,
+    Z = {r, 1, 2, 3, 4, 5},
+    R = r,
+    true = is_record(X, r, 3),
+    true = is_record(X, R, 3),
+    false = is_record(X, R, 31),
+    false = is_record(Y, r, 3),
+    false = is_record(Y, R, 3),
+
+    true = is_record(X, r),
+    true = is_record(X, R),
+    true = is_record(Z, R),
+    false = is_record(Z, r),
     ok.

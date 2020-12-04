@@ -392,7 +392,7 @@ transpile_boolean_guards(Guards, Env) ->
     transpile_boolean_guards_fallback(Guards, Env).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
@@ -1146,6 +1146,29 @@ transpile_expr({op, _, Op, Arg}, LetDefs0, Env) ->
      LetDefs1
     };
 
+transpile_expr({call, Ann, {remote, _, {atom, _, erlang}, {atom, AnnA, is_record}},
+                Args = [_, {atom, _, _}]}, LetDefs, Env) ->
+    transpile_expr({call, Ann, {atom, AnnA, is_record}, Args}, LetDefs, Env);
+transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]}, LetDefs0, Env = #env{records = Records}) ->
+    {ArgVar, LetDefs1} = bind_expr("perhaps_a_record", Arg1, LetDefs0, Env),
+    case maps:get(Record, Records, undefined) of
+        undefined -> error({undefined_record, Record});
+        Fields ->
+            Arity = length(Fields),
+            { #expr_app{
+                 function = #expr_var{name = "BIF.erlang__is_record__3"},
+                 args =
+                     [#expr_array{
+                        value =
+                            [ #expr_var{name = ArgVar}
+                            , ?make_expr_atom(Record)
+                            , ?make_expr_int(Arity + 1)
+                            ]
+                       }]
+                }
+            , LetDefs1
+            }
+    end;
 transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
     case transpile_fun_ref(Fun, length(Args), Env) of

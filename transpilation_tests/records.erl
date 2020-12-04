@@ -83,3 +83,20 @@ test_index_2() ->
     #product.left.
 test_index_3() ->
     #product.right.
+
+test_is_record() ->
+    X = #product{left = 1, right = 2},
+    Y = 123,
+    Z = {product, 1, 2, 3, 4, 5},
+    R = product,
+    true = is_record(X, product, 3),
+    true = is_record(X, R, 3),
+    false = is_record(X, R, 31),
+    false = is_record(Y, product, 3),
+    false = is_record(Y, R, 3),
+
+    true = is_record(X, product),
+    true = is_record(X, R),
+    true = is_record(Z, R),
+    false = is_record(Z, product),
+    ok.
