@@ -184,7 +184,7 @@ main =
     let ok = ErlangAtom "ok"
     let whitelist = case unit of
           _ -> M.Nothing  -- comment for whitelist :)
-          _ -> M.Just ["Basics"]
+          _ -> M.Just ["PLAYGROUND"]
     let describe_ s = case whitelist of
           M.Nothing -> describe s
           M.Just l ->
@@ -194,6 +194,11 @@ main =
             1 `shouldEqual` 1
         it "two should equal two" do
             2 `shouldEqual` 2
+
+    describe_ "PLAYGROUND" do
+      it "TEST 1" do
+          r <- exec_may_throw Play.erlps__test__0 []
+          ok `shouldEqualOk` r
 
     describe_ "Basics" do
         it "2 + 2" do
@@ -208,9 +213,6 @@ main =
         it "Comparator 1" do
             r <- exec_may_throw erlps__test_comp1__0 []
             ok `shouldEqualOk` r
-        -- it "XDDD" do
-        --   r <- exec_may_throw Play.erlps__test__0 []
-        --   ok `shouldEqualOk` r
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do

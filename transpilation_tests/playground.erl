@@ -14,7 +14,5 @@
 
 -compile(export_all).
 
-test() when float(0) ->
-    bad;
 test() ->
-    ok.
+    code:ensure_loaded(lists).
