@@ -329,8 +329,9 @@ transpile_fun_ref(Module, Name, Arity, IsRemote,
         {builtin, Builtin} ->
           {direct, #expr_var{name = "BIF." ++ Builtin}};
         local ->
+            IsAutoImported = erl_internal:bif(list_to_atom(Name), Arity),
             case check_builtin("erlang", Name, Arity, Env) of
-                {builtin, BuiltinAnyway} when IsRemote =:= false ->
+                {builtin, BuiltinAnyway} when IsAutoImported, IsRemote =:= false ->
                   {direct, #expr_var{name = "BIF." ++ BuiltinAnyway}};
                 _ -> if CurModule == Module ->
                             %% Check if the local module call is in fact a call to an imported function
