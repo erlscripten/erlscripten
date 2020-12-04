@@ -32,3 +32,62 @@ test() ->
     true = is_record(Z, R),
     false = is_record(Z, r),
     ok.
+
+a(C) when C >= $A, C =< $Z -> C.
+
+b(X) when X >= 0; X =< 1, (X > 20); is_list(X) andalso hd(X) > 20 -> X.
+
+-define(WHITE_SPACE(C),
+        is_integer(C) andalso
+         (C >= $\000 andalso C =< $\s orelse C >= $\200 andalso C =< $\240)).
+c(X) when ?WHITE_SPACE(X) -> X.
+
+-define(HEX(C), C >= $0 andalso C =< $9 orelse
+                C >= $A andalso C =< $F orelse
+                C >= $a andalso C =< $f).
+
+d(A, B) when ?HEX(A), ?HEX(B) -> A+B.
+
+-define(DIGIT(C), C >= $0 andalso C =< $9).
+-define(BASED_DIGIT(C, B),
+        ((?DIGIT(C) andalso C < $0 + B)
+         orelse (C >= $A andalso B > 10 andalso C < $A + B - 10)
+         orelse (C >= $a andalso B > 10 andalso C < $a + B - 10))).
+
+f(A, B, C, D) when ?BASED_DIGIT(A, B) andalso ?BASED_DIGIT(C, D) -> ok.
+
+-record(erl_scan,
+        {resword_fun = false,
+         ws          = false,
+         comment     = false,
+         text        = false
+        }).
+
+g(St) when St#erl_scan.ws -> St.
+
+
+-define(UNICODE(C),
+        is_integer(C) andalso
+         (C >= 0 andalso C < 16#D800 orelse
+          C > 16#DFFF andalso C < 16#FFFE orelse
+          C > 16#FFFF andalso C =< 16#10FFFF)).
+
+z(X) when ?UNICODE(?UNICODE(X)) -> z(X);
+z(X) when ?UNICODE(X+1) -> X-1;
+z(X) when ?BASED_DIGIT(X, X); ?BASED_DIGIT(X-1, X+1) -> X;
+z(X) when ?WHITE_SPACE(X) -> X;
+z(X) when ?UNICODE(X-1) -> X;
+z(X) when ?UNICODE(X+1-1) -> X-1;
+z(X) when ?BASED_DIGIT(X-1, X) -> X;
+z(X) when ?WHITE_SPACE(X-1) -> X;
+z(X) when ?HEX(X) -> z(X+1);
+z(X) when ?UNICODE(X*2) -> X;
+z(X) when ?UNICODE(X+1*2) -> X-1;
+z(X) when ?BASED_DIGIT(X*2, X); ?BASED_DIGIT(X-1, X+1) -> X;
+z(X) when ?WHITE_SPACE(X*2) -> X;
+z(X) when ?UNICODE(X-1*2) -> X;
+z(X) when ?UNICODE(X+1-1*2) -> X-1;
+z(X) when ?BASED_DIGIT(X-1, X*2) -> X;
+z(X) when ?WHITE_SPACE(X-1*2) -> X;
+z(X) when ?HEX(X) -> z(X+1*2);
+z(St) when St#erl_scan.ws; 2 -> St.
