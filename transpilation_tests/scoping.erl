@@ -11,3 +11,10 @@ test_scope_1() ->
 test_scope_2() ->
     [true = true, false = false],
     ok.
+
+test_scope_3() ->
+    L = 8,
+    F = fun(<<A:L,B:A>>) -> B end,
+    7 = F(<<16:8, 7:16>>),
+    ok.
+

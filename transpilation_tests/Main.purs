@@ -606,6 +606,9 @@ main =
       it "test_scope_2" do
         r <- exec_may_throw erlps__test_scope_2__0 []
         ok `shouldEqualOk` r
+      it "test_scope_3" do
+        r <- exec_may_throw erlps__test_scope_3__0 []
+        ok `shouldEqualOk` r
 
     describe_ "Cancer..." do
       it "IO works :O" do
