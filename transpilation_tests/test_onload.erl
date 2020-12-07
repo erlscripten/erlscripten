@@ -8,4 +8,4 @@
 -export([]).
 
 test_onload() ->
-  hehe=onload:get_hehe().
+  hehe = onload:get_hehe().

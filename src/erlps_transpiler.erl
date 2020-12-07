@@ -24,6 +24,7 @@
         , local_imports :: #{{string(), non_neg_integer()} => string()}
         , raw_functions :: #{string() => string()}
         , in_guard = false :: boolean()
+        , overriden_pattern_vars = sets:new() :: sets:set(string())
         }).
 
 version() -> "v0.0.2".
@@ -637,7 +638,8 @@ transpile_pattern({var, _, '_'}, _) ->
 transpile_pattern({var, _, ErlangVar}, Env) ->
     Var = string:to_lower(lists:flatten(io_lib:format("~s_~p", [ErlangVar, state_new_id()]))),
 
-    case state_is_used(ErlangVar) of
+    case state_is_used(ErlangVar) andalso
+        not sets:is_element(ErlangVar, Env#env.overriden_pattern_vars) of
         false ->
             state_put_var(ErlangVar, Var),
             {#pat_var{name = Var}, [], []};
@@ -1275,13 +1277,6 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, LetDefs, Env) when is_atom(Fu
                        FRef]},
      LetDefs
     };
-%%transpile_expr({'fun', _, {function, {atom, _, Module}, {atom, _, Fun}, {integer, _, Arity}}},
-%%               LetDefs, Env) when is_atom(Fun) ->
-%%    {#expr_app{function = #expr_var{name = "ErlangFun"},
-%%               args = [#expr_num{value = Arity},
-%%                            transpile_fun_ref(Module, Fun, Arity, Env)]},
-%%     LetDefs
-%%    };
 transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
                LetDefs, Env) ->
     transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]}, LetDefs, Env);
@@ -1311,20 +1306,26 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
                , #expr_let{
                     letdefs =
                         [ begin
-                              state_push_var_stack(),
-                              state_push_var_stack(), % backup current state
-                              state_clear_vars(), % clear state to free the pattern vars of the scope
-                              {PSArgs, PSGuards0} = transpile_pattern_sequence(Args, Env0#env{raw_functions = #{}}),
-                              state_pop_discard_var_stack(), % remove unnecessary backup
+                              PrevVars = state_get_vars(),
+                              {PSArgs, PSGuards0} =
+                                  transpile_pattern_sequence(
+                                    Args,
+                                    Env0#env{
+                                      raw_functions = #{},
+                                      overriden_pattern_vars =
+                                          sets:from_list(maps:keys(PrevVars))
+                                     }),
                               BodyEnv =
                                   Env0#env {
                                     raw_functions =
                                         maps:filter(
-                                          fun(N, _ ) -> not state_is_used(N) end,
+                                          fun(N, _ ) ->
+                                                  maps:get(N, PrevVars, undefined)
+                                                      == maps:get(N, state_get_vars(), undefined)
+                                          end,
                                           Env0#env.raw_functions
                                          )
                                    },
-                              state_merge_down_var_stack(), % merge with the previous state
                               PSGuards1 = PSGuards0 ++ transpile_boolean_guards(Guards, Env0),
                               PSBody = transpile_body(Cont, BodyEnv),
                               state_pop_var_stack(),
@@ -1376,21 +1377,27 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
                , #expr_let{
                     letdefs =
                         [ begin
-                              state_push_var_stack(),
-                              state_push_var_stack(), % backup current state
-                              state_clear_vars(), % clear state to free the pattern vars of the scope
-                              {PSArgs, PSGuards0} = transpile_pattern_sequence(Args, Env0#env{raw_functions = #{}}),
-                              state_pop_discard_var_stack(), % remove unnecessary backup
+                              PrevVars = state_get_vars(),
+                              {PSArgs, PSGuards0} =
+                                  transpile_pattern_sequence(
+                                    Args, Env0#env{raw_functions = #{},
+                                                   overriden_pattern_vars =
+                                                       sets:from_list(maps:keys(PrevVars))
+                                                  }),
+                              NameWasShadowed =
+                                  fun(N) -> maps:get(N, PrevVars, undefined)
+                                                =/= maps:get(N, state_get_vars(), undefined)
+                                  end,
                               Env1 =
                                   Env0#env {
                                     raw_functions =
                                         maps:filter(
-                                          fun(N, _ ) -> not state_is_used(N) end,
+                                          fun(N, _ ) -> not NameWasShadowed(N) end,
                                           Env0#env.raw_functions
                                          )
                                    },
                               BodyEnv =
-                                  case state_is_used(Name) of
+                                  case NameWasShadowed(Name) of
                                       false ->
                                           state_put_var(Name, FunVar), %% recursion
                                           Env1#env{
@@ -1398,7 +1405,6 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
                                            };
                                       true -> Env1
                                   end,
-                              state_merge_down_var_stack(), % merge with the previous state
                               PSGuards1 = PSGuards0 ++ transpile_boolean_guards(Guards, Env0),
                               PSBody = transpile_body(Cont, BodyEnv),
                               state_pop_var_stack(),
@@ -1877,13 +1883,13 @@ state_get_vars() ->
 state_put_var(ErlangVar, PsVar) ->
     put(?BINDINGS, maps:put(ErlangVar, PsVar, state_get_vars())).
 state_create_fresh_var(Name) ->
-    Var = lists:flatten(io_lib:format("~s_~p", [Name, state_new_id()])),
-    %%state_put_var(Var, Var),
-    Var.
+    lists:flatten(io_lib:format("~s_~p", [Name, state_new_id()])).
 state_is_used(ErlangVar) ->
     maps:is_key(ErlangVar, state_get_vars()).
 state_get_var(ErlangVar) ->
-    maps:get(ErlangVar, state_get_vars()).
+    try maps:get(ErlangVar, state_get_vars())
+    catch error:{badkey, _} -> error({undefined_var, ErlangVar})
+    end.
 %% Bindings stack
 state_clear_var_stack() ->
     put(?BINDINGS_STACK, []).
