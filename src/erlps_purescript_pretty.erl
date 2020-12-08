@@ -275,7 +275,7 @@ pp_pat(#pat_float{value = Val}) ->
        true     -> paren(Doc)
     end;
 pp_pat(#pat_string{value = Val}) ->
-    text(io_lib:format("~p", [Val]));
+    text(escape_string(Val));
 pp_pat(#pat_var{name = Var}) ->
     text(Var);
 pp_pat(#pat_array{value = Arr}) ->
