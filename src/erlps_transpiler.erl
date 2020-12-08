@@ -194,11 +194,15 @@ transpile_fun_name(Name, Arity) ->
 
 
 special_guard_bifs() ->
-    maps:from_list(
-      [  {Key, {Module, Fun ++ "__guard", Arity}}
-         || Key = {Module, Fun, Arity} <-
-                [{"erlang", "float", 1}]
-      ]).
+    maps:from_list(lists:concat(
+      [ [  {{"erlang", Fun, 1}, {"erlang", "is_" ++ Fun, 1}}
+           || Fun <-
+                  [ "integer", "float", "list", "number", "atom"
+                  , "tuple", "pid", "port", "function", "binary"
+                  , "reference"
+                  ]
+        ]
+      ])).
 
 -spec builtins_calc() -> #{{string(), string(), non_neg_integer()} => string()}.
 builtins_calc() ->
@@ -259,9 +263,11 @@ builtins_calc() ->
                      , {"math", "floor", 1}
                      , {"math", "fmod", 2}
                      ]
-                   , [ {"erts_internal", "map_next", 3} ]
-                   , [ {"erts_debug", "same", 2} ]
-                   , [ {"prim_eval", "receive", 2} ]
+                   , [ {"erts_internal", "map_next", 3}
+                     , {"erts_debug", "same", 2}
+                     ]
+                   , [ {"prim_eval", "receive", 2}
+                     ]
                    , [ {"lists", "keyfind", 3}
                      , {"lists", "keymember", 3}
                      , {"lists", "keysearch", 3}
@@ -306,13 +312,26 @@ builtins() ->
 check_builtin(Module, Name, Arity, #env{in_guard = InGuard}) ->
     Key = {Module, Name, Arity},
     Key1 = case {InGuard, special_guard_bifs()} of
-               {true, #{Key := Key_}} -> Key_;
+               {true, #{Key := Key_ = {_, Name_, Arity_}}} ->
+                   erlps_logger:debug("Fixing in-guard BIF: ~s/~p -> ~s/~p",
+                                      [Name, Arity, Name_, Arity_]),
+                   Key_;
                _ -> Key
            end,
     case builtins() of
         #{Key1 := Builtin} -> {builtin, Builtin};
         _ -> local
     end.
+
+auto_imported(Name, Arity) ->
+    AName = list_to_atom(Name),
+    erl_internal:bif(AName, Arity) orelse
+        lists:member(
+          {AName, Arity},
+          [ {integer, 1}, {pid, 1}, {atom, 1}, {tuple, 1}
+          , {number, 1}, {port, 1}, {binary, 1}, {list, 1}
+          , {reference, 1}, {function, 1}
+          ]).
 
 -spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> {direct, purs_expr()} | {code_server, string(), string()}.
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
@@ -330,7 +349,7 @@ transpile_fun_ref(Module, Name, Arity, IsRemote,
         {builtin, Builtin} ->
           {direct, #expr_var{name = "BIF." ++ Builtin}};
         local ->
-            IsAutoImported = erl_internal:bif(list_to_atom(Name), Arity),
+            IsAutoImported = auto_imported(Name, Arity),
             case check_builtin("erlang", Name, Arity, Env) of
                 {builtin, BuiltinAnyway} when IsAutoImported, IsRemote =:= false ->
                   {direct, #expr_var{name = "BIF." ++ BuiltinAnyway}};
@@ -381,20 +400,35 @@ combine_guards(_, _, Init) ->
 
 transpile_boolean_guards([], _Env) -> [];
 transpile_boolean_guards([SingleConj], Env) ->
-    GSeq = [transpile_boolean_guards_singleton(E, Env) || E <- SingleConj],
+    Env1 = Env#env{in_guard = true},
+    GSeq = [transpile_boolean_guards_singleton(E, Env1) || E <- SingleConj],
     %% If all of them compiled to guards then we won :)
     case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
       [] -> combine_guards(lists:flatten(GSeq));
       _ ->
           %% Well - just fallback to the general case :P
-          transpile_boolean_guards_fallback([SingleConj], Env)
+          transpile_boolean_guards_fallback([SingleConj], Env1)
     end;
 transpile_boolean_guards(Guards, Env) ->
     %% Well alternatives are hard and we don't worry about them right now :P
-    transpile_boolean_guards_fallback(Guards, Env).
+    transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true}).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,integer},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,number},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,pid},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEPid"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,tuple},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,atom},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
@@ -1849,7 +1883,9 @@ compute_constexpr({op, _, Op, L, R}) -> %% FIXME: float handling needs to be fix
     case {compute_constexpr(L), compute_constexpr(R)} of
         {{ok, LV}, {ok, RV}}
           when is_number(LV) andalso is_number(RV) andalso
-               (Op =:= '+' orelse Op =:= '-' orelse Op =:= '*' orelse Op =:= '/')
+               (Op =:= '+' orelse Op =:= '-' orelse Op =:= '*' orelse Op =:= '/'
+                orelse Op =:= 'bsl'
+               )
                -> {ok, (fun erlang:Op/2)(LV, RV)};
         _ -> error
     end;

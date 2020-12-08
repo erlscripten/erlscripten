@@ -185,7 +185,7 @@ main =
 
     let ok = ErlangAtom "ok"
     let whitelist = case unit of
-          _ -> M.Nothing  -- comment for whitelist :)
+          -- _ -> M.Nothing  -- comment for whitelist :)
           _ -> M.Just ["PLAYGROUND"]
     let describe_ s = case whitelist of
           M.Nothing -> describe s
