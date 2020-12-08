@@ -1240,7 +1240,7 @@ transpile_expr({call, _, {remote, _, {atom, _, Module0}, {atom, _, Fun}}, Args},
     %%state_add_import_request(Module0, Env),
     Module1 = case Module0 of
                 'io' -> "erlang_io";
-                'io_lib' -> "erlang_iolib";
+                %'io_lib' -> "erlang_iolib";
                 'unicode' -> "erlang_unicode";
                 _ -> Module0
               end,
@@ -1924,7 +1924,7 @@ state_is_used(ErlangVar) ->
     maps:is_key(ErlangVar, state_get_vars()).
 state_get_var(ErlangVar) ->
     try maps:get(ErlangVar, state_get_vars())
-    catch error:{badkey, _} -> error({undefined_var, ErlangVar})
+    catch error:{badkey, _}:S -> error({undefined_var, ErlangVar, S})
     end.
 %% Bindings stack
 state_clear_var_stack() ->
