@@ -185,7 +185,6 @@ transpile_function({function, _, FunName, Arity, Clauses},
           },
     case lists:search(
            fun({_, Module1, FunName1}) ->
-                   erlps_logger:debug("DUPA ~p == ~p  or  ~p == ~p:  ~p", [atom_to_list(FunName), FunName1, Module, Module1, (FunName1 == atom_to_list(FunName)) and (Module1 == Module)]),
                    (FunName1 == atom_to_list(FunName)) and (Module1 == Module)
            end, Splits) of
         false ->
@@ -195,7 +194,6 @@ transpile_function({function, _, FunName, Arity, Clauses},
                 [BadArity],
             [#valdecl{name = PSFunName, clauses = AllPSClauses, type = Type}];
         {value, {Split, _, _}} ->
-            erlps_logger:debug("FOUND! ~p", [Split]),
             MakeIdName = fun(I) ->
                                  case I of
                                      0 -> PSFunName;
