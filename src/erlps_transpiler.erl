@@ -12,6 +12,7 @@
 %% API
 -export([ version/0
         , transpile_erlang_module/1
+        , transpile_erlang_module/2
         , filter_module_attributes/1
         , erlang_module_to_purs_file/1 ]).
 
@@ -25,11 +26,14 @@
         , raw_functions :: #{string() => string()}
         , in_guard = false :: boolean()
         , overriden_pattern_vars = sets:new() :: sets:set(string())
+        , split_clauses :: [{integer(), string(), string()}]
         }).
 
 version() -> "v0.0.2".
 
 transpile_erlang_module(Forms) ->
+    transpile_erlang_module(Forms, #{}).
+transpile_erlang_module(Forms, Config) ->
     Attributes = filter_module_attributes(Forms),
     ModuleName = proplists:get_value(module, Attributes),
     erlps_logger:info("Transpiling ~s", [ModuleName]),
@@ -72,15 +76,17 @@ transpile_erlang_module(Forms) ->
              current_module = atom_to_list(ModuleName),
              records = Records,
              local_imports = LocalImports,
-             raw_functions = #{}
+             raw_functions = #{},
+             split_clauses = maps:get(split_clauses, Config, [])
             },
     %% Now do the dirty work - transpile every function OwO
-    Decls = [transpile_function(Function, Env) ||
+    Decls = [Fun ||
                 Function = {function, _, FunName, Arity, _} <- Forms,
                 case check_builtin(ModuleName, FunName, Arity, Env) of
                     local -> true;
                     _     -> false
-                end
+                end,
+                Fun <- transpile_function(Function, Env)
             ],
     Imports = lists:map(fun erlang_module_to_qualified_import/1, state_get_import_request()),
 
@@ -151,7 +157,8 @@ erlang_module_to_purs_file(Name) when is_atom(Name) ->
 erlang_module_to_purs_file(Name) ->
     string:join(lists:map(fun string:titlecase/1, string:split(Name, "_", all)), "") ++ ".purs".
 
-transpile_function({function, _, FunName, Arity, Clauses}, Env) ->
+transpile_function({function, _, FunName, Arity, Clauses},
+                   Env = #env{split_clauses = Splits, current_module = Module}) ->
     Type = #type_var{name = "ErlangFun"},
     PSFunName = transpile_fun_name(FunName, Arity),
     PSClauses = [transpile_function_clause(Clause, Env) || Clause <- Clauses],
@@ -176,14 +183,52 @@ transpile_function({function, _, FunName, Arity, Clauses}, Env) ->
                                      }),
                       #expr_var{name = "args"})
           },
-    #valdecl{
-       name = PSFunName,
-       clauses = PSClauses ++
-           case Arity == 0 of  %% TODO some better exhaustiveness heura
-               true -> []; _ -> [FunctionClause] end ++
-           [BadArity],
-       type = Type
-      }.
+    case lists:search(
+           fun({_, Module1, FunName1}) ->
+                   erlps_logger:debug("DUPA ~p == ~p  or  ~p == ~p:  ~p", [atom_to_list(FunName), FunName1, Module, Module1, (FunName1 == atom_to_list(FunName)) and (Module1 == Module)]),
+                   (FunName1 == atom_to_list(FunName)) and (Module1 == Module)
+           end, Splits) of
+        false ->
+            AllPSClauses = PSClauses ++
+                case Arity == 0 of  %% TODO some better exhaustiveness heura
+                    true -> []; _ -> [FunctionClause] end ++
+                [BadArity],
+            [#valdecl{name = PSFunName, clauses = AllPSClauses, type = Type}];
+        {value, {Split, _, _}} ->
+            erlps_logger:debug("FOUND! ~p", [Split]),
+            MakeIdName = fun(I) ->
+                                 case I of
+                                     0 -> PSFunName;
+                                     N -> PSFunName ++ "__p" ++ integer_to_list(N)
+                                 end
+                         end,
+            NClauses =  length(PSClauses),
+            Indices = [I div Split || I <- lists:seq(0, NClauses - 1)],
+            Indexed = lists:zip(Indices, PSClauses),
+            [ begin
+                  GroupClauses = proplists:get_all_values(I, Indexed),
+                  NewClauses = GroupClauses ++
+                      case I == NClauses div Split of
+                          true ->
+                              case Arity == 0 of  %% TODO some better exhaustiveness heura
+                                  true -> []; _ -> [FunctionClause] end ++
+                                  [BadArity];
+                          false ->
+                              [#clause{args = [#pat_var{name = "args"}],
+                                       value =
+                                           #expr_app{
+                                              function = #expr_var{name = MakeIdName(I + 1)},
+                                              args = [#expr_var{name = "args"}]
+                                             }
+                                      }]
+                      end,
+                  #valdecl{name = MakeIdName(I),
+                           clauses = NewClauses,
+                           type = Type}
+              end
+              || I <- lists:usort(Indices)
+            ]
+    end.
 
 transpile_fun_name(Name, Arity) when is_atom(Name) ->
     transpile_fun_name(atom_to_list(Name), Arity);
@@ -1216,7 +1261,7 @@ transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]}, LetDe
             , LetDefs1
             }
     end;
-transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
+transpile_expr({call, _, {atom, Ann, Fun}, Args}, LetDefs0, Env) ->
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
     case transpile_fun_ref(Fun, length(Args), Env) of
       {direct, PSFun} ->
