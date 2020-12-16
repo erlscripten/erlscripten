@@ -273,6 +273,7 @@ builtins_calc() ->
     maps:from_list(lists:concat([
         [ {{"erlang", "not", 1}, "erlang__op_not"}
         , {{"erlang", "-", 1}, "erlang__op_neg"}
+        , {{"erlang", "+", 1}, "erlang__op_unary_plus"}
         ],
         [ {{"erlang", Op, 2}, lists:flatten(io_lib:format("erlang__~s", [Fun]))}
           || {Op, Fun} <- Operators],
