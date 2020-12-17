@@ -377,6 +377,7 @@ pp_module(#module{name = Name, exports = Exports, imports = Imports, decls = Dec
            beside(text(Name),
                   case Exports of
                       all -> empty();
+                      [] -> empty();  % if nothing is exported then everything is exported, right?
                       _ -> comma_brackets("(", ")", lists:map(fun prettypr:text/1, Exports))
                   end),
            text("where")])
