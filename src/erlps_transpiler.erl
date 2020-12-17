@@ -781,7 +781,7 @@ parse_bin_segment_spec(Element, default) ->
     parse_bin_segment_spec(Element, []);
 parse_bin_segment_spec(_Element, Spec) ->
     F = fun(Keys, Default) -> [Res|_] = [Y || X <- Spec, Y <- Keys, X =:= Y] ++ [Default], Res end,
-    Type = F([integer, float, binary, bits], integer),
+    Type = F([integer, float, binary, bitstring, bits], integer),
     Sign = F([unsigned, signed], unsigned),
     Endian = F([little, big], big), %% native :P
     Unit = proplists:get_value(
@@ -790,6 +790,7 @@ parse_bin_segment_spec(_Element, Spec) ->
                              float -> 1;
                              bits -> 1;
                              binary -> 8;
+                             bitstring -> 1;
                              _ -> error({todo, Type, i_was_to_lazy_to_check_this_case})
                          end),
 
@@ -833,9 +834,11 @@ transpile_binary_pattern_segments(
                                case Type of
                                    integer -> ?make_expr_int(8);
                                    float -> ?make_expr_int(64);
-                                   binary -> #expr_app{function = #expr_var{name = "BIN.size"},
-                                                       args = [#expr_var{name = UnboxedVar}]
-                                                      }
+                                   B0 when B0 =:= binary orelse B0 =:= bitstring ->
+                                       #expr_app{
+                                          function = #expr_var{name = "BIN.size"},
+                                          args = [#expr_var{name = UnboxedVar}]
+                                         }
                                end;
                            _ -> transpile_expr(Size, Env)
                        end,
@@ -888,7 +891,7 @@ transpile_binary_pattern_segments(
                                   ]
                              }
                           );
-                    binary ->
+                    B when B =:= binary orelse B =:= bitstring ->
                         ?BinCall(
                            P, RestBinVar,
                            #expr_app{
@@ -1855,10 +1858,11 @@ transpile_binary_expression_segments(
                         case Type of
                             integer -> {?make_expr_int(8), LetDefs1};
                             float -> {?make_expr_int(64), LetDefs1};
-                            binary -> {#expr_app{function = #expr_var{name = "BIN.packed_size"},
-                                                 args = [#expr_var{name = ExprVar}]
-                                                },
-                                       LetDefs1}
+                            B0 when B0 =:= binary orelse B0 =:= bitstring ->
+                                {#expr_app{function = #expr_var{name = "BIN.packed_size"},
+                                           args = [#expr_var{name = ExprVar}]
+                                          },
+                                 LetDefs1}
                         end;
                     _ -> transpile_expr(Size, LetDefs1, Env)
                 end,
@@ -1890,7 +1894,7 @@ transpile_binary_expression_segments(
                                           }
                                ]
                           };
-                    binary ->
+                    B when B =:= binary orelse B =:= bitstring ->
                         #expr_app{
                            function = #expr_var{name = "BIN.format_bin"},
                            args =
