@@ -312,6 +312,15 @@ builtins_calc() ->
                      ]
                    , [ {"prim_eval", "receive", 2}
                      ]
+                   , [ {"binary", "decode_unsigned", 1}
+                     , {"binary", "decode_unsigned", 2}
+                     , {"binary", "decode_signed", 1}
+                     , {"binary", "decode_signed", 2}
+                     , {"binary", "encode_unsigned", 1}
+                     , {"binary", "encode_unsigned", 2}
+                     , {"binary", "split", 2}
+                     , {"binary", "split", 3}
+                     ]
                    , [ {"lists", "keyfind", 3}
                      , {"lists", "keymember", 3}
                      , {"lists", "keysearch", 3}
