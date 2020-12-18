@@ -111,8 +111,13 @@ do_transpile_single(TranspileSingle, Output, Config) ->
     case beam_lib:chunks(TranspileSingle, [abstract_code]) of
     {ok,{_,[{_,{_,Forms}}]}} ->
       try
+        filelib:ensure_dir(filename:dirname(Output)),
         file:delete(Output),
-        {ok, Handle} = file:open(Output, [write]),
+        Handle =
+            case file:open(Output, [write]) of
+                {ok, Handle0} -> Handle0;
+                {error, enoent} -> erlps_logger:die(Output, "File not found")
+            end,
 
         PSAst = erlps_transpiler:transpile_erlang_module(Forms, Config),
         TxtModule = erlps_purescript_pretty:format_module(PSAst),

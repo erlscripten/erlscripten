@@ -189,7 +189,7 @@ transpile_function({function, _, FunName, Arity, Clauses},
            end, Splits) of
         false ->
             AllPSClauses = PSClauses ++
-                case Arity == 0 of  %% TODO some better exhaustiveness heura
+                case Arity == 0 of  %% TODO some better heuristics heura
                     true -> []; _ -> [FunctionClause] end ++
                 [BadArity],
             [#valdecl{name = PSFunName, clauses = AllPSClauses, type = Type}];
@@ -200,15 +200,16 @@ transpile_function({function, _, FunName, Arity, Clauses},
                                      N -> PSFunName ++ "__p" ++ integer_to_list(N)
                                  end
                          end,
-            NClauses =  length(PSClauses),
+            NClauses = length(PSClauses),
             Indices = [I div Split || I <- lists:seq(0, NClauses - 1)],
             Indexed = lists:zip(Indices, PSClauses),
+            LastId = lists:last(Indices),
             [ begin
                   GroupClauses = proplists:get_all_values(I, Indexed),
                   NewClauses = GroupClauses ++
-                      case I == NClauses div Split of
+                      case I == LastId of
                           true ->
-                              case Arity == 0 of  %% TODO some better exhaustiveness heura
+                              case Arity == 0 of  %% TODO some better heuristics heura
                                   true -> []; _ -> [FunctionClause] end ++
                                   [BadArity];
                           false ->
