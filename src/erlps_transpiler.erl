@@ -56,7 +56,7 @@ transpile_erlang_module(Forms, Config) ->
         , #import{path = ["Data", "BigInt"], alias = "DBI"}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Binary"], alias = "BIN"}
-        , #import{path = ["Erlang", "Helpers"]}
+        , #import{path = ["Erlang", "Helpers"], alias = "H"}
         , #import{path = ["Erlang", "Exception"], alias = "EXC"}
         , #import{path = ["Erlang", "Type"], explicit =
                       [ "ErlangFun", "ErlangTerm(..)"
@@ -437,7 +437,7 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
 
 falsify_error_guard(Expr) ->
     #expr_app{
-       function = #expr_var{name = "falsifyErrors"},
+       function = #expr_var{name = "H.falsifyErrors"},
        args = [#expr_lambda{args = [pat_wildcard], body = Expr}]
       }.
 
@@ -468,39 +468,39 @@ transpile_boolean_guards(Guards, Env) ->
     transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true}).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,number},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,pid},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEPid"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEPid"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,tuple},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,atom},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_number},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEMap"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEMap"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFunA"), args = [?make_expr_var(state_get_var(Var)),
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFunA"), args = [?make_expr_var(state_get_var(Var)),
                                                                                ?make_expr_int(Arity)
                                                                               ]}}];
 transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env) when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
@@ -1116,7 +1116,7 @@ transpile_expr({char, Ann, Int}, LetDefs, Env) ->
     transpile_expr({integer, Ann, Int}, LetDefs, Env);
 transpile_expr({string, _, String}, LetDefs, _Env) ->
     {#expr_app{
-        function = #expr_var{name = "make_string"},
+        function = #expr_var{name = "H.make_string"},
         args = [#expr_string{value = String}]},
      LetDefs
     };
@@ -1635,7 +1635,7 @@ transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, LetDefs0, Env)
     Var = state_create_fresh_var("lc"),
     Gen =
         #expr_app{
-           function = #expr_var{name = "flmap"},
+           function = #expr_var{name = "H.flmap"},
            args =
                [#expr_lambda{
                    args = [#pat_var{name = Var}],
@@ -1711,7 +1711,7 @@ transpile_expr({map, Ann, Map, Associations}, LetDefs0, Env) ->
              #expr_case{
                 expr =
                     #expr_app{
-                       function = #expr_var{name = "findMissingKey"},
+                       function = #expr_var{name = "H.findMissingKey"},
                        args = [#expr_var{name = MapVar},
                                #expr_array{value = [#expr_var{name = V} || V <- ExactsVars]}
                               ]
@@ -1736,7 +1736,8 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, LetDefs, Env) ->
     PSExpr = transpile_body(ExprBlock, Env),
     Defer = fun(E) -> #expr_lambda{args = [pat_wildcard], body = E} end,
     OfVar = state_create_fresh_var("of"),
-    ExVar = state_create_fresh_var("ex"),
+    ExVar1 = state_create_fresh_var("ex"),
+    ExVar2 = state_create_fresh_var("ex"),
     OfHandler =
         case Clauses of
             [] -> no_of;
@@ -1759,9 +1760,9 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, LetDefs, Env) ->
         end,
     ExHandler =
         #expr_lambda
-        { args = [#pat_var{name = ExVar}]
+        { args = [#pat_var{name = ExVar1}]
         , body = #expr_case
-          { expr = #expr_var{name = ExVar}
+          { expr = #expr_var{name = ExVar1}
           , cases =
                 [ begin
                       {[PSPat], PSGuards0} = transpile_pattern_sequence(Pat, Env),
@@ -1774,10 +1775,10 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, LetDefs, Env) ->
                       }
                   end
                   || {clause, _, Pat, Guards, Cont} <- Catches
-                ] ++ [{#pat_var{name = ExVar}, [],
+                ] ++ [{#pat_var{name = ExVar2}, [],
                       #expr_app{
                          function = #expr_var{name = "EXC.raise"},
-                         args = [#expr_var{name = ExVar}]
+                         args = [#expr_var{name = ExVar2}]
                         }
                      }]
           }

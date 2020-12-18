@@ -184,11 +184,12 @@ peephole(first, #expr_app{function = Fun, args = Args}) ->
 peephole(first, #expr_array{value = Arr}) ->
     peephole(second,
              #expr_array{value = peephole(first, Arr)});
-peephole(first, #expr_case{expr = Expr, cases = Cases}) ->
+peephole(first, #expr_case{expr = Expr, cases = Cases0}) ->
+    Cases1 = reachable_case_cases(Cases0),
     peephole(second,
              #expr_case{expr = peephole(first, Expr),
                cases = [ {Pat, peephole(first, Guards), peephole(first, Cont)}
-                        || {Pat, Guards, Cont} <- Cases
+                        || {Pat, Guards, Cont} <- Cases1
                        ]
               });
 peephole(first, #expr_lambda{args = Args, body = Body}) ->
@@ -278,6 +279,10 @@ peephole_letdefs([#letval{lvalue = pat_wildcard, guards = [], rvalue = RV} = Let
 peephole_letdefs([Letdef|Rest], Acc) ->
     peephole_letdefs(Rest, [Letdef|Acc]).
 
+reachable_case_cases([]) -> [];
+reachable_case_cases([{pat_wildcard, [], _} = C | _]) -> [C];
+reachable_case_cases([{#pat_var{}, [], _} = C | _]) -> [C];
+reachable_case_cases([H|T]) -> [H|reachable_case_cases(T)].
 
 %% --- CONSTANT PROPAGATION ----------------------------------------------------
 
@@ -295,6 +300,14 @@ constant_propagation(#expr_app{function = Fun, args = Args}, State) ->
     #expr_app{function = constant_propagation(Fun, State), args = constant_propagation(Args, State)};
 constant_propagation(#expr_array{value = Arr}, State) ->
     #expr_array{value = constant_propagation(Arr, State)};
+constant_propagation(#expr_case{expr = Expr0,
+                                cases = [{#pat_var{name = AnotherVar}, [], Cont}|_]
+                               }, State) ->
+    Expr1 = constant_propagation(Expr0, State),
+    case inlineable(Expr1) of
+        true -> constant_propagation(Cont, State#{AnotherVar => Expr1});
+        false -> #expr_case{expr = Expr0, cases = [{#pat_var{name = AnotherVar}, [], constant_propagation(Cont, State)}]}
+    end;
 constant_propagation(#expr_case{expr = Expr, cases = Cases}, State0) ->
     #expr_case{expr = constant_propagation(Expr, State0),
                cases = [ begin
@@ -334,13 +347,6 @@ constant_propagation(#guard_expr{guard = Expr}, State) ->
     #guard_expr{guard = constant_propagation(Expr, State)};
 constant_propagation(#guard_assg{lvalue = Pat, rvalue = Expr}, State) ->
     #guard_assg{lvalue = Pat, rvalue = constant_propagation(Expr, State)};
-%% constant_propagation(#expr_case{expr = Expr0,
-%%                                 cases = [{#pat_var{name = AnotherVar}, [], Cont}|_]
-%%                                }, State) ->
-%%     Expr1 = constant_propagation(Expr0),
-%%     case inlineable(Expr1) of
-%%         true -> constant_propagation(Cont, State#{AnotherVar => Expr1});
-%%         false -> 
 constant_propagation(NothingToDo, _State) ->
     NothingToDo.
 
@@ -449,7 +455,17 @@ inlineable(Expr) ->
                 #expr_var{name = "ErlangAtom"} -> true;
                 #expr_var{name = "ErlangCons"} -> true;
                 #expr_var{name = "applyTerm"} -> true;
-                #expr_var{name = "isEL"} -> true;
+                #expr_var{name = "H.isEFloat"} -> true;
+                #expr_var{name = "H.isEInt"} -> true;
+                #expr_var{name = "H.isENum"} -> true;
+                #expr_var{name = "H.isEPid"} -> true;
+                #expr_var{name = "H.isETuple"} -> true;
+                #expr_var{name = "H.isEAtom"} -> true;
+                #expr_var{name = "H.isEFun"} -> true;
+                #expr_var{name = "H.isEList"} -> true;
+                #expr_var{name = "H.isEMap"} -> true;
+                #expr_var{name = "H.isEFun"} -> true;
+                #expr_var{name = "H.isEFunA"} -> true;
                 #expr_var{name = "unsafePerformEffect"} -> true;
                 #expr_var{name = "unsafePerformEffectGuard"} -> true;
                 _ -> false
