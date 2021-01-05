@@ -791,7 +791,8 @@ parse_bin_segment_spec(_Element, Spec) ->
                              float -> 1;
                              bits -> 1;
                              binary -> 8;
-                             bitstring -> 1;
+                             %% bitstring -> 1; TODO: Uncomment when bistrings are more supported
+                             bitstring -> 8;
                              _ -> error({todo, Type, i_was_to_lazy_to_check_this_case})
                          end),
 
