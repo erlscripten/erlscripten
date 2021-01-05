@@ -829,7 +829,7 @@ transpile_binary_pattern_segments(
   {lists:reverse(Guards), lists:reverse(VarUni)};
 transpile_binary_pattern_segments(
  UnboxedVar, [{bin_element, Ann, Element, Size, Spec}|Rest], Guards, VarUni, Env) ->
-    io:format(user, "~p ~p ~p\n", [Element, Size, Spec]),
+    %%io:format(user, "~p ~p ~p\n", [Element, Size, Spec]),
     case {Element, Size, parse_bin_segment_spec(Element, Spec)} of
 
         {{string, AnnS, S}, _, _} ->
