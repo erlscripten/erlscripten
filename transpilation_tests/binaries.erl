@@ -129,3 +129,9 @@ test_match_float_32() ->
     <<F:32/float>> = <<123:32/float>>,
     F = 123.0,
     ok.
+
+test_match_wildcard_binary() ->
+    T = [<<>>, <<1>>, <<1,2>>, <<1,2,3>>, <<1,2,3,4>>, <<1,2,3,4,5>>],
+    [<<_/binary>> = X || X <- T],
+    [<<_/bitstring>> = X || X <- T],
+    ok.

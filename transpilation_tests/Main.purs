@@ -740,6 +740,10 @@ main =
       it "Match float32" do
         r <- exec_may_throw erlps__test_match_float_32__0 []
         ok `shouldEqualOk` r
+      it "Match wildcard binary/bitstring" do
+        r <- exec_may_throw erlps__test_match_wildcard_binary__0 []
+        ok `shouldEqualOk` r
+
 
     describe_ "Code server" do
       it "Circular dependencies - One -> One local call" do
