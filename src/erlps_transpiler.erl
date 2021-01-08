@@ -29,7 +29,7 @@
         , split_clauses :: [{integer(), string(), string()}]
         }).
 
-version() -> "v0.0.2".
+version() -> "v0.1.0".
 
 transpile_erlang_module(Forms) ->
     transpile_erlang_module(Forms, #{}).

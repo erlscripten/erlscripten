@@ -1,7 +1,7 @@
 {application, erlscripten,
  [
   {description, "Erlang to purescript compiler"},
-  {vsn, "0.0.2"},
+  {vsn, "0.1.0"},
   {registered, []},
   {applications, [kernel, stdlib, getopt]},
   {env, []}
