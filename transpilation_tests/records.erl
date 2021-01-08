@@ -100,3 +100,8 @@ test_is_record() ->
     true = is_record(Z, R),
     false = is_record(Z, product),
     ok.
+
+test_record_info() ->
+    [left, right] = record_info(fields, product),
+    3 = record_info(size, product),
+    ok.

@@ -1284,7 +1284,19 @@ transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]}, LetDe
             , LetDefs1
             }
     end;
-transpile_expr({call, _, {atom, Ann, Fun}, Args}, LetDefs0, Env) ->
+transpile_expr({call, _, {atom, _, record_info}, [{atom, _, size}, {atom, _, Record}]}, LetDefs0, #env{records = Records}) ->
+    case maps:get(Record, Records, undefined) of
+        undefined -> error({undefined_record, Record});
+        Fields ->
+            {?make_expr_int(length(Fields) + 1), LetDefs0}
+    end;
+transpile_expr({call, _, {atom, _, record_info}, [{atom, _, fields}, {atom, _, Record}]}, LetDefs0, #env{records = Records}) ->
+    case maps:get(Record, Records, undefined) of
+        undefined -> error({undefined_record, Record});
+        Fields ->
+            {make_expr_list([?make_expr_atom(Field) || {Field, _} <- Fields]), LetDefs0}
+    end;
+transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
     case transpile_fun_ref(Fun, length(Args), Env) of
       {direct, PSFun} ->

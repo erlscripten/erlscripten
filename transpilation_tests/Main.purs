@@ -453,6 +453,9 @@ main =
       it "is_record tests" do
         r <- exec_may_throw erlps__test_is_record__0 []
         ok `shouldEqualOk` r
+      it "record_info" do
+        r <- exec_may_throw erlps__test_record_info__0 []
+        ok `shouldEqualOk` r
 
     let dropStack (ErlangTuple [t, p, _]) = ErlangTuple [t, p]
         dropStack _ = ErlangAtom "bad_exception"
