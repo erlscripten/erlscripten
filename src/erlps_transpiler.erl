@@ -90,14 +90,18 @@ transpile_erlang_module(Forms, Config) ->
             ],
     Imports = lists:map(fun erlang_module_to_qualified_import/1, state_get_import_request()),
 
-    Exports = case lists:member({compile, export_all}, Attributes) of
-                  true -> all;
-                  false ->
-                      [ transpile_fun_name(Export, Arity)
-                       || {export, ExportList} <- Attributes,
-                          {Export, Arity} <- ExportList
-                      ]
-              end,
+    Exports =
+        case [all || {compile, CompileOpt} <- Attributes,
+                     CompileOpt =:= export_all
+                         orelse (is_list(CompileOpt) andalso lists:member(export_all, CompileOpt))
+             ] of
+            [] ->
+                [ transpile_fun_name(Export, Arity)
+                  || {export, ExportList} <- Attributes,
+                     {Export, Arity} <- ExportList
+                ];
+            _ -> all
+        end,
     OnLoad = [R || {on_load, R} <- Attributes],
     ExtraDecl = case OnLoad of
                   [{Callback, 0}] ->
@@ -342,6 +346,7 @@ builtins_calc() ->
                      , {"maps", "values", 1}
                      ]
                    , [ {"code", "ensure_loaded", 1}
+                     , {"code", "ensure_modules_loaded", 1}
                      ]
                    , [ {"erlang", atom_to_list(BIF), Arity}
                       || {BIF, Arity} <- erlang:module_info(exports),
