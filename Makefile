@@ -14,6 +14,6 @@ erlscripten: build_parse_transform
 	./rebar3 escriptize
 
 compatability_benchmark: erlscripten
-	ls /usr/lib/erlang/lib/stdlib-3.13.2/ebin | grep beam | xargs -IARG ./erlscripten -s /usr/lib/erlang/lib/stdlib-3.13.2/ebin/ARG -o test.purs | grep stdlib
+	ls /usr/lib/erlang/lib/stdlib-3.14/ebin | grep beam | xargs -IARG ./erlscripten -s /usr/lib/erlang/lib/stdlib-3.14/ebin/ARG -o test.purs | grep stdlib
 
 

@@ -14,6 +14,8 @@
 
 -compile(export_all).
 
+-compile({no_auto_import, [length/1]}).
+
 test() ->
     if integer(3),
        float(3.0),

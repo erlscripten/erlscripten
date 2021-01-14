@@ -23,6 +23,7 @@
         { current_module :: string()
         , records :: map()
         , local_imports :: #{{string(), non_neg_integer()} => string()}
+        , no_auto_import :: [{atom(), non_neg_integer()}]
         , raw_functions :: #{string() => string()}
         , in_guard = false :: boolean()
         , overriden_pattern_vars = sets:new() :: sets:set(string())
@@ -72,10 +73,16 @@ transpile_erlang_module(Forms, Config) ->
                        || {import, {Module, ImportList}} <- Attributes,
                           {Name, Arity} <- ImportList
                       ]),
+    NoAutoImport =
+        [ {Fun, Arity}
+          || {compile, {no_auto_import, List}} <- Attributes,
+             {Fun, Arity} <- List
+        ],
     Env = #env{
              current_module = atom_to_list(ModuleName),
              records = Records,
              local_imports = LocalImports,
+             no_auto_import = NoAutoImport,
              raw_functions = #{},
              split_clauses = maps:get(split_clauses, Config, [])
             },
@@ -103,9 +110,21 @@ transpile_erlang_module(Forms, Config) ->
             _ -> all
         end,
     OnLoad = [R || {on_load, R} <- Attributes],
-    ExtraDecl = case OnLoad of
-                  [{Callback, 0}] ->
-                    [#valdecl{name = "onload", type = #type_var{name = "ErlangFun"}, clauses = [#clause{args = [pat_wildcard], value = #expr_app{function = #expr_var{name = transpile_fun_name(Callback, 0)}, args = [#expr_array{value = []}]}}]}];
+    ExtraDecl =
+        case OnLoad of
+            [{Callback, 0}] ->
+                [#valdecl{
+                    name = "onload",
+                    type = #type_var{name = "ErlangFun"},
+                    clauses =
+                        [#clause{
+                            args = [pat_wildcard],
+                            value =
+                                #expr_app{
+                                   function =
+                                       #expr_var{
+                                          name = transpile_fun_name(Callback, 0)},
+                                   args = [#expr_array{value = []}]}}]}];
                   _ ->
                     []
                 end,
@@ -382,22 +401,28 @@ check_builtin(Module, Name, Arity, #env{in_guard = InGuard}) ->
         _ -> local
     end.
 
-auto_imported(Name, Arity) ->
-    AName = list_to_atom(Name),
-    erl_internal:bif(AName, Arity) orelse
-        lists:member(
-          {AName, Arity},
-          [ {integer, 1}, {pid, 1}, {atom, 1}, {tuple, 1}
-          , {number, 1}, {port, 1}, {binary, 1}, {list, 1}
-          , {reference, 1}, {function, 1}
-          ]).
+auto_imported(Name, Arity, #env{no_auto_import = NoAutoImport}) ->
+    case lists:member({Name, Arity}, NoAutoImport) of
+        true -> false;
+        false ->
+            AName = list_to_atom(Name),
+            erl_internal:bif(AName, Arity) orelse
+                lists:member(
+                  {AName, Arity},
+                  [ {integer, 1}, {pid, 1}, {atom, 1}, {tuple, 1}
+                  , {number, 1}, {port, 1}, {binary, 1}, {list, 1}
+                  , {reference, 1}, {function, 1}
+                  ])
+    end.
 
--spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) -> {direct, purs_expr()} | {code_server, string(), string()}.
+-spec transpile_fun_ref(string() | atom(), non_neg_integer(), #env{}) ->
+          {direct, purs_expr()} | {code_server, string(), string()}.
 transpile_fun_ref(Name, Arity, Env = #env{current_module = Module}) ->
     transpile_fun_ref(Module, Name, Arity, false, Env).
 transpile_fun_ref(Module, Name, Arity, Env) ->
     transpile_fun_ref(Module, Name, Arity, true, Env).
--spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), boolean(), #env{}) -> {direct, purs_expr()} | {code_server, string(), string()}.
+-spec transpile_fun_ref(string() | atom(), string() | atom(), non_neg_integer(), boolean(), #env{}) ->
+          {direct, purs_expr()} | {code_server, string(), string()}.
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Name) ->
     transpile_fun_ref(Module, atom_to_list(Name), Arity, IsRemote, Env);
 transpile_fun_ref(Module, Name, Arity, IsRemote, Env) when is_atom(Module) ->
@@ -408,7 +433,7 @@ transpile_fun_ref(Module, Name, Arity, IsRemote,
         {builtin, Builtin} ->
           {direct, #expr_var{name = "BIF." ++ Builtin}};
         local ->
-            IsAutoImported = auto_imported(Name, Arity),
+            IsAutoImported = auto_imported(Name, Arity, Env),
             case check_builtin("erlang", Name, Arity, Env) of
                 {builtin, BuiltinAnyway} when IsAutoImported, IsRemote =:= false ->
                   {direct, #expr_var{name = "BIF." ++ BuiltinAnyway}};
@@ -473,43 +498,62 @@ transpile_boolean_guards(Guards, Env) ->
     transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true}).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,number},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,pid},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEPid"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEPid"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,tuple},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,atom},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_number},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args = [?make_expr_var(state_get_var(Var))]}}];
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEMap"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEMap"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args = [?make_expr_var(state_get_var(Var))]}}];
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFunA"), args = [?make_expr_var(state_get_var(Var)),
-                                                                               ?make_expr_int(Arity)
-                                                                              ]}}];
-transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env) when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
-  case {transpile_boolean_guards_singleton(L, Env), transpile_boolean_guards_singleton(R, Env)} of
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFunA"), args =
+                                     [?make_expr_var(state_get_var(Var)),
+                                      ?make_expr_int(Arity)
+                                     ]}}];
+transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
+  when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
+  case {transpile_boolean_guards_singleton(L, Env),
+        transpile_boolean_guards_singleton(R, Env)} of
     {error, _} -> error;
     {_, error} -> error;
     {LG, RG} -> [LG, RG]
@@ -694,8 +738,10 @@ transpile_pattern({op, Ann, '++', {string, AnnS, String}, Right}, Env) ->
     transpile_pattern({op, Ann, '++', P, Right}, Env);
 transpile_pattern(P, Env) when element(1, P) =:= op ->
     case compute_constexpr(P) of
-        {ok, Num} when is_integer(Num) -> transpile_pattern({integer, element(2, P), Num}, Env);
-        {ok, Float} when is_float(Float) -> transpile_pattern({float, element(2, P), Float}, Env);
+        {ok, Num} when is_integer(Num) ->
+            transpile_pattern({integer, element(2, P), Num}, Env);
+        {ok, Float} when is_float(Float) ->
+            transpile_pattern({float, element(2, P), Float}, Env);
         {ok, Res} -> {Res, [], []};
         error -> error({illegal_operator_pattern, P})
     end;
@@ -757,31 +803,6 @@ transpile_pattern({var, _, ErlangVar}, Env) ->
 
 transpile_pattern(Arg, _Env) ->
     error({unimplemented_pattern, Arg}).
-
-
-pattern_vars(Pat) ->
-    pattern_vars(Pat, []).
-pattern_vars([], Acc) ->
-    Acc;
-pattern_vars([Pat|Rest], Acc) ->
-    Acc1 = pattern_vars(Pat, Acc),
-    pattern_vars(Rest, Acc1);
-pattern_vars(#pat_string{}, Acc) ->
-    Acc;
-pattern_vars(pat_wildcard, Acc) ->
-    Acc;
-pattern_vars(#pat_num{}, Acc) ->
-    Acc;
-pattern_vars(#pat_var{name = Var}, Acc) ->
-    [Var|Acc];
-pattern_vars(#pat_constr{args = Pats}, Acc) ->
-    pattern_vars(Pats, Acc);
-pattern_vars(#pat_array{value = Pats}, Acc) ->
-    pattern_vars(Pats, Acc);
-pattern_vars(#pat_as{name = Name, pattern = Pat}, Acc) ->
-    pattern_vars(Pat, [Name|Acc]);
-pattern_vars(#pat_record{fields = Fields}, Acc) ->
-    pattern_vars([Pat || {_Field, Pat} <- Fields], Acc).
 
 parse_bin_segment_spec(Element, default) ->
     parse_bin_segment_spec(Element, []);
@@ -1063,45 +1084,6 @@ catch_partial_lets_in_letdefs(
                        guards = catch_partial_lets(Guards)
                       }|Acc], Ret).
 
-%% WIP SCOPE LEAKER
-
-%% leak_scope(Expr = #expr_case{cases = Cases}) ->
-%%     CasesResults = [ begin
-%%                    {ContLeaked, ContVars} = leak_scope(Cont),
-%%                    PatVars = pattern_vars(Pat),
-%%                    {{Pat, Guards, ContLeaked}, PatVars ++ ContVars}
-%%                      end
-%%                      || {Pat, Guards, Cont} = Case <- Cases
-%%                    ],
-%%     Cases1 = [Case || {Case, _} <- CasesResults],
-%%     Vars = [Var || {_, Vars} <- CasesResults, Var <- Vars],
-%%     {Expr#expr_case{cases = Cases1}, Vars};
-%% leak_scope(#expr_do{statements = Stmts, return = Ret}) ->
-%%     {Stmts1, Ret1, Vars} = leak_scope_in_statements(Stmts, Ret),
-%%     {#expr_do{statements = Stmts1, return = Ret1}, Vars};
-%% leak_scope(NotScoped) ->
-%%     {NotScoped, []}.
-
-%% leak_scope_in_statements(Stmts, Ret) ->
-%%     leak_scope_in_statements(Stmts, Ret, [], []).  %% TODO HERE RETURN THE SCOPE
-%% leak_scope_in_statements([], AccStmts, Vars) ->
-%%     {AccStmts, Vars};
-%% leak_scope_in_statements([Stmt|Rest], AccStmts, Vars) ->
-%%     case Stmt of
-%%         #do_bind{lvalue = LV, rvalue = RV} ->
-%%             {RV1, RVVars} = leak_scope(RV),
-%%             LVVars = pattern_vars(LV),
-%%             leak_scope_in_statements(
-%%               Rest, [#do_bind{lvalue = LV, rvalue = RV1}|AccStmts], LVVars ++ RVVars ++ Vars);
-%%         #do_let{lvalue = LV, rvalue = RV} ->
-%%             {RV1, RVVars} = leak_scope(RV),
-%%             LVVars = pattern_vars(LV),
-%%             leak_scope_in_statements(
-%%               Rest, [#do_let{lvalue = LV, rvalue = RV1}|AccStmts], LVVars ++ RVVars ++ Vars);
-%%         #do_expr{expr = Expr} ->
-%%             {Expr1, ExprVars} = leak_scope(Expr),
-%%             leak_scope_in_statements(Rest, [#do_expr{expr = Expr1}])
-
 transpile_expr(Expr, Env) ->
     {PSExpr, LetDefs} = transpile_expr(Expr, [], Env),
     case LetDefs of
@@ -1201,14 +1183,16 @@ transpile_expr({'case', _, Expr, Clauses}, LetDefs0, Env) ->
            ],
     Cases = case UserCases of
               [] ->
-                    [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}];
+                    [{#pat_var{name = "something_else"}, [],
+                      ?case_clause(#expr_var{name = "something_else"})}];
               _ ->
                 case lists:last(UserCases) of
                     %%{#pat_var{} =V, [], _} ->
                     %%    UserCases;
                     _ ->
                         UserCases ++
-                            [{#pat_var{name = "something_else"}, [], ?case_clause(#expr_var{name = "something_else"})}]
+                            [{#pat_var{name = "something_else"}, [],
+                              ?case_clause(#expr_var{name = "something_else"})}]
                 end
             end,
     Case = #expr_case{
@@ -1269,7 +1253,8 @@ transpile_expr({op, _, Op, Arg}, LetDefs0, Env) ->
 transpile_expr({call, Ann, {remote, _, {atom, _, erlang}, {atom, AnnA, is_record}},
                 Args = [_, {atom, _, _}]}, LetDefs, Env) ->
     transpile_expr({call, Ann, {atom, AnnA, is_record}, Args}, LetDefs, Env);
-transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]}, LetDefs0, Env = #env{records = Records}) ->
+transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]},
+               LetDefs0, Env = #env{records = Records}) ->
     {ArgVar, LetDefs1} = bind_expr("perhaps_a_record", Arg1, LetDefs0, Env),
     case maps:get(Record, Records, undefined) of
         undefined -> error({undefined_record, Record});
@@ -1289,13 +1274,15 @@ transpile_expr({call, _, {atom, _, is_record}, [Arg1, {atom, _, Record}]}, LetDe
             , LetDefs1
             }
     end;
-transpile_expr({call, _, {atom, _, record_info}, [{atom, _, size}, {atom, _, Record}]}, LetDefs0, #env{records = Records}) ->
+transpile_expr({call, _, {atom, _, record_info}, [{atom, _, size}, {atom, _, Record}]},
+               LetDefs0, #env{records = Records}) ->
     case maps:get(Record, Records, undefined) of
         undefined -> error({undefined_record, Record});
         Fields ->
             {?make_expr_int(length(Fields) + 1), LetDefs0}
     end;
-transpile_expr({call, _, {atom, _, record_info}, [{atom, _, fields}, {atom, _, Record}]}, LetDefs0, #env{records = Records}) ->
+transpile_expr({call, _, {atom, _, record_info}, [{atom, _, fields}, {atom, _, Record}]},
+               LetDefs0, #env{records = Records}) ->
     case maps:get(Record, Records, undefined) of
         undefined -> error({undefined_record, Record});
         Fields ->
@@ -1322,7 +1309,6 @@ transpile_expr({call, _, {atom, _, Fun}, Args}, LetDefs0, Env) ->
       end;
 transpile_expr({call, _, {remote, _, {atom, _, Module0}, {atom, _, Fun}}, Args},
                LetDefs0, Env) ->
-    %%state_add_import_request(Module0, Env),
     Module1 = case Module0 of
                 'io' -> "erlang_io";
                 %'io_lib' -> "erlang_iolib";
@@ -1351,7 +1337,9 @@ transpile_expr({call, Ann, {remote, _, MVar, FVar}, Args0},
                LetDefs, Env) ->
     Args1 = lists:foldr(fun (Arg, Acc) -> {cons, Ann, Arg, Acc}
                  end, {nil, Ann}, Args0),
-    transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, apply}}, [MVar, FVar, Args1]}, LetDefs, Env);
+    transpile_expr(
+      {call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, apply}}, [MVar, FVar, Args1]},
+      LetDefs, Env);
 transpile_expr({call, _, Fun, Args}, LetDefs0, Env) ->
     {ArgsVars, LetDefs1} = bind_exprs("arg", Args, LetDefs0, Env),
     {FunVar, LetDefs2} = bind_expr("fun", Fun, LetDefs1, Env),
@@ -1398,7 +1386,9 @@ transpile_expr({'fun', _, {function, Fun, Arity}}, LetDefs, Env) when is_atom(Fu
     };
 transpile_expr({'fun', Ann, {function, Module, Fun, Arity}},
                LetDefs, Env) ->
-    transpile_expr({call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]}, LetDefs, Env);
+    transpile_expr(
+      {call, Ann, {remote, Ann, {atom, Ann, erlang}, {atom, Ann, make_fun}}, [Module, Fun, Arity]},
+      LetDefs, Env);
 transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}}, LetDefs, Env0) ->
     FunVar = state_create_fresh_var("lambda"),
     Arity = length(SomeArgs),
@@ -1782,7 +1772,8 @@ transpile_expr({'try', _, ExprBlock, Clauses, Catches, After}, LetDefs, Env) ->
                                    R
                                end
                               || {clause, _, Pat, Guards, Cont} <- Clauses
-                             ] ++ [{#pat_var{name = "something_else"}, [], ?try_clause(#expr_var{name = "something_else"})}]
+                             ] ++ [{#pat_var{name = "something_else"}, [],
+                                    ?try_clause(#expr_var{name = "something_else"})}]
                        }
                      }
         end,
@@ -2027,14 +2018,6 @@ state_pop_var_stack() ->
     put(?BINDINGS_STACK, tl(get(?BINDINGS_STACK))),
     put(?BINDINGS, O),
     O.
-state_peek_var_stack() ->
-    hd(get(?BINDINGS_STACK)).
-state_merge_down_var_stack() ->
-    Vars1 = get(?BINDINGS),
-    Vars2 = state_pop_discard_var_stack(),
-    Merged = maps:merge(Vars2, Vars1),
-    put(?BINDINGS, Merged).
-
 -define(IMPORT_REQUESTS, import_requests).
 state_clear_import_requests() ->
     put(?IMPORT_REQUESTS, sets:new()).
