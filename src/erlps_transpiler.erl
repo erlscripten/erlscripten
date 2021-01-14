@@ -74,7 +74,7 @@ transpile_erlang_module(Forms, Config) ->
                           {Name, Arity} <- ImportList
                       ]),
     NoAutoImport =
-        [ {Fun, Arity}
+        [ {atom_to_list(Fun), Arity}
           || {compile, {no_auto_import, List}} <- Attributes,
              {Fun, Arity} <- List
         ],
