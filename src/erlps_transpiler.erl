@@ -336,12 +336,29 @@ builtins_calc() ->
                      ]
                    , [ {"prim_eval", "receive", 2}
                      ]
-                   , [ {"binary", "decode_unsigned", 1}
+                   , [ {"binary", "at", 2}
+                     , {"binary", "bin_to_list", 1}
+                     , {"binary", "bin_to_list", 2}
+                     , {"binary", "bin_to_list", 3}
+                     , {"binary", "compile_pattern", 1}
+                     , {"binary", "copy", 1}
+                     , {"binary", "copy", 2}
+                     , {"binary", "decode_unsigned", 1}
                      , {"binary", "decode_unsigned", 2}
-                     , {"binary", "decode_signed", 1}
-                     , {"binary", "decode_signed", 2}
                      , {"binary", "encode_unsigned", 1}
                      , {"binary", "encode_unsigned", 2}
+                     , {"binary", "first", 1}
+                     , {"binary", "last", 1}
+                     , {"binary", "list_to_bin", 1}
+                     , {"binary", "longest_common_prefix", 1}
+                     , {"binary", "longest_common_suffix", 1}
+                     , {"binary", "match", 2}
+                     , {"binary", "match", 3}
+                     , {"binary", "matches", 2}
+                     , {"binary", "matches", 3}
+                     , {"binary", "part", 2}
+                     , {"binary", "part", 3}
+                     , {"binary", "referenced_byte_size", 1}
                      , {"binary", "split", 2}
                      , {"binary", "split", 3}
                      ]
