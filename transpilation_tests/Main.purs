@@ -746,6 +746,9 @@ main =
       it "Match wildcard binary/bitstring" do
         r <- exec_may_throw erlps__test_match_wildcard_binary__0 []
         ok `shouldEqualOk` r
+      it "Match padded bitstring" do
+        r <- exec_may_throw erlps__test_match_padded_bitstring__0 []
+        ok `shouldEqualOk` r
 
 
     describe_ "Code server" do
