@@ -167,39 +167,39 @@ main =
 
     describe_ "Real Array tests taken from OTP - array_SUITE.erl" do
         it "new_test" do
-            testExecOk ok erlps__new_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__new_test__1 [nil]
         it "fix_test" do
-            testExecOk ok erlps__fix_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__fix_test__1 [nil]
         it "relax_test" do
-            testExecOk ok erlps__relax_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__relax_test__1 [nil]
         it "resize_test" do
-            testExecOk ok erlps__resize_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__resize_test__1 [nil]
         it "set_get_test" do
-            testExecOk ok erlps__set_get_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__set_get_test__1 [nil]
         it "to_list_test" do
-            testExecOk ok erlps__to_list_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__to_list_test__1 [nil]
         it "sparse_to_list_test" do
-            testExecOk ok erlps__sparse_to_list_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__sparse_to_list_test__1 [nil]
         it "from_list_test" do
-            testExecOk ok erlps__from_list_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__from_list_test__1 [nil]
         it "to_orddict_test" do
-            testExecOk ok erlps__to_orddict_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__to_orddict_test__1 [nil]
         it "sparse_to_orddict_test" do
-            testExecOk ok erlps__sparse_to_orddict_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__sparse_to_orddict_test__1 [nil]
         it "from_orddict_test" do
-            testExecOk ok erlps__from_orddict_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__from_orddict_test__1 [nil]
         it "map_test" do
-            testExecOk ok erlps__map_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__map_test__1 [nil]
         it "sparse_map_test" do
-            testExecOk ok erlps__sparse_map_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__sparse_map_test__1 [nil]
         it "foldl_test" do
-            testExecOk ok erlps__foldl_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__foldl_test__1 [nil]
         it "sparse_foldl_test" do
-            testExecOk ok erlps__sparse_foldl_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__sparse_foldl_test__1 [nil]
         it "foldr_test" do
-            testExecOk ok erlps__foldr_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__foldr_test__1 [nil]
         it "sparse_foldr_test" do
-            testExecOk ok erlps__sparse_foldr_test__1 [ErlangEmptyList]
+            testExecOk ok erlps__sparse_foldr_test__1 [nil]
 
     describe_ "Lambdas" do
         it "can be called" do
@@ -443,10 +443,10 @@ main =
 
     --describe "Real b64 tests from OTP" do
     --  it "base64_encode" do
-    --        r <- exec B64S.erlps__base64_encode__1 [ErlangEmptyList]
+    --        r <- exec B64S.erlps__base64_encode__1 [nil]
     --        makeOk (ErlangAtom "ok") `shouldEqual` r
     --  it "base64_decode" do
-    --        r <- exec B64S.erlps__base64_decode__1 [ErlangEmptyList]
+    --        r <- exec B64S.erlps__base64_decode__1 [nil]
     --        makeOk (ErlangAtom "ok") `shouldEqual` r
 
     describe_ "Processes OwO" do
