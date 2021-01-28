@@ -23,7 +23,7 @@ make_pat_list([H|T]) ->
     #expr_var{name = Var}).
 -define(make_expr_int(Int),
     #expr_app{
-       function = ?make_expr_var("ErlangInt"),
+       function = ?make_expr_var("toErl"),
        args = [ case Int < -2147483648 orelse Int > 2147483647 of
                     true ->
                         #expr_app{
@@ -36,11 +36,10 @@ make_pat_list([H|T]) ->
                                                 }]
                                      }]
                           };
-                    false ->
-                        #expr_app{function = ?make_expr_var("DBI.fromInt"),
-                                  args = [#expr_num{value = Int}]
-                                 }
-                end ]}).
+                    false -> #expr_num{value = Int}
+                end ]
+      }
+       ).
 -define(make_expr_float(Float),
     #expr_app{function = ?make_expr_var("ErlangFloat"), args = [#expr_float{value = Float}]}).
 -define(make_expr_atom(Atom),

@@ -19,6 +19,7 @@
 -include("erlps_purescript.hrl").
 -include("erlps_utils.hrl").
 
+%% The environment containing most of the configurations and meta information
 -record(env,
         { current_module :: string()
         , records :: map()
@@ -30,8 +31,9 @@
         , split_clauses :: [{integer(), string(), string()}]
         }).
 
-version() -> "v0.1.0".
+version() -> "v0.2.0".
 
+%% Transforms Erlang AST into PureScript
 transpile_erlang_module(Forms) ->
     transpile_erlang_module(Forms, #{}).
 transpile_erlang_module(Forms, Config) ->
@@ -49,23 +51,16 @@ transpile_erlang_module(Forms, Config) ->
     %% Ok It's time for some canonical imports which will be used a lot :)
     DefaultImports =
         [ #import{path = ["Prelude"]}
+        , #import{path = ["Data", "BigInt"], alias = "DBI"}
         , #import{path = ["Data", "Array"], alias = "DA"}
-        , #import{path = ["Data", "List"], alias = "DL"}
         , #import{path = ["Data", "Maybe"], alias = "DM"}
         , #import{path = ["Data", "Map"], alias = "Map"}
-        , #import{path = ["Data", "Tuple"], alias = "Tup"}
-        , #import{path = ["Data", "BigInt"], alias = "DBI"}
+        , #import{path = ["Data", "Tuple"], alias = "DT"}
         , #import{path = ["Erlang", "Builtins"], alias = "BIF"}
         , #import{path = ["Erlang", "Binary"], alias = "BIN"}
-        , #import{path = ["Erlang", "Helpers"], alias = "H"}
+        , #import{path = ["Erlang", "Helpers"]}
         , #import{path = ["Erlang", "Exception"], alias = "EXC"}
-        , #import{path = ["Erlang", "Type"], explicit =
-                      [ "ErlangFun", "ErlangTerm(..)"
-                      , "weakCmp", "weakEq", "weakNEq", "weakLt", "weakLeq", "weakGeq", "weakGt"
-                      ]}
-        , #import{path = ["Effect"], explicit = ["Effect"]}
-        , #import{path = ["Effect", "Unsafe"], explicit = ["unsafePerformEffect"]}
-        , #import{path = ["Effect", "Exception"], explicit = ["throw"]}
+        , #import{path = ["Erlang", "Type"]}
         , #import{path = ["Partial", "Unsafe"], explicit = ["unsafePartial"]}
         ],
     state_clear_import_requests(),
@@ -484,7 +479,7 @@ transpile_function_clause({clause, _, Args, Guards, Body}, Env) ->
 
 falsify_error_guard(Expr) ->
     #expr_app{
-       function = #expr_var{name = "H.falsifyErrors"},
+       function = #expr_var{name = "falsifyErrors"},
        args = [#expr_lambda{args = [pat_wildcard], body = Expr}]
       }.
 
@@ -515,55 +510,55 @@ transpile_boolean_guards(Guards, Env) ->
     transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true}).
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,number},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,pid},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEPid"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEPid"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,tuple},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,atom},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEList"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isETuple"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_number},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isENum"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEInt"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFloat"), args =
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEAtom"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEMap"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEMap"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFun"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("H.isEFunA"), args =
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFunA"), args =
                                      [?make_expr_var(state_get_var(Var)),
                                       ?make_expr_int(Arity)
                                      ]}}];
@@ -688,7 +683,7 @@ transpile_pattern({string, Ann, String}, Env) ->
 
 %% Bitstring pattern TODO: bits
 transpile_pattern({bin, _, []}, _) ->
-    Var = state_create_fresh_var("bin_e"),
+    Var = state_create_fresh_var("binEnd"),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, [
         #guard_expr{guard =
         #expr_app{
@@ -696,7 +691,7 @@ transpile_pattern({bin, _, []}, _) ->
             args = [#expr_var{name = Var}]}}
     ], []};
 transpile_pattern({bin, _, Segments}, Env) ->
-    Var = state_create_fresh_var("bin_c"),
+    Var = state_create_fresh_var("binSeg"),
     {G, V} = transpile_binary_pattern_segments(Var, Segments, Env),
     {#pat_constr{constr = "ErlangBinary", args = [#pat_var{name = Var}]}, G, V};
 %% Compound pattern
@@ -713,7 +708,7 @@ transpile_pattern({match, Ann, P, {var, _, _} = V}, Env) ->
 transpile_pattern({match, _, P1, P2}, Env) ->
     {H1, G1, V1} = transpile_pattern(P1, Env),
     {H2, G2, V2} = transpile_pattern(P2, Env),
-    Var = state_create_fresh_var("match_pat"),
+    Var = state_create_fresh_var("matchPat"),
     {#pat_as{name = Var, pattern = H2},
         [#guard_assg{lvalue = H1, rvalue = #expr_var{name = Var}} | G1 ++ G2], V1 ++ V2};
 
@@ -910,7 +905,7 @@ transpile_binary_pattern_segments(
                         ?BinCall(
                            P, RestBinVar,
                            #expr_app{
-                              function = #expr_var{name = "BIN.chop_int"},
+                              function = #expr_var{name = "BIN.chopInt"},
                               args =
                                   [ #expr_var{name = UnboxedVar}
                                   , #expr_var{name = SizeVar}
@@ -932,7 +927,7 @@ transpile_binary_pattern_segments(
                         ?BinCall(
                            P, RestBinVar,
                            #expr_app{
-                              function = #expr_var{name = "BIN.chop_float"},
+                              function = #expr_var{name = "BIN.chopFloat"},
                               args =
                                   [ #expr_var{name = UnboxedVar}
                                   , #expr_var{name = SizeVar}
@@ -949,7 +944,7 @@ transpile_binary_pattern_segments(
                         ?BinCall(
                            P, RestBinVar,
                            #expr_app{
-                              function = #expr_var{name = "BIN.chop_bin"},
+                              function = #expr_var{name = "BIN.chopBin"},
                               args =
                                   [ #expr_var{name = UnboxedVar}
                                   , #expr_var{name = SizeVar}
@@ -1130,7 +1125,7 @@ transpile_expr({char, Ann, Int}, LetDefs, Env) ->
     transpile_expr({integer, Ann, Int}, LetDefs, Env);
 transpile_expr({string, _, String}, LetDefs, _Env) ->
     {#expr_app{
-        function = #expr_var{name = "H.make_string"},
+        function = #expr_var{name = "toErl"},
         args = [#expr_string{value = String}]},
      LetDefs
     };
@@ -1151,7 +1146,7 @@ transpile_expr({match, _, Pat, Val}, LetDefs0, Env) ->
             {#expr_var{name = Var},
              [#letval{lvalue = #pat_var{name = Var}, rvalue = ValueExpr} | LetDefs1]};
         {[PSPat], _} ->
-            Var = state_create_fresh_var("match_expr"),
+            Var = state_create_fresh_var("matchExpr"),
             { #expr_var{name = Var},
               [ #letval{lvalue = PSPat, guards = PSGuards, rvalue = #expr_var{name = Var}}
               , #letval{lvalue = #pat_var{name = Var}, rvalue = ValueExpr}
@@ -1659,17 +1654,17 @@ transpile_expr({record_index, _, Record, {atom, _, Field}}, LetDefs, Env) ->
     };
 
 transpile_expr({lc, _, Ret, []}, LetDefs0, Env) ->
-    {RetVar, LetDefs1} = bind_expr("lc_ret", Ret, LetDefs0, Env),
+    {RetVar, LetDefs1} = bind_expr("lcRet", Ret, LetDefs0, Env),
     {make_expr_list([#expr_var{name = RetVar}]),
      LetDefs1
     };
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, LetDefs0, Env) ->
-    {SourceVar, LetDefs1} = bind_expr("lc_src", Source, LetDefs0, Env),
+    {SourceVar, LetDefs1} = bind_expr("lcSrc", Source, LetDefs0, Env),
     {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
     Var = state_create_fresh_var("lc"),
     Gen =
         #expr_app{
-           function = #expr_var{name = "H.flmap"},
+           function = #expr_var{name = "flmap"},
            args =
                [#expr_lambda{
                    args = [#pat_var{name = Var}],
@@ -1700,7 +1695,7 @@ transpile_expr({lc, Ann, Ret, [Expr|Rest]}, LetDefs0, Env) ->
 
 transpile_expr({bc, Ann, Ret, Generators}, LetDefs0, Env) ->
     {LCExpr, LetDefs1} = transpile_expr({lc, Ann, Ret, Generators}, LetDefs0, Env),
-    { #expr_app{function = #expr_var{name = "BIN.concat_erl"},
+    { #expr_app{function = #expr_var{name = "BIN.concatErl"},
                 args = [LCExpr]
                }
     , LetDefs1
@@ -1715,7 +1710,7 @@ transpile_expr({map, _, Associations}, LetDefs0, Env) ->
              args =
                  [#expr_array{
                      value =
-                         [ #expr_app{function = #expr_var{name = "Tup.Tuple"},
+                         [ #expr_app{function = #expr_var{name = "DT.Tuple"},
                                      args = [#expr_var{name = KeyVar},
                                              #expr_var{name = ValVar}]
                                     }
@@ -1729,7 +1724,7 @@ transpile_expr({map, _, Associations}, LetDefs0, Env) ->
 transpile_expr({map, Ann, Map, Associations}, LetDefs0, Env) ->
     {MapVar, LetDefs1} = bind_expr("map", Map, LetDefs0, Env),
     {Ext, LetDefs2} = transpile_expr({map, Ann, Associations}, LetDefs1, Env),
-    ExtVar = state_create_fresh_var("map_ext"),
+    ExtVar = state_create_fresh_var("mapExt"),
     Exacts = [Key || {map_field_exact, _, Key, _} <- Associations],
     {ExactsVars, LetDefs3} = bind_exprs("exact_key", Exacts, LetDefs2, Env),
     {direct, FRef} = transpile_fun_ref(maps, merge, 2, Env),
@@ -1745,7 +1740,7 @@ transpile_expr({map, Ann, Map, Associations}, LetDefs0, Env) ->
              #expr_case{
                 expr =
                     #expr_app{
-                       function = #expr_var{name = "H.findMissingKey"},
+                       function = #expr_var{name = "findMissingKey"},
                        args = [#expr_var{name = MapVar},
                                #expr_array{value = [#expr_var{name = V} || V <- ExactsVars]}
                               ]
@@ -1896,7 +1891,7 @@ transpile_binary_expression_segments(
                             integer -> {?make_expr_int(8), LetDefs1};
                             float -> {?make_expr_int(64), LetDefs1};
                             B0 when B0 =:= binary orelse B0 =:= bitstring ->
-                                {#expr_app{function = #expr_var{name = "BIN.packed_size"},
+                                {#expr_app{function = #expr_var{name = "BIN.packedSize"},
                                            args = [#expr_var{name = ExprVar}]
                                           },
                                  LetDefs1}
@@ -1907,7 +1902,7 @@ transpile_binary_expression_segments(
                 case Type of
                     integer ->
                         #expr_app{
-                           function = #expr_var{name = "BIN.from_int"},
+                           function = #expr_var{name = "BIN.fromInt"},
                            args =
                                [ #expr_var{name = ExprVar}
                                , SizeExpr
@@ -1920,7 +1915,7 @@ transpile_binary_expression_segments(
                           };
                     float ->
                         #expr_app{
-                           function = #expr_var{name = "BIN.from_float"},
+                           function = #expr_var{name = "BIN.fromFloat"},
                            args =
                                [ #expr_var{name = ExprVar}
                                , SizeExpr
@@ -1933,7 +1928,7 @@ transpile_binary_expression_segments(
                           };
                     B when B =:= binary orelse B =:= bitstring ->
                         #expr_app{
-                           function = #expr_var{name = "BIN.format_bin"},
+                           function = #expr_var{name = "BIN.binPrefix"},
                            args =
                                [ #expr_var{name = ExprVar}
                                , SizeExpr
@@ -2037,19 +2032,6 @@ state_pop_var_stack() ->
 -define(IMPORT_REQUESTS, import_requests).
 state_clear_import_requests() ->
     put(?IMPORT_REQUESTS, sets:new()).
-state_add_import_request(Module, Env) when is_atom(Module) ->
-    state_add_import_request(atom_to_list(Module), Env);
-state_add_import_request("erlang", _) -> ok;
-state_add_import_request("math", _) -> ok;
-state_add_import_request("prim_eval", _) -> ok;
-state_add_import_request("erts_debug", _) -> ok;
-state_add_import_request("erts_internal", _) -> ok;
-state_add_import_request("io", Env) -> state_add_import_request("erlang_io", Env);
-state_add_import_request("io_lib", Env) -> state_add_import_request("erlang_iolib", Env);
-state_add_import_request("unicode", Env) -> state_add_import_request("erlang_unicode", Env);
-state_add_import_request(Module, #env{current_module = Module}) -> ok;
-state_add_import_request(Module, _Env) ->
-    put(?IMPORT_REQUESTS, sets:add_element(Module, get(?IMPORT_REQUESTS))).
 state_get_import_request() ->
     sets:to_list(get(?IMPORT_REQUESTS)).
 
