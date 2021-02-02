@@ -6,8 +6,8 @@
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
    width="256"
-   height="256"
-   viewBox="0 0 67.733333 67.733333"
+   height="155"
+   viewBox="0 0 67.733333 41.010415"
    version="1.1"
    id="svg8">
   <defs
@@ -28,7 +28,7 @@
      id="layer1">
     <g
        id="g991"
-       transform="matrix(0.41470881,0,0,0.41470881,-6.0208204,-2.2629068)">
+       transform="matrix(0.42181443,0,0,0.42181443,-7.0472882,-15.106021)">
       <g
          id="g73"
          transform="matrix(0.14661801,0,0,0.14661801,71.415255,104.42866)">
