@@ -1,3 +1,4 @@
+![](images/logo.svg)
 # Erlang to purescript compiler! 
 ![](images/demo1.gif)
 
