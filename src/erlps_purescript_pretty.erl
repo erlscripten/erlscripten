@@ -128,7 +128,7 @@ pp_expr_arg(Expr) ->
 
 -spec pp_expr(purs_expr()) -> doc().
 pp_expr(#expr_binop{name = O, lop = L, rop = R}) ->
-    paren(block(hsep(pp_expr_arg(L), text(O)), pp_expr_arg(R)));
+    block(hsep(pp_expr_arg(L), text(O)), pp_expr_arg(R));
 pp_expr(#expr_num{value = Val}) ->
     if Val >= 0 -> text(integer_to_list(Val));
        true     -> paren(text(integer_to_list(Val)))
@@ -141,7 +141,7 @@ pp_expr(#expr_float{value = Val}) ->
 pp_expr(#expr_string{value = Val}) ->
     text(escape_string(Val));
 pp_expr(#expr_app{function = F, args = Args}) ->
-    paren(par([pp_expr(F) | lists:map(fun pp_expr_arg/1, Args)]));
+    par([pp_expr(F) | lists:map(fun pp_expr_arg/1, Args)]);
 pp_expr(#expr_var{name = Var}) ->
     text(Var);
 pp_expr(#expr_array{value = Arr}) ->
@@ -181,13 +181,13 @@ pp_expr(#expr_if{condition = C, then = T, else = E}) ->
       , block(text("else"), pp_expr(E))
       ]);
 pp_expr(#expr_lambda{args = Args, body = Body}) ->
-    paren(block(
-            hsep(lists:flatten([text("\\"),
-                                [pp_pat(Arg) || Arg <- Args],
-                                text("->")])),
-            pp_expr(Body)));
+    block(
+      hsep(lists:flatten([text("\\"),
+			  [pp_pat(Arg) || Arg <- Args],
+			  text("->")])),
+      pp_expr(Body));
 pp_expr(#expr_do{statements = Stm, return = Ret}) ->
-    paren(block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)])));
+    block(text("do"), above([pp_do_statement(E) || E <- Stm] ++ [pp_expr(Ret)]));
 pp_expr(#expr_let{letdefs = LDs0, in = In0 = #expr_let{}}) ->
     GetGroups = fun GetGroups(#expr_let{letdefs = LDs, in = In}, Acc) ->
                         GetGroups(In, [LDs|Acc]);
