@@ -17,10 +17,5 @@
 -compile({no_auto_import, [length/1]}).
 
 test() ->
-    if integer(3),
-       float(3.0),
-       integer(3),
-       number(3) ->
-             ok end.
-    %% << <<123:8>> || 1 < 2 >>.
-    %% << <<X:8>> || <<X:2>> <= <<"hej">> >>.
+    "1" = string:join(["1", "2", "3"], ","),
+    ok.
