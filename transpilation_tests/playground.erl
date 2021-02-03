@@ -17,5 +17,4 @@
 -compile({no_auto_import, [length/1]}).
 
 test() ->
-    "1" = string:join(["1", "2", "3"], ","),
     ok.
