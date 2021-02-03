@@ -122,16 +122,16 @@ do_transpile_single(TranspileSingle, Output, Config) ->
         PSAst = erlps_transpiler:transpile_erlang_module(Forms, Config),
         TxtModule = erlps_purescript_pretty:format_module(PSAst),
         file:write(Handle, TxtModule),
-        erlps_logger:info("File ~s compiled successfully\n", [TranspileSingle])
+        erlps_logger:info("\e[1;37mFile\e[0m ~s \e[1;37mcompiled successfully\e[0m\n", [TranspileSingle])
       catch Error:Reason:StackTrace ->
         erlps_logger:die(TranspileSingle,
             io_lib:format("Error: ~s\nReason: ~p\nStacktrace: ~p\n", [atom_to_list(Error), Reason, StackTrace])
         )
       end;
     {error,beam_lib,{file_error, _, enoent}} ->
-      io:format("File: ~p does not exist\n", [TranspileSingle]);
+      erlps_logger:die(TranspileSingle, "File does not exist");
     Error ->
-      io:format("Failed to open beam file: ~p\n", [Error])
+      erlps_logger:die(TranspileSingle, io_lib:format("Failed to open file: ~p", [Error]))
   end.
 
 
