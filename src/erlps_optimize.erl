@@ -65,7 +65,6 @@ peephole(_, #do_bind{lvalue = LV,
 peephole(_, #expr_do{statements = Stmts0, return = #expr_do{statements = Stmts1, return = Ret}}
         ) ->
     peephole(first, #expr_do{statements = Stmts0 ++ Stmts1, return = Ret});
-
 %% sequence [pure X, pure Y, pure Z, ...] --> pure [X, Y, Z, ...]
 peephole(Phase,
          #expr_app{
@@ -100,46 +99,6 @@ peephole(_,
                    }
          ]}) ->
     peephole(first, Ex);
-%% rbind F (pure X) --> F X
-peephole(_,
-  #expr_app{
-     function = #expr_var{name = "rbind"},
-     args =
-         [ Fun
-         , #expr_app{function = #expr_var{name = "pure"},
-                    args = [Ex]
-                   }
-         ]}) ->
-    peephole(first,
-             #expr_app{function = Fun, args = [Ex]});
-%% apply (pure F) X --> map F X
-peephole(_,
-  #expr_app{
-     function = #expr_var{name = "apply"},
-     args =
-         [ #expr_app{function = #expr_var{name = "pure"},
-                     args = [Fun]
-                    }
-         , Arg
-         ]}) ->
-    peephole(first,
-             #expr_app{function = #expr_var{name = "map"},
-                       args = [Fun, Arg]
-                      });
-%% map F (pure X) --> pure (F X)
-peephole(_,
-  #expr_app{
-     function = #expr_var{name = "map"},
-     args =
-         [ Fun
-         , #expr_app{function = #expr_var{name = "pure"},
-                     args = [Ex]
-                    }
-         ]}) ->
-    peephole(first,
-             #expr_app{function = #expr_var{name = "pure"},
-                       args = [#expr_app{function = Fun, args = [Ex]}]
-                      });
 %% case X of V -> V --> X
 peephole(_,
   #expr_case{
@@ -147,6 +106,16 @@ peephole(_,
      cases = [{#pat_var{name = Var}, [], #expr_var{name = Var}}|_]
     }) ->
     peephole(first, Expr);
+%% case X of v -> Y  -->  let v = X in Y
+peephole(_,
+         #expr_case{
+            expr = Expr,
+            cases = [{Pat = #pat_var{}, [], Case}|_]
+           }) ->
+    peephole(first, #expr_let{
+                       letdefs = [#letval{lvalue = Pat, rvalue = Expr}],
+                       in = Case
+                      });
 %% Map.fromFoldable [Tuple k v] --> Map.singleton k v
 peephole(_,
   #expr_app{
@@ -461,11 +430,10 @@ inlineable(Expr) ->
                 #expr_var{name = "H.isEPid"} -> true;
                 #expr_var{name = "H.isETuple"} -> true;
                 #expr_var{name = "H.isEAtom"} -> true;
-                #expr_var{name = "H.isEFun"} -> true;
                 #expr_var{name = "H.isEList"} -> true;
-                #expr_var{name = "H.isEMap"} -> true;
                 #expr_var{name = "H.isEFun"} -> true;
                 #expr_var{name = "H.isEFunA"} -> true;
+                #expr_var{name = "H.isEMap"} -> true;
                 #expr_var{name = "unsafePerformEffect"} -> true;
                 #expr_var{name = "unsafePerformEffectGuard"} -> true;
                 _ -> false
