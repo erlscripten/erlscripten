@@ -1,8 +1,10 @@
 ![](images/logo_banner.png)
 # Erlang to purescript compiler! 
-![](images/demo1.gif)
+![](images/demo_transpile.gif)
 
 ## Warning: Erlscripten is right now under heavy development - it's not ready for production use at this moment
+
+![](images/demo_bench.gif)
 
 ## Roadmap:
 1. Transpilation of most of the Erlang STDLIB
