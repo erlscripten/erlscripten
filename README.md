@@ -14,10 +14,12 @@
 - Binaries
 - Lambdas
 - Tail recursion
+- Exceptions
 - Process dictionaries
 - Code server, module loading
 - Imports and exports
 - Compatibility utilities
+- Common errors (`function_clause`, `case_clause`, `badarity`, etc.)
 
 ## What is partially supported?
 - Erlang's standard library (most essential modules; `lists`, `maps`, `string`, etc.)
