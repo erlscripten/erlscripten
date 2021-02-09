@@ -2,29 +2,38 @@
 # Erlscripten – Erlang to PureScript transpiler! 
 ![](images/demo_transpile.gif)
 
-## Warning: Erlscripten is right now under heavy development - it's not ready for production use at this moment
+## Warning: Erlscripten is right now under heavy development - it's not ready for production use yet
 
 ![](images/demo_bench.gif)
 
-## Roadmap:
-1. Transpilation of most of the Erlang STDLIB
-2. Transpilation of https://github.com/aeternity/aebytecode/
-3. Transpilation of https://github.com/aeternity/aesophia_aci_encoder/tree/master/src
-4. Transpilation of https://github.com/aeternity/aesophia
-
-## What will erlscripten support?
-- Full erlang syntax
-- Binaries and binary pattern matching
-- Any pattern matching
+## What is supported?
+- Majority of erlang expression
+- Arbitrary arity functions
+- Pattern matching
+- Records (via tuples)
+- Binaries
 - Lambdas
-- 
+- Tail recursion
+- Process dictionaries
+- Code server, module loading
+- Imports and exports
+- Compatibility utilities
+
+## What is partially supported?
+- Erlang's standard library (most essential modules; `lists`, `maps`, `string`, etc.)
+- Erlang builtins (growing and growing!)
+- Rebar project transpilation
+- ETS
+
+## What will be supported?
+- Bitstrings
+- Leaking variable scopes
 - Basic erlang process emulation
+- NIFs
 
 ## What won't be supported
 - Hot code reloading
 - Distributed erlang
-- Bitstrings(but it can easily added )
-- NIF's(but it can be done ;) )
 
 ## How it works?
 TODO
@@ -32,5 +41,8 @@ TODO
 ## How to create production javascript bundles
 TODO - write about rollup
 
-ak_2WESwy76bMxSxP62XDE937Dmyu8wHyV4uF8KbobMNzQxh5a1sx
+
+------------------------------
+
+Support us at aeternity: `ak_2WESwy76bMxSxP62XDE937Dmyu8wHyV4uF8KbobMNzQxh5a1sx`
 
