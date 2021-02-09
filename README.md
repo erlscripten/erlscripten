@@ -1,5 +1,5 @@
 ![](images/logo_banner.png)
-# Erlang to purescript compiler! 
+# Erlscripten – Erlang to PureScript transpiler! 
 ![](images/demo_transpile.gif)
 
 ## Warning: Erlscripten is right now under heavy development - it's not ready for production use at this moment
