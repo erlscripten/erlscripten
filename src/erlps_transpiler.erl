@@ -1874,13 +1874,34 @@ transpile_binary_expression_segments([], Acc, LetDefs, _) ->
         })
     , LetDefs};
 transpile_binary_expression_segments(
-  [{bin_element, Ann, Element, Size, Spec}|Rest], Acc, LetDefs0, Env) ->
+  [{bin_element, _, Element, Size, Spec}|Rest], Acc, LetDefs0, Env) ->
     case {Element, Size, parse_bin_segment_spec(Element, Spec)} of
 
-        {{string, AnnS, S}, _, _} ->
+        {{string, _, S}, _, #{unit := Unit, endian := Endian}} ->
+            {SizeExpr, LetDefs1} =
+                case Size of
+                    default -> {?make_expr_int(8), LetDefs0};
+                    _ -> transpile_expr(Size, LetDefs0, Env)
+                end,
             transpile_binary_expression_segments(
-              [{bin_element, Ann, {integer, AnnS, I}, Size, Spec} || I <- S] ++ Rest,
-              Acc, LetDefs0, Env);
+              Rest,
+              [ #expr_app{
+                   function = ?make_expr_var("BIN.fromInts"),
+                   args =
+                       [ #expr_app{
+                            function = #expr_var{name = "toErl"},
+                            args = [#expr_string{value = S}]
+                           }
+                       , SizeExpr
+                       , #expr_num{value = Unit}
+                       , #expr_var{name = case Endian of
+                                              big -> "BIN.Big";
+                                              little -> "BIN.Little" end
+                                  }
+                       ]
+                  }
+              | Acc],
+              LetDefs1, Env);
 
         {_, _, #{type := Type, unit := Unit, endian := Endian}} ->
             {ExprVar, LetDefs1} = bind_expr("bin_el", Element, LetDefs0, Env),
