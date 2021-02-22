@@ -538,6 +538,8 @@ main =
       it "Match padded bitstring" do
         testExecOk ok erlps__test_match_padded_bitstring__0 []
 
+      it "Passes tests from erl_eval_suite" do
+        testExecOk ok erlps__test_cases_from_erl_eval__0 []
 
     describe_ "Code server" do
       it "Circular dependencies - One -> One local call" do
