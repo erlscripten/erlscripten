@@ -17,4 +17,5 @@
 -compile({no_auto_import, [length/1]}).
 
 test() ->
-    ok.
+    ok = ok.
+

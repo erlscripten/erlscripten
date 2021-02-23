@@ -1660,7 +1660,12 @@ transpile_expr({lc, _, Ret, []}, LetDefs0, Env) ->
     };
 transpile_expr({lc, _, Ret, [{generate, Ann, Pat, Source}|Rest]}, LetDefs0, Env) ->
     {SourceVar, LetDefs1} = bind_expr("lcSrc", Source, LetDefs0, Env),
-    {[PSPat], Guards} = transpile_pattern_sequence([Pat], Env),
+    PrevVars = state_get_vars(),
+    {[PSPat], Guards} = transpile_pattern_sequence(
+                          [Pat], Env#env{
+                                   overriden_pattern_vars =
+                                       sets:from_list(maps:keys(PrevVars))
+                                  }),
     Var = state_create_fresh_var("lc"),
     Gen =
         #expr_app{

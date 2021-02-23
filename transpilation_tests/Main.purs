@@ -44,6 +44,7 @@ import Scoping
 import Ordering
 import Binaries
 import Playground as Play
+import Simple.Test as Simpl
 import Test.Array
 import Array.SUITE
 --import Base64.SUITE as B64S
@@ -130,6 +131,10 @@ main =
             testExecOk ok erlps__test_too_big_int__0 []
         it "Comparator 1" do
             testExecOk ok erlps__test_comp1__0 []
+        it "List comprehension" do
+            testExecOk ok Simpl.erlps__list_comp__0 []
+        it "List subtraction" do
+            testExecOk ok Simpl.erlps__minusminus_op__0 []
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do
