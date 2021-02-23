@@ -26,10 +26,6 @@ clause(y) -> ko.
 pat_tuple({X, X}) -> ok;
 pat_tuple({{X, X}, {X, X, X}}) -> xd.
 
--if(?OTP_RELEASE >= 23).
-pat_list([X, X] ++ [X, X]) -> k;
--elif.
--endif.
 pat_list([H|T]) -> ok;
 pat_list([H|[H|G]]) -> ok;
 pat_list([]) -> nok;
@@ -81,6 +77,8 @@ list_comp() ->
     L = [X || X <- L],
     [{1,3,5}, {1,3,6}, {1,4,5}, {1,4,6}, {2,3,5}, {2,3,6}, {2,4,5}, {2,4,6}] =
 	[{X, Y, Z} || X <- [1,2], Y <- [3,4], Z <- [5,6]],
+    X = 2137,
+    [2,3,2,3,2,3] = [X || X <- [1,2,3], X <- [2,3]],
     ok.
 
 minusminus_op() ->
