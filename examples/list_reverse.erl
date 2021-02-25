@@ -6,7 +6,7 @@
 %% It is easier to understand when you realize that
 %% foldr is just a catamorphism in the F-algebra built
 %% on a `list` endofunctor in the category of Erlang
-%% types.
+%% types with arity-1 functions as morphisms.
 list_reverse(L) ->
   (lists:foldr(
    fun (E, Cont) ->
