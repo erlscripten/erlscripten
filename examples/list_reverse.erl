@@ -2,6 +2,11 @@
 
 -compile(export_all).
 
+%% Continuation passing based list reversal.
+%% It is easier to understand when you realize that
+%% foldr is just a catamorphism in the F-algebra built
+%% on a `list` endofunctor in the category of Erlang
+%% types.
 list_reverse(L) ->
   (lists:foldr(
    fun (E, Cont) ->
