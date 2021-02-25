@@ -403,7 +403,6 @@ check_builtin(Module, Name, Arity, #env{in_guard = InGuard}) ->
     Key = {Module, Name, Arity},
     Key1 = case {InGuard, special_guard_bifs()} of
                {true, #{Key := Key_ = {_, Name_, Arity_}}} ->
-                   erlps_logger:debug("Fixing in-guard BIF: ~s/~p -> ~s/~p",
                                       [Name, Arity, Name_, Arity_]),
                    Key_;
                _ -> Key
