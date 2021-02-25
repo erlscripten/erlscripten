@@ -189,17 +189,8 @@ transpile_function({function, _, FunName, Arity, Clauses},
     BadArity =
         #clause{
            args = [#pat_var{name = "args"}],
-           value = ?badarity(
-                      %% TODO: when the TCO detection gets unretarded, uncomment:
-                                                % ?make_expr_fun(Arity, #expr_var{name = PSFunName})
-                      %% ...and remove this lambda
-
-                      ?make_expr_fun(
-                         Arity,
-                         #expr_lambda{args = [pat_wildcard],
-                                      body =?make_expr_atom(purs_tco_sucks)
-                                     }),
-                      #expr_var{name = "args"})
+           value = ?badarity( ?make_expr_fun(Arity, #expr_var{name = PSFunName})
+                            , #expr_var{name = "args"})
           },
     case lists:search(
            fun({_, Module1, FunName1}) ->
@@ -402,9 +393,7 @@ builtins() ->
 check_builtin(Module, Name, Arity, #env{in_guard = InGuard}) ->
     Key = {Module, Name, Arity},
     Key1 = case {InGuard, special_guard_bifs()} of
-               {true, #{Key := Key_ = {_, Name_, Arity_}}} ->
-                                      [Name, Arity, Name_, Arity_]),
-                   Key_;
+               {true, #{Key := Key_}} -> Key_;
                _ -> Key
            end,
     case builtins() of
@@ -1414,8 +1403,9 @@ transpile_expr({'fun', _, {clauses, Clauses = [{clause, _, SomeArgs, _, _}|_]}},
         #letfun{
            name = FunVar,
            args = [#pat_var{name = "args"}],
-           body = ?badarity( ?make_expr_fun(Arity, #expr_var{name = FunVar})
-                           , #expr_var{name = "args"})
+           body = ?badarity
+                     ( ?make_expr_fun(Arity, #expr_var{name = FunVar})
+                     , #expr_var{name = "args"})
           },
     Lambda =
         #expr_app{
@@ -1476,17 +1466,9 @@ transpile_expr({'named_fun', _, Name, Clauses = [{clause, _, SomeArgs, _, _}|_]}
         #letfun{
            name = FunVar,
            args = [#pat_var{name = "args"}],
-           body = ?badarity(
-                     %% TODO: when the TCO detection gets unretarded, uncomment:
-                                                % ?make_expr_fun(Arity, #expr_var{name = FunVar})
-                     %% ...and remove this lambda
-
-                     ?make_expr_fun(
-                        Arity,
-                        #expr_lambda{args = [pat_wildcard],
-                                     body =?make_expr_atom(purs_tco_sucks)
-                                 }),
-                     #expr_var{name = "args"})
+           body = ?badarity
+                     ( ?make_expr_fun(Arity, #expr_var{name = FunVar})
+                     , #expr_var{name = "args"})
           },
     Lambda =
         #expr_app{
