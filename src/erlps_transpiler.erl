@@ -471,31 +471,32 @@ falsify_error_guard(Expr) ->
        args = [#expr_lambda{args = [pat_wildcard], body = Expr}]
       }.
 
-combine_guards([#guard_expr{guard = First}|Guards]) ->
-    combine_guards(Guards, First, Guards);
-combine_guards(Guards) ->
+combine_guards([#guard_expr{guard = First}|Guards], Op) ->
+    combine_guards(Guards, First, Guards, Op);
+combine_guards(Guards, _Op) ->
     Guards.
-combine_guards([], Acc, _) ->
-    [#guard_expr{guard = Acc}];
-combine_guards([#guard_expr{guard = G}|Rest], Acc, Init) ->
-    combine_guards(Rest, #expr_binop{name = "&&", lop = Acc, rop = G}, Init);
-combine_guards(_, _, Init) ->
+combine_guards([], Acc, _, _) ->
+    #guard_expr{guard = Acc};
+combine_guards([#guard_expr{guard = G}|Rest], Acc, Init, Op) ->
+    combine_guards(Rest, #expr_binop{name = Op, lop = Acc, rop = G}, Init, Op);
+combine_guards(_, _, Init, _) ->
     Init.
 
 transpile_boolean_guards([], _Env) -> [];
-transpile_boolean_guards([SingleConj], Env) ->
-    Env1 = Env#env{in_guard = true},
-    GSeq = [transpile_boolean_guards_singleton(E, Env1) || E <- SingleConj],
-    %% If all of them compiled to guards then we won :)
-    case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
-      [] -> combine_guards(lists:flatten(GSeq));
-      _ ->
-          %% Well - just fallback to the general case :P
-          transpile_boolean_guards_fallback([SingleConj], Env1)
-    end;
 transpile_boolean_guards(Guards, Env) ->
-    %% Well alternatives are hard and we don't worry about them right now :P
-    transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true}).
+    Env1 = Env#env{in_guard = true},
+    Conjs = [begin
+        GSeq = [transpile_boolean_guards_singleton(E, Env1) || E <- SingleConj],
+        %% If all of them compiled to guards then we won :)
+        case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
+          [] -> combine_guards(lists:flatten(GSeq), "&&");
+          _ -> error
+        end
+      end || SingleConj <- Guards],
+    case lists:filter(fun(error) -> true; (_) -> false end, Conjs) of
+      [] -> [combine_guards(Conjs, "||")];
+      _ -> transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true})
+    end.
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
     [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args =
@@ -556,6 +557,9 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{in
                                      [?make_expr_var(state_get_var(Var)),
                                       ?make_expr_int(Arity)
                                      ]}}];
+transpile_boolean_guards_singleton({var, _, Var}, _Env) ->
+  [#guard_expr{guard = #expr_app{ function = ?make_expr_var("(==)")
+                                , args = [?make_expr_atom(true), ?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
   when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
   case {transpile_boolean_guards_singleton(L, Env),
