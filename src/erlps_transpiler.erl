@@ -521,8 +521,14 @@ transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _En
 transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
     [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
                                        [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,binary},[{var,_,Var}]}, _Env) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEBinary"), args =
+                                       [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
+                                     [?make_expr_var(state_get_var(Var))]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,is_binary},[{var,_,Var}]}, _Env) ->
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEBinary"), args =
                                      [?make_expr_var(state_get_var(Var))]}}];
 transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
   [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args =
