@@ -19,3 +19,4 @@
 test() ->
     ok = ok.
 
+a(RelOp) when element(1, RelOp) =:= 2 -> RelOp.

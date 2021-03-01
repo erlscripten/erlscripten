@@ -557,6 +557,63 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{in
                                      [?make_expr_var(state_get_var(Var)),
                                       ?make_expr_int(Arity)
                                      ]}}];
+transpile_boolean_guards_singleton({call,_,{atom,_,element},[A1,A2]}, Env) ->
+  E1 = guard_trivial_expr(A1, Env),
+  E2 = guard_trivial_expr(A2, Env),
+  case {E1, E2} of
+    {error, _} -> error;
+    {_, error} -> error;
+    _ ->
+      [#guard_expr{guard = #expr_app{function = ?make_expr_var("onElement"), args =
+                                     [E1,
+                                      E2,
+                                      ?make_expr_var("(==)"),
+                                      ?make_expr_atom(true)
+                                     ]}}]
+  end;
+transpile_boolean_guards_singleton({op, _, Op0, {call,_,{atom,_,element},[A1,A2]}, Rop}, Env) ->
+  E1 = guard_trivial_expr(A1, Env),
+  E2 = guard_trivial_expr(A2, Env),
+  E3 = guard_trivial_expr(Rop, Env),
+  Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
+  F = fun(N) ->
+            [#guard_expr{
+                guard =
+                    #expr_app{function = ?make_expr_var("onElement"), args =
+                                     [E1,
+                                      E2,
+                                      ?make_expr_var(N),
+                                      E3
+                                     ]}
+                      }
+               ] end,
+  case {E1, E2, E3} of
+    {error, _, _} -> error;
+    {_, error, _} -> error;
+    {_, _, error} -> error;
+    _ ->
+      case Op of
+          "==" ->
+            F("weakEq");
+          "/=" ->
+            F("weakNEq");
+          "=:=" ->
+            F("(==)");
+          "=/=" ->
+            F("(/=)");
+          "=<" ->
+            F("weakLeq");
+          "<" ->
+            F("weakLt");
+          ">=" ->
+            F("weakGeq");
+          ">" ->
+            F("weakGt");
+          _ ->
+            erlps_logger:debug("Unhandled guard op ~p", [Op]),
+            error
+      end
+  end;
 transpile_boolean_guards_singleton({var, _, Var}, _Env) ->
   [#guard_expr{guard = #expr_app{ function = ?make_expr_var("(==)")
                                 , args = [?make_expr_atom(true), ?make_expr_var(state_get_var(Var))]}}];
