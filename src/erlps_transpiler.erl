@@ -625,6 +625,17 @@ transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
     {_, error} -> error;
     {LG, RG} -> [LG, RG]
   end;
+transpile_boolean_guards_singleton({op, _, Orelse, L, R}, Env)
+  when Orelse =:= 'orelse'; Orelse =:= "orelse" ->
+  case {transpile_boolean_guards_singleton(L, Env),
+        transpile_boolean_guards_singleton(R, Env)} of
+    {error, _} -> error;
+    {_, error} -> error;
+    {LG, RG} ->
+      #guard_expr{guard = A} = combine_guards(lists:flatten(LG), "&&"),
+      #guard_expr{guard = B} = combine_guards(lists:flatten(RG), "&&"),
+      [#guard_expr{guard = #expr_binop{name = "||", lop = A, rop = B}}]
+  end;
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),
     RE = guard_trivial_expr(Rop, Env),
