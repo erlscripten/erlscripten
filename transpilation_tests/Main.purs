@@ -135,6 +135,12 @@ main =
             testExecOk ok Simpl.erlps__list_comp__0 []
         it "List subtraction" do
             testExecOk ok Simpl.erlps__minusminus_op__0 []
+        it "Guards 1" do
+            testExecOk ok Simpl.erlps__test_guard_scope_1__0 []
+        it "Guards 2" do
+            testExecOk ok Simpl.erlps__test_guard_scope_2__0 []
+        it "Guards 3" do
+            testExecOk ok Simpl.erlps__test_guard_scope_3__0 []
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do

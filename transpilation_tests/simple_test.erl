@@ -92,3 +92,25 @@ minusminus_op() ->
     [] = [1,2,3] -- [1,2,3],
     [] = [1,2,3] -- [3,2,1],
     ok.
+
+test_guard_scope_1() ->
+    A = fun(X) when is_integer(X); element(1, X); X -> ok end,
+    ok = A(1),
+    B = fun(X) when is_integer(X) orelse element(1, X) orelse X -> ok end,
+    ok = B(1),
+    ok.
+
+test_guard_scope_2() ->
+    A = fun(X) when element(1, X); X -> ok;
+           (_) -> nok end,
+    B = fun(X) when element(1, X) orelse X -> ok;
+           (_) -> nok end,
+    ok = A(true),
+    nok = B(true),
+    ok.
+
+test_guard_scope_3() ->
+    A = fun(X) when length(X); X -> ok;
+           (_) -> nok end,
+    ok = A(true),
+    ok.

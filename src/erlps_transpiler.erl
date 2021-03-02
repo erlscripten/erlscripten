@@ -490,12 +490,13 @@ transpile_boolean_guards(Guards, Env) ->
         %% If all of them compiled to guards then we won :)
         case lists:filter(fun(error) -> true; (_) -> false end, GSeq) of
           [] -> combine_guards(lists:flatten(GSeq), "&&");
-          _ -> error
+          _ -> %% Fallback for some of them
+            [GF] = transpile_boolean_guards_fallback([SingleConj], Env#env{in_guard = true}),
+            GF
         end
       end || SingleConj <- Guards],
     case lists:filter(fun(error) -> true; (_) -> false end, Conjs) of
-      [] -> [combine_guards(Conjs, "||")];
-      _ -> transpile_boolean_guards_fallback(Guards, Env#env{in_guard = true})
+      [] -> [combine_guards(Conjs, "||")]
     end.
 
 transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
@@ -624,17 +625,6 @@ transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
     {error, _} -> error;
     {_, error} -> error;
     {LG, RG} -> [LG, RG]
-  end;
-transpile_boolean_guards_singleton({op, _, Orelse, L, R}, Env)
-  when Orelse =:= 'orelse'; Orelse =:= "orelse" ->
-  case {transpile_boolean_guards_singleton(L, Env),
-        transpile_boolean_guards_singleton(R, Env)} of
-    {error, _} -> error;
-    {_, error} -> error;
-    {LG, RG} ->
-      #guard_expr{guard = A} = combine_guards(lists:flatten(LG), "&&"),
-      #guard_expr{guard = B} = combine_guards(lists:flatten(RG), "&&"),
-      [#guard_expr{guard = #expr_binop{name = "||", lop = A, rop = B}}]
   end;
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_trivial_expr(Lop, Env),

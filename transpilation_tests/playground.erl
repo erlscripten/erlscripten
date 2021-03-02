@@ -19,4 +19,4 @@
 test() ->
     ok = ok.
 
-a(RelOp) when RelOp orelse RelOp -> RelOp.
+a(RelOp) when is_integer(RelOp); element(1, RelOp); RelOp -> RelOp.
