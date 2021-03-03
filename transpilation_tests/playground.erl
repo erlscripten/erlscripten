@@ -20,3 +20,9 @@ test() ->
     ok = ok.
 
 a(RelOp) when is_integer(RelOp); element(1, RelOp); RelOp -> RelOp.
+
+b(T) when element(1, T) =:= id orelse
+          element(1, T) =:= qid orelse
+          element(1, T) =:= con orelse
+          element(1, T) =:= qcon ->
+    ok.

@@ -499,68 +499,103 @@ transpile_boolean_guards(Guards, Env) ->
       [] -> [combine_guards(Conjs, "||")]
     end.
 
-transpile_boolean_guards_singleton({call,_,{atom,_,float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,number},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,pid},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEPid"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,tuple},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,atom},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,function},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,list},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,binary},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEBinary"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_list},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEList"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_binary},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEBinary"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isETuple"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_number},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isENum"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_integer},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEInt"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_float},[{var,_,Var}]}, _Env) ->
-    [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFloat"), args =
-                                       [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_atom},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEAtom"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_map},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEMap"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFun"), args =
-                                     [?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({call,_,{atom,_,is_function},[{var,_,Var},{integer,_,Arity}]}, _Env) ->
-  [#guard_expr{guard = #expr_app{function = ?make_expr_var("isEFunA"), args =
-                                     [?make_expr_var(state_get_var(Var)),
-                                      ?make_expr_int(Arity)
-                                     ]}}];
+%% -------------------------------------
+%% Old type tests
+transpile_boolean_guards_singleton({call,_,{atom,_,integer}, Args}, Env) ->
+  gen_guard_typecheck("isEInt", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,float}, Args}, Env) ->
+  gen_guard_typecheck("isEFloat", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,number}, Args}, Env) ->
+  gen_guard_typecheck("isENum", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,atom}, Args}, Env) ->
+  gen_guard_typecheck("isEAtom", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,list}, Args}, Env) ->
+  gen_guard_typecheck("isEList", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,tuple}, Args}, Env) ->
+  gen_guard_typecheck("isETuple", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,pid}, Args}, Env) ->
+  gen_guard_typecheck("isEPid", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,reference}, Args}, Env) ->
+  gen_guard_typecheck("isEReference", Args, Env);
+%% TODO: port
+transpile_boolean_guards_singleton({call,_,{atom,_,binary}, Args}, Env) ->
+  gen_guard_typecheck("isEBinary", Args, Env);
+%% TODO: record
+transpile_boolean_guards_singleton({call,_,{atom,_,function}, [A1]}, Env) ->
+  gen_guard_typecheck("isEFun", [A1], Env);
+
+%% -------------------------------------
+%% New type tests
+transpile_boolean_guards_singleton({call,_,{atom,_,is_atom}, Args}, Env) ->
+  gen_guard_typecheck("isEAtom", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_binary}, Args}, Env) ->
+  gen_guard_typecheck("isEBinary", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_bitstring}, Args}, Env) ->
+%% TODO: is_bitstring
+  gen_guard_typecheck("isEBinary", Args, Env);
+%% TODO: is_boolean
+transpile_boolean_guards_singleton({call,_,{atom,_,is_float}, Args}, Env) ->
+  gen_guard_typecheck("isEFloat", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_function}, [A1]}, Env) ->
+  gen_guard_typecheck("isEFun", [A1], Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_function}, [A1, A2]}, Env) ->
+  gen_guard_typecheck("isEFunA", [A1, A2], Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_integer}, Args}, Env) ->
+  gen_guard_typecheck("isEInt", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_list}, Args}, Env) ->
+  gen_guard_typecheck("isEList", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_map}, Args}, Env) ->
+  gen_guard_typecheck("isEMap", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_number}, Args}, Env) ->
+  gen_guard_typecheck("isENum", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_pid}, Args}, Env) ->
+  gen_guard_typecheck("isEPid", Args, Env);
+%% TODO: is_port
+%% TODO: is_record/2 Allowed in guard tests, if RecordTag is a literal atom.
+%% TODO: is_record/3 Allowed in guard tests if RecordTag is a literal atom and Size is a literal integer.
+transpile_boolean_guards_singleton({call,_,{atom,_,is_reference}, Args}, Env) ->
+  gen_guard_typecheck("isEReference", Args, Env);
+transpile_boolean_guards_singleton({call,_,{atom,_,is_tuple}, Args}, Env) ->
+  gen_guard_typecheck("isETuple", Args, Env);
+
+%% -------------------------------------
+%% Special cases
+%% Andalso can be split up even taking exceptions into account
+transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
+  when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
+  case {transpile_boolean_guards_singleton(L, Env),
+        transpile_boolean_guards_singleton(R, Env)} of
+    {error, _} -> error;
+    {_, error} -> error;
+    {LG, RG} -> [LG, RG]
+  end;
+%% Orelse is special as an exception in one of the alternatives shall falsify the entire statement
+%% TODO: Handle the special case element(X, T) op1 A1 orelse element(X, T) op2 A2, orelse element(X, T) op3 A3 ...
+%% TODO: As this pattern occurs pretty often
+%% If we can prove at compile time that the alternatives are exception safe then we may combine them using the || operator
+%% Problems arise if the called bifs may throw exceptions - type bifs and comparisons are well behaved in that regard
+transpile_boolean_guards_singleton({op, _, OrElse, L, R} = Expr, Env)
+  when OrElse =:= 'orelse'; OrElse =:= "orelse" ->
+  case is_exception_safe(Expr) of %% TODO: exponential with the amount of nested orelse :P just add a flag to the env that we ran this check here
+    true ->
+      case {transpile_boolean_guards_singleton(L, Env), transpile_boolean_guards_singleton(R, Env)} of
+        {error, _} -> error;
+        {_, error} -> error;
+        {LG, RG} ->
+          LPS = combine_guards(lists:flatten(LG), "&&"),
+          RPS = combine_guards(lists:flatten(RG), "&&"),
+          [combine_guards([LPS, RPS], "||")]
+      end;
+    false ->
+      %% TODO: check for element(X, T) op1 A1 orelse element(X, T) op2 A2, orelse element(X, T) op3 A3 etc...
+      %%erlps_logger:debug("Alternatives not exception safe - fallback ~p", [Expr]),
+      error
+  end;
+
+%% Standalone call to element
 transpile_boolean_guards_singleton({call,_,{atom,_,element},[A1,A2]}, Env) ->
-  E1 = guard_trivial_expr(A1, Env),
-  E2 = guard_trivial_expr(A2, Env),
+  E1 = guard_literal_expr(A1, Env),
+  E2 = guard_literal_expr(A2, Env),
   case {E1, E2} of
     {error, _} -> error;
     {_, error} -> error;
@@ -572,10 +607,11 @@ transpile_boolean_guards_singleton({call,_,{atom,_,element},[A1,A2]}, Env) ->
                                       ?make_expr_atom(true)
                                      ]}}]
   end;
+%% We compare a specific element
 transpile_boolean_guards_singleton({op, _, Op0, {call,_,{atom,_,element},[A1,A2]}, Rop}, Env) ->
-  E1 = guard_trivial_expr(A1, Env),
-  E2 = guard_trivial_expr(A2, Env),
-  E3 = guard_trivial_expr(Rop, Env),
+  E1 = guard_literal_expr(A1, Env),
+  E2 = guard_literal_expr(A2, Env),
+  E3 = guard_literal_expr(Rop, Env),
   Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
   F = fun(N) ->
             [#guard_expr{
@@ -615,20 +651,11 @@ transpile_boolean_guards_singleton({op, _, Op0, {call,_,{atom,_,element},[A1,A2]
             error
       end
   end;
-transpile_boolean_guards_singleton({var, _, Var}, _Env) ->
-  [#guard_expr{guard = #expr_app{ function = ?make_expr_var("(==)")
-                                , args = [?make_expr_atom(true), ?make_expr_var(state_get_var(Var))]}}];
-transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
-  when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
-  case {transpile_boolean_guards_singleton(L, Env),
-        transpile_boolean_guards_singleton(R, Env)} of
-    {error, _} -> error;
-    {_, error} -> error;
-    {LG, RG} -> [LG, RG]
-  end;
+%% General comparison between literals
+%% TODO: false == 1 > 3
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
-    LE = guard_trivial_expr(Lop, Env),
-    RE = guard_trivial_expr(Rop, Env),
+    LE = guard_literal_expr(Lop, Env),
+    RE = guard_literal_expr(Rop, Env),
     Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
     F = fun(N) ->
                 [#guard_expr{
@@ -664,20 +691,43 @@ transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
                   error
             end
     end;
-transpile_boolean_guards_singleton(_Expr, _Env) -> error.
+%% Try treating it as a literal expr and compare it against the true atom
+transpile_boolean_guards_singleton(Expr, Env) ->
+  case guard_literal_expr(Expr, Env) of
+    error -> error;
+    Lit ->
+      [#guard_expr{guard = #expr_app{ function = ?make_expr_var("(==)")
+                                    , args = [?make_expr_atom(true), Lit]}}]
+  end.
 
-guard_trivial_expr({var, _, V}, _Env) ->
-    #expr_var{name = state_get_var(V)};
-guard_trivial_expr({nil, _}, _Env) ->
-    ?make_expr_empty_list;
-guard_trivial_expr({atom, _, Atom}, _Env) ->
-    ?make_expr_atom(Atom);
-guard_trivial_expr({integer, _, Num}, _Env) ->
-    ?make_expr_int(Num);
-guard_trivial_expr({char, Ann, Num}, Env) ->
-    guard_trivial_expr({integer, Ann, Num}, Env);
-guard_trivial_expr(_Expr, _Env) ->
-    error.
+gen_guard_typecheck(Name, Args, Env) ->
+  with_guard_literals(Args, fun(Args) ->
+    [#guard_expr{guard = #expr_app{function = ?make_expr_var(Name), args = Args}}] end
+  , Env).
+
+with_guard_literals(Args, F, Env) ->
+  PSL = [guard_literal_expr(A, Env) || A <- Args],
+  case lists:filter(fun(error) -> true; (_) -> false end, PSL) of
+    [] -> F(PSL);
+    _ -> error
+  end.
+
+guard_literal_expr({var, _, V}, _Env) ->
+  #expr_var{name = state_get_var(V)};
+guard_literal_expr({nil, _}, _Env) ->
+  ?make_expr_empty_list;
+guard_literal_expr({atom, _, Atom}, _Env) ->
+  ?make_expr_atom(Atom);
+guard_literal_expr({integer, _, Num}, _Env) ->
+  ?make_expr_int(Num);
+guard_literal_expr({char, Ann, Num}, Env) ->
+  guard_literal_expr({integer, Ann, Num}, Env);
+guard_literal_expr({op, _, "-", {integer, Ann, Num}}, Env) ->
+  guard_literal_expr({integer, Ann, -Num}, Env);
+guard_literal_expr({op, _, '-', {integer, Ann, Num}}, Env) ->
+  guard_literal_expr({integer, Ann, -Num}, Env);
+guard_literal_expr(_Expr, _Env) ->
+  error.
 
 transpile_boolean_guards_fallback(Guards, Env) ->
     Alts = [
@@ -694,6 +744,29 @@ transpile_boolean_guards_fallback(Guards, Env) ->
                rop = falsify_error_guard(transpile_expr(E, Env#env{in_guard = true}))
               }
     }].
+
+is_exception_safe({call,_,{atom,_,What}, [A1]}) ->
+  erl_internal:type_test(What, 1) andalso is_exception_safe(A1);
+is_exception_safe({call,_,{atom,_,What}, [A1, A2]}) ->
+  erl_internal:type_test(What, 2) andalso is_exception_safe(A1) andalso is_exception_safe(A2);
+is_exception_safe({var, _, _}) -> true;
+is_exception_safe({nil, _}) -> true;
+is_exception_safe({atom,_,_}) -> true;
+is_exception_safe({integer,_,_}) -> true;
+is_exception_safe({char,_,_}) -> true;
+is_exception_safe({op, _, '-', {integer, _, _}}) -> true;
+is_exception_safe({op, _, Andalso, L, R})
+  when Andalso =:= 'andalso'; Andalso =:= "andalso" ->
+  is_exception_safe(L) andalso is_exception_safe(R);
+is_exception_safe({op, _, OrElse, L, R})
+  when OrElse =:= 'orelse'; OrElse =:= "orelse" ->
+  is_exception_safe(L) andalso is_exception_safe(R);
+is_exception_safe({op, _, Op, Expr}) ->
+  erl_internal:bool_op(Op, 1) andalso is_exception_safe(Expr);
+is_exception_safe({op, _, Op, Lop, Rop}) ->
+  (erl_internal:comp_op(Op, 2) orelse erl_internal:bool_op(Op, 2))
+    andalso is_exception_safe(Lop) andalso is_exception_safe(Rop);
+is_exception_safe(_) -> false.
 
 transpile_pattern_sequence(PatternSequence, Env) ->
     state_push_var_stack(), %% Push fully bound variables
