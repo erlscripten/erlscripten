@@ -514,7 +514,7 @@ transpile_boolean_guards_singleton({call,_,{atom,_,list}, Args}, Env) ->
 transpile_boolean_guards_singleton({call,_,{atom,_,tuple}, Args}, Env) ->
   gen_guard_typecheck("isETuple", Args, Env);
 transpile_boolean_guards_singleton({call,_,{atom,_,pid}, Args}, Env) ->
-  gen_guard_typecheck("isEPid", Args, Env);
+  gen_guard_typecheck("isEPID", Args, Env);
 transpile_boolean_guards_singleton({call,_,{atom,_,reference}, Args}, Env) ->
   gen_guard_typecheck("isEReference", Args, Env);
 %% TODO: port
@@ -549,7 +549,7 @@ transpile_boolean_guards_singleton({call,_,{atom,_,is_map}, Args}, Env) ->
 transpile_boolean_guards_singleton({call,_,{atom,_,is_number}, Args}, Env) ->
   gen_guard_typecheck("isENum", Args, Env);
 transpile_boolean_guards_singleton({call,_,{atom,_,is_pid}, Args}, Env) ->
-  gen_guard_typecheck("isEPid", Args, Env);
+  gen_guard_typecheck("isEPID", Args, Env);
 %% TODO: is_port
 %% TODO: is_record/2 Allowed in guard tests, if RecordTag is a literal atom.
 %% TODO: is_record/3 Allowed in guard tests if RecordTag is a literal atom and Size is a literal integer.
