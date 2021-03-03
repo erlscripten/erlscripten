@@ -570,14 +570,15 @@ transpile_boolean_guards_singleton({op, _, Andalso, L, R}, Env)
     {LG, RG} -> [LG, RG]
   end;
 %% Orelse is special as an exception in one of the alternatives shall falsify the entire statement
-%% TODO: Handle the special case element(X, T) op1 A1 orelse element(X, T) op2 A2, orelse element(X, T) op3 A3 ...
-%% TODO: As this pattern occurs pretty often
+%% Handle the special case element(X, T) op1 A1 orelse element(X, T) op2 A2, orelse element(X, T) op3 A3 ...
+%% As this pattern occurs pretty often
 %% If we can prove at compile time that the alternatives are exception safe then we may combine them using the || operator
 %% Problems arise if the called bifs may throw exceptions - type bifs and comparisons are well behaved in that regard
 transpile_boolean_guards_singleton({op, _, OrElse, L, R} = Expr, Env)
   when OrElse =:= 'orelse'; OrElse =:= "orelse" ->
   case is_exception_safe(Expr) of %% TODO: exponential with the amount of nested orelse :P just add a flag to the env that we ran this check here
     true ->
+      %% Great! We may optimize this case :)
       case {transpile_boolean_guards_singleton(L, Env), transpile_boolean_guards_singleton(R, Env)} of
         {error, _} -> error;
         {_, error} -> error;
@@ -587,9 +588,18 @@ transpile_boolean_guards_singleton({op, _, OrElse, L, R} = Expr, Env)
           [combine_guards([LPS, RPS], "||")]
       end;
     false ->
-      %% TODO: check for element(X, T) op1 A1 orelse element(X, T) op2 A2, orelse element(X, T) op3 A3 etc...
-      %%erlps_logger:debug("Alternatives not exception safe - fallback ~p", [Expr]),
-      error
+      %% Well not everything is lost yet
+      Alternatives = split_expr_by_orelse(Expr),
+      %%erlps_logger:debug("Alternatives not exception safe - fallback ~p", [Alternatives]),
+      case Alternatives of
+        [{op, _, _, {call, _, {atom, _, element}, [Lit, What]}, _}|_] ->
+          with_guard_literals([Lit, What],
+            fun([Lit, What]) ->
+              %%erlps_logger:debug("Trying to optimize multiple element calls ~p", [Alternatives]),
+              guard_element_opt(Alternatives, Lit, What, [], Env)
+            end, Env);
+        _ -> error
+      end
   end;
 
 %% Standalone call to element
@@ -652,7 +662,7 @@ transpile_boolean_guards_singleton({op, _, Op0, {call,_,{atom,_,element},[A1,A2]
       end
   end;
 %% General comparison between literals
-%% TODO: false == 1 > 3
+%% TODO: general exception safe operations
 transpile_boolean_guards_singleton({op, _, Op0, Lop, Rop}, Env) ->
     LE = guard_literal_expr(Lop, Env),
     RE = guard_literal_expr(Rop, Env),
@@ -728,6 +738,64 @@ guard_literal_expr({op, _, '-', {integer, Ann, Num}}, Env) ->
   guard_literal_expr({integer, Ann, -Num}, Env);
 guard_literal_expr(_Expr, _Env) ->
   error.
+
+split_expr_by_orelse({op, _, OrElse, L, R})
+  when OrElse =:= 'orelse'; OrElse =:= "orelse" ->
+  [L|split_expr_by_orelse(R)];
+split_expr_by_orelse(Expr) -> [Expr].
+
+guard_element_opt([], E1, E2, Acc0, _Env) ->
+  Acc = lists:reverse(Acc0),
+  %%erlps_logger:debug("Applying orelse + element/2 guard opt ~p", [Acc]),
+  [#guard_expr{guard = #expr_app{function = ?make_expr_var("onElement"), args =
+                               [E1,
+                                E2,
+                                #expr_lambda{
+                                 args = [#pat_var{name="x"}, pat_wildcard],
+                                 body = #expr_case{ expr = #expr_var{name="x"}
+                                                  , cases =
+                                                    [{ pat_wildcard
+                                                     , [ #guard_expr{
+                                                         guard = #expr_app{ function = #expr_var{name=C}
+                                                                          , args = [ #expr_var{name="x"}
+                                                                                   , W
+                                                                                   ]
+                                                                          }
+                                                        }
+                                                       ]
+                                                     , #expr_var{name = "true"}} || {C, W} <- Acc] ++
+                                                    [{pat_wildcard, [], #expr_var{name = "false"}}]}
+                                },
+                                ?make_expr_empty_list
+                               ]}}];
+guard_element_opt([{op, _, Op0, {call, _, {atom, _, element}, [Lit, What]}, R}|T], Lit1, What1, Acc, Env) ->
+  with_guard_literals([Lit, What, R],
+    fun
+      ([Lit, What, R]) when Lit1 =:= Lit, What1 =:= What ->
+        F = fun(N) -> guard_element_opt(T, Lit1, What1, [{N, R}|Acc], Env) end,
+        Op = case Op0 of _ when is_atom(Op0) -> atom_to_list(Op0); _ -> Op0 end,
+        case Op of
+          "==" ->
+            F("weakEq");
+          "/=" ->
+            F("weakNEq");
+          "=:=" ->
+            F("(==)");
+          "=/=" ->
+            F("(/=)");
+          "=<" ->
+            F("weakLeq");
+          "<" ->
+            F("weakLt");
+          ">=" ->
+            F("weakGeq");
+          ">" ->
+            F("weakGt");
+          _ ->
+            error
+        end;
+      (_) -> error
+    end, Env).
 
 transpile_boolean_guards_fallback(Guards, Env) ->
     Alts = [

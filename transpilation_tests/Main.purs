@@ -141,6 +141,8 @@ main =
             testExecOk ok Simpl.erlps__test_guard_scope_2__0 []
         it "Guards 3" do
             testExecOk ok Simpl.erlps__test_guard_scope_3__0 []
+        it "Guards 4" do
+            testExecOk ok Simpl.erlps__test_guard_scope_4__0 []
 
     describe_ "STDLIB Lists" do
         it "reverse/1" do

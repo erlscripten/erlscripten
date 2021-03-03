@@ -114,3 +114,34 @@ test_guard_scope_3() ->
            (_) -> nok end,
     ok = A(true),
     ok.
+
+%% Preferential treatment of calls to element/2 in guards
+test_guard_scope_4() ->
+    A = fun(T) when element(1, T) =:= id orelse
+                    element(1, T) =:= qid orelse
+                    element(1, T) =:= con orelse
+                    element(1, T) =:= qcon -> ok;
+           (_) -> nok end,
+    ok = A({id}),
+    ok = A({qid}),
+    ok = A({con}),
+    ok = A({qcon}),
+    nok = A({}),
+    nok = A([]),
+    nok = A(asdf),
+    B = fun(X) when element(1, X) > 10 -> ok;
+           (_) -> nok end,
+    nok = B([]),
+    nok = B({1}),
+    nok = B({10}),
+    ok = B({11}),
+    C = fun(X) when element(1, X) < 10 orelse element(1, X) > 100 -> ok;
+       (_) -> nok end,
+    ok = C({9}),
+    nok = C({10}),
+    nok = C({11}),
+    nok = C({99}),
+    nok = C({100}),
+    ok = C({101}),
+    ok = C({not_a_number}), %% Atoms are always larger than numbers
+    ok.
