@@ -230,14 +230,14 @@ escape_string([C|S], A) ->
     true -> escape_string(S, [C|A]);
     false when C < 256 ->
       %% Normal string
-      escape_string(S, [hexify(C rem 16),hexify(C div 16),$x,$\\|A]);
+      escape_string(S, [hexify(C rem 16),hexify(C div 16),$0,$0,$0,$0,$x,$\\|A]);
     false when C < 65536 ->
       %% Unicode...
       A1 = C rem 16, C1 = C div 16,
       A2 = C1 rem 16, C2 = C1 div 16,
       A3 = C2 rem 16,
       A4 = C2 div 16,
-      escape_string(S, [hexify(A1),hexify(A2),hexify(A3),hexify(A4),$x,$\\|A])
+      escape_string(S, [hexify(A1),hexify(A2),hexify(A3),hexify(A4),$0,$0,$x,$\\|A])
   end.
 
 hexify(X) when X >= 0, X =< 9 -> X + $0;
