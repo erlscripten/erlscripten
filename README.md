@@ -25,7 +25,7 @@
 - Erlang's standard library (most essential modules; `lists`, `maps`, `string`, etc.)
 - Erlang builtins (growing and growing!)
 - Rebar project transpilation
-- ETS
+- ETS (missing only `duplicate_bag` implementation)
 
 ## What will be supported?
 - Bitstrings
@@ -37,12 +37,13 @@
 - Hot code reloading
 - Distributed erlang
 
+<!--
 ## How it works?
 TODO
 
 ## How to create production javascript bundles
 TODO - write about rollup
-
+-->
 
 ------------------------------
 
