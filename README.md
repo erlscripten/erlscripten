@@ -55,6 +55,14 @@ language](https://github.com/erlscripten/erlps-aesophia). Not only the
 project serves as an entirely working utility, but also runs a decent
 amount of transpiled and handwritten tests.
 
+*Note*: In order to compile the produced PureScript into JavaScript we
+strongly advise using [our forked PureScript
+compiler](https://github.com/erlscripten/purescript). It contains
+numerous bugfixes, optimizations and takes entirely different approach
+to pattern matching, tail-call optimization and code generation which
+have huge impact on the performance of the generated code and the
+build time.
+
 ## Code example
 
 The examples are presented in the
@@ -98,7 +106,7 @@ erlps__factorial__2 args =
   EXC.badarity (ErlangFun 2 erlps__factorial__2) args
 ```
 
-Note: The generated code doesn't target to be readable, but rather to
+Please note that the generated code doesn't target to be readable, but rather to
 preserve the semantics of Erlang. This includes, but isn't limited to
 exceptions behavior, function arguments evaluation order and side
 effects. Some efforts, however, have been made to ease the process of
