@@ -8,10 +8,10 @@ is a strongly and statically typed functional language heavily
 inspired by Haskell which compiles down to JavaScript. Taking
 PureScript as an intermediary step, Erlscripten allows you to take
 your existing Erlang application and easily ship it out to JavaScript
-users — your Erlang code can now run safely in the browser - enabling
+users – your Erlang code can now run safely in the browser – enabling
 code sharing between an Erlang backend and the frontend. It is highly
-interoperable with JavaScript - JavaScript can easily call the
-transpiled code and then make use of the results — you can easily map
+interoperable with JavaScript – JavaScript can easily call the
+transpiled code and then make use of the results – you can easily map
 Erlang constructs and types to readily available JS constructs.
 
 See it in action!
