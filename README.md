@@ -1,11 +1,11 @@
 ![](images/logo_banner.png)
 # Erlscripten – Erlang to PureScript transpiler! 
 
-Erlscripten (sic not Emscripten!) is a source to source transpiler
+Erlscripten (sic not Emscripten!) is a source-to-source transpiler
 capable of converting most Erlang codebases into semantically
 equivalent [PureScript](https://purescript.org) projects. PureScript
 is a strongly and statically typed functional language heavily
-inspired by Haskell which compiles down to JavaScript. Taking
+inspired by Haskell, which compiles down to JavaScript. Taking
 PureScript as an intermediary step, Erlscripten allows you to take
 your existing Erlang application and easily ship it out to JavaScript
 users – your Erlang code can now run safely in the browser – enabling
@@ -18,14 +18,14 @@ See it in action!
 
 ![](images/demo_transpile.gif)
 
-The Erlscripten project consists of several repositories:
+The Erlscripten project consists of the following repositories:
 
 - [erlscripten](https://github.com/erlscripten/erlscripten) –
   (recursive link) The main brain of the transpiler. Contains
   algorithms responsible for code translation, [parse
   transform](https://erlang.org/doc/man/erl_id_trans.html#parse_transform-2)
   functionality and simple rebar project support.
-- [erlps-core](https://github.com/erlscripten/erlps-stdlib) –
+- [erlps-core](https://github.com/erlscripten/erlps-core) –
   Implementation of the ERTS in PureScript and JavaScript. Contains
   main definitions of Erlang datatypes in PureScript, builtin
   functions and Erlang process emulator. Provides utilities for
@@ -42,12 +42,11 @@ Here is a demo of Erlang standard library transpilation process
 
 ![](images/demo_bench.gif)
 
-As you can see, a vast majority of the modules are transpiled
-successfully. Aside from casual QuickCheck tests we re-use the
+Aside from casual QuickCheck tests we re-use the
 existing tests from Erlang stdlib and run them on the PureScript
 side. The problematic libraries that cause Erlscripten to struggle
 usually rely on not-yet-implemented builtins, NIFs and more advanced
-features of Erlang Run-Time System.
+features of the Erlang Run-Time System.
 
 As a practical example you may want to check out the transpiled
 [compiler of the Sophia smart contract
@@ -106,11 +105,11 @@ erlps__factorial__2 args =
   EXC.badarity (ErlangFun 2 erlps__factorial__2) args
 ```
 
-Please note that the generated code doesn't target to be readable, but rather to
+One should note that the generated code doesn't mean to be readable, but rather to
 preserve the semantics of Erlang. This includes, but isn't limited to
 exceptions behavior, function arguments evaluation order and side
 effects. Some efforts, however, have been made to ease the process of
-debugging and reasoning about the produced PureScript.
+debugging and reasoning about produced PureScript.
 
 # Status quo
 
