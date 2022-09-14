@@ -243,8 +243,15 @@ transpile_fun_name(Name, Arity) when is_atom(Name) ->
 transpile_fun_name(Name, Arity) when is_binary(Name) ->
     transpile_fun_name(binary_to_list(Name), Arity);
 transpile_fun_name(Name, Arity) ->
-    lists:flatten(io_lib:format("erlps__~s__~p", [Name, Arity])).
-
+    Escape = fun(C) when (C >= $a andalso C =< $z) orelse
+                         (C >= $A andalso C =< $Z) orelse
+                         (C >= $0 andalso C =< $9) orelse
+                         (C == $_)
+                    -> [C];
+                (C) -> integer_to_list(C)
+             end,
+    NameS = lists:flatmap(Escape, Name),
+    lists:flatten(io_lib:format("erlps__~s__~p", [NameS, Arity])).
 
 special_guard_bifs() ->
     maps:from_list(lists:concat(
